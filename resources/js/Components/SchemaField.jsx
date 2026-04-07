@@ -1,9 +1,4 @@
-const ENTITY_COLORS = {
-    Insured: 'text-blue-700',
-    Policy:  'text-green-700',
-    Driver:  'text-orange-700',
-    Vehicle: 'text-purple-700',
-};
+import { NOWCERTS_ENTITY_COLORS } from '@/constants/nowcerts';
 
 export default function SchemaField({ field, depth = 0, mappings, availableFields, onChange }) {
     const name         = field.Name         ?? field.name         ?? '—';
@@ -68,7 +63,7 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                         onChange={handleChange}
                         className={`w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white
                             focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                            ${current ? ENTITY_COLORS[current.entity] ?? 'text-gray-700' : 'text-gray-400'}`}
+                            ${current ? NOWCERTS_ENTITY_COLORS[current.entity] ?? 'text-gray-700' : 'text-gray-400'}`}
                     >
                         <option value="">— unmapped —</option>
                         {Object.entries(availableFields).map(([entity, fieldList]) => (

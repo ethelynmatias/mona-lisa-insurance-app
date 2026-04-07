@@ -42,7 +42,7 @@ cd mona-lisa-insurance
 cp .env.example .env
 ```
 
-Edit `.env` if you need to change the default credentials:
+Edit `.env` with your credentials:
 
 ```env
 APP_NAME="Mona Lisa Insurance"
@@ -52,6 +52,13 @@ DB_DATABASE=mona_lisa_insurance
 DB_USERNAME=sail
 DB_PASSWORD=password
 DB_ROOT_PASSWORD=rootpassword
+
+# Cognito Forms
+COGNITO_API_KEY=your_cognito_api_key
+
+# NowCerts
+NOWCERTS_USERNAME=your_nowcerts_email
+NOWCERTS_PASSWORD=your_nowcerts_password
 ```
 
 ### 3. Build and start
@@ -68,7 +75,15 @@ On first boot the container automatically:
 
 The app will be available at **http://localhost:8000**.
 
-### 4. Build frontend assets
+### 4. Install Node dependencies inside the container
+
+```bash
+make npm-install
+```
+
+> Required after cloning or whenever new npm packages are added (e.g. `ziggy-js`).
+
+### 5. Build frontend assets
 
 ```bash
 make build-assets   # compiles React + Tailwind via Vite
@@ -77,7 +92,7 @@ make build-assets   # compiles React + Tailwind via Vite
 > Run this once after first install, and again whenever you want a production build.
 > During active development use `make dev` instead (see below).
 
-### 5. Seed the database
+### 6. Seed the database
 
 ```bash
 make seed
@@ -91,20 +106,30 @@ This creates the default admin account (see [User Roles](#user-roles) below).
 
 The application supports two roles: **admin** and **manager**.
 
-| Role      | Description                              |
-|-----------|------------------------------------------|
-| `admin`   | Full access to all features              |
+| Role      | Description                               |
+|-----------|-------------------------------------------|
+| `admin`   | Full access including user management     |
 | `manager` | Standard access for day-to-day operations |
 
 ### Default Accounts
 
-| Role    | Email                   | Password   |
-|---------|-------------------------|------------|
-| Admin   | `admin@monalisa.com`    | `MNL452$$` |
+| Role  | Email                 | Password   |
+|-------|-----------------------|------------|
+| Admin | `admin@monalisa.com`  | `MNL452$$` |
 
 Run `make seed` to create the accounts. The seeder uses `firstOrCreate` — safe to run multiple times without creating duplicates.
 
 > **Important:** Change default passwords after first login in a production environment.
+
+### Changing a user's role via Tinker
+
+```bash
+make tinker
+```
+
+```php
+User::where('email', 'admin@monalisa.com')->update(['role' => 'admin']);
+```
 
 ### Protecting Routes by Role
 
@@ -136,6 +161,25 @@ if (auth.user.role === 'admin') {
     // show admin-only UI
 }
 ```
+
+---
+
+## Settings
+
+The **Settings** page (`/settings`) is accessible from the sidebar and the user dropdown menu.
+
+### Profile & Password
+
+Every logged-in user can:
+- Update their **name** and **email address** (duplicate emails are blocked)
+- Change their **password** (requires current password, enforces strong password rules)
+
+### User Management (Admin only)
+
+Admins can:
+- **Create** new users with a name, email, password, and role
+- **View** all users in a table with role badges and creation dates
+- **Delete** any user except their own account
 
 ---
 
@@ -197,6 +241,25 @@ make migrate-fresh-seed
 
 ---
 
+## Environment Encryption
+
+Laravel's built-in `.env` encryption keeps secrets out of plain-text files.
+
+```bash
+# Encrypt .env → generates .env.encrypted + prints the key
+php artisan env:encrypt
+
+# Decrypt on another machine (store the key as a secret in CI/CD)
+php artisan env:decrypt --key=base64:...
+
+# Force overwrite an existing .env
+php artisan env:decrypt --key=base64:... --force
+```
+
+Commit `.env.encrypted` to the repository. Keep `.env` in `.gitignore` (default).
+
+---
+
 ## Cache & Optimisation
 
 ```bash
@@ -236,6 +299,8 @@ Required after changes to `Dockerfile`, `docker-compose.yml`, or PHP/Node depend
 make down
 make build    # rebuild images from scratch (no cache)
 make up
+make npm-install
+make build-assets
 ```
 
 ---
@@ -257,19 +322,22 @@ mona-lisa-insurance/
 │   │   ├── Controllers/
 │   │   │   ├── Auth/
 │   │   │   │   └── AuthenticatedSessionController.php
-│   │   │   └── CognitoController.php   # Dashboard + form details pages
+│   │   │   ├── CognitoController.php   # Dashboard + form details pages
+│   │   │   └── SettingsController.php  # Profile, password, user management
 │   │   ├── Middleware/
-│   │   │   ├── HandleInertiaRequests.php
+│   │   │   ├── HandleInertiaRequests.php  # Shares auth, flash, ziggy props
 │   │   │   └── RoleMiddleware.php
 │   │   └── Traits/
 │   │       └── PaginatesArray.php      # Reusable search/sort/pagination for arrays
 │   ├── Models/
+│   │   ├── FormFieldMapping.php        # Persisted Cognito → NowCerts field mappings
 │   │   └── User.php                    # isAdmin() / isManager() helpers
 │   └── Services/
 │       ├── CognitoFormsService.php     # Cognito Forms REST API client
 │       ├── NowCertsService.php         # NowCerts REST API client
 │       └── NowCertsFieldMapper.php     # Maps Cognito form fields → NowCerts fields
-├── bootstrap/                          # Laravel bootstrap & middleware registration
+├── bootstrap/
+│   └── providers.php                   # Registers ZiggyServiceProvider
 ├── config/
 │   ├── cognito.php                     # Cognito Forms API config
 │   └── nowcerts.php                    # NowCerts API config
@@ -281,23 +349,25 @@ mona-lisa-insurance/
 ├── resources/
 │   ├── css/app.css                     # Tailwind CSS entry point
 │   ├── js/
-│   │   ├── app.jsx                     # Inertia + React bootstrap
+│   │   ├── app.jsx                     # Inertia + React bootstrap + Ziggy route()
 │   │   ├── Layouts/
 │   │   │   └── AuthenticatedLayout.jsx # Sidebar + header layout
 │   │   ├── Components/
 │   │   │   ├── Pagination.jsx          # Reusable pagination component
-│   │   │   ├── SchemaField.jsx         # Renders a single form schema field row
+│   │   │   ├── SchemaField.jsx         # Schema field table row with NowCerts dropdown
 │   │   │   ├── SearchInput.jsx         # Reusable search input with icon
 │   │   │   ├── SortableHeader.jsx      # Sortable table header with direction arrows
 │   │   │   └── StatusBadge.jsx         # Active/Inactive status badge
 │   │   ├── constants/
+│   │   │   ├── nowcerts.js             # NOWCERTS_ENTITY_COLORS
 │   │   │   └── statusOptions.js        # STATUS_OPTIONS array (all/active/inactive)
 │   │   └── Pages/
 │   │       ├── Auth/
 │   │       │   └── Login.jsx           # Login page (home)
 │   │       ├── Cognito/
-│   │       │   └── FormDetails.jsx     # Form details + schema with search & pagination
-│   │       └── Dashboard.jsx           # Cognito Forms listing
+│   │       │   └── FormDetails.jsx     # Form details + schema with mapping dropdowns
+│   │       ├── Dashboard.jsx           # Cognito Forms listing
+│   │       └── Settings.jsx            # Profile, password, user management
 │   └── views/app.blade.php             # Single Blade template (Inertia root)
 ├── routes/
 │   └── web.php                         # Web routes
@@ -338,12 +408,12 @@ $cognito->deleteEntry($formId, $id);         // delete entry
 
 ### NowCerts
 
-Insurance management system. The service maps Cognito form submissions to NowCerts records.
+Insurance management system. Cognito form field schemas can be mapped to NowCerts API fields directly from the Form Details page.
 
-| Variable              | Description                         |
-|-----------------------|-------------------------------------|
-| `NOWCERTS_USERNAME`   | NowCerts account username (email)   |
-| `NOWCERTS_PASSWORD`   | NowCerts account password           |
+| Variable              | Description                              |
+|-----------------------|------------------------------------------|
+| `NOWCERTS_USERNAME`   | NowCerts account username (email)        |
+| `NOWCERTS_PASSWORD`   | NowCerts account password                |
 | `NOWCERTS_BASE_URL`   | Default: `https://api.nowcerts.com/api/` |
 
 **Service:** `app/Services/NowCertsService.php`
@@ -386,9 +456,13 @@ $nowcerts->getCarriers();
 $nowcerts->getLinesOfBusiness();
 ```
 
-#### Field Mapping
+#### Field Mapping UI
 
-`NowCertsFieldMapper` translates Cognito form entry fields into NowCerts API payloads:
+On the **Form Details** page, each Cognito form schema field has a dropdown to select the corresponding NowCerts entity and field. Click **Save Mappings** to persist to the database.
+
+Mappings are stored in the `form_field_mappings` table and override the default mapper on subsequent loads.
+
+#### Programmatic Field Mapping
 
 ```php
 $mapper = new NowCertsFieldMapper();
@@ -411,6 +485,19 @@ $mapper = new NowCertsFieldMapper([
         'Pol_Number' => 'Number',
     ],
 ]);
+```
+
+---
+
+### Ziggy (Laravel Routes in JavaScript)
+
+Ziggy exposes Laravel named routes to the frontend via the `route()` helper.
+
+The route list is injected into every page via the `@routes` Blade directive and shared as an Inertia prop. No additional setup is needed — `route()` is available globally in all React components.
+
+```jsx
+// Example usage
+router.post(route('forms.mappings.save', { formId }), payload);
 ```
 
 ---
