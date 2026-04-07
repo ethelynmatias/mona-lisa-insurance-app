@@ -97,8 +97,8 @@ export default function Dashboard() {
                                     <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
                                         <th className="px-5 py-3 font-medium">Form Name</th>
                                         <th className="px-5 py-3 font-medium hidden md:table-cell">Form ID</th>
-                                        <th className="px-5 py-3 font-medium">Entries</th>
                                         <th className="px-5 py-3 font-medium">Status</th>
+                                        <th className="px-5 py-3 font-medium" />
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
@@ -121,30 +121,27 @@ export default function Dashboard() {
                                             </td>
                                         </tr>
                                     ) : (
-                                        forms.map((form) => {
-                                            const entryCount = form.EntryCount
-                                                ?? form.entryCount
-                                                ?? form.Entries?.length
-                                                ?? form.entries?.length
-                                                ?? 0;
-
-                                            return (
-                                                <tr key={form.Id ?? form.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="px-5 py-3.5 font-medium text-gray-900">
-                                                        {form.Name ?? form.name}
-                                                    </td>
-                                                    <td className="px-5 py-3.5 hidden md:table-cell font-mono text-xs text-gray-400">
-                                                        {form.Id ?? form.id}
-                                                    </td>
-                                                    <td className="px-5 py-3.5 text-gray-600">
-                                                        {Number(entryCount).toLocaleString()}
-                                                    </td>
-                                                    <td className="px-5 py-3.5">
-                                                        <StatusBadge available={form.IsAvailable ?? form.isAvailable ?? false} />
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
+                                        forms.map((form) => (
+                                            <tr key={form.Id ?? form.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-5 py-3.5 font-medium text-gray-900">
+                                                    {form.Name ?? form.name}
+                                                </td>
+                                                <td className="px-5 py-3.5 hidden md:table-cell font-mono text-xs text-gray-400">
+                                                    {form.Id ?? form.id}
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <StatusBadge available={form.IsAvailable ?? form.isAvailable ?? false} />
+                                                </td>
+                                                <td className="px-5 py-3.5 text-right">
+                                                    <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                                                        View Details
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                        </svg>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
                                     )}
                                 </tbody>
                             </table>
