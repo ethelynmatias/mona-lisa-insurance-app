@@ -3,17 +3,14 @@ import { router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SearchInput from '@/Components/SearchInput';
 import Pagination from '@/Components/Pagination';
-import { STATUS_OPTIONS } from '@/constants/statusOptions';
-import StatusBadge from '@/Components/StatusBadge';
 
 export default function Dashboard() {
-    const { forms, search: initialSearch, status: initialStatus, pagination, error } = usePage().props;
+    const { forms, search: initialSearch, pagination, error } = usePage().props;
 
     const [search, setSearch] = useState(initialSearch ?? '');
-    const [status, setStatus] = useState(initialStatus ?? 'all');
 
     const navigate = (params) => {
-        router.get('/dashboard', { search, status, page: 1, ...params }, {
+        router.get('/dashboard', { search, page: 1, ...params }, {
             preserveState: true,
             replace: true,
         });
@@ -24,16 +21,9 @@ export default function Dashboard() {
         navigate({ search: value, page: 1 });
     };
 
-    const handleStatus = (value) => {
-        setStatus(value);
-        navigate({ status: value, page: 1 });
-    };
-
     const handlePageChange = (page) => {
         navigate({ page });
     };
-
-    const hasFilters = search || status !== 'all';
 
     return (
         <AuthenticatedLayout title="Dashboard">
@@ -49,33 +39,13 @@ export default function Dashboard() {
                 <div className="bg-white rounded-xl border border-gray-200">
 
                     {/* Toolbar */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 px-5 py-4 border-b border-gray-100">
+                    <div className="px-5 py-4 border-b border-gray-100">
                         <SearchInput
                             value={search}
                             onChange={handleSearch}
                             placeholder="Search forms by name…"
                             className="w-full sm:max-w-xs"
                         />
-
-                        {/* Status filter */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-500 whitespace-nowrap">Status:</span>
-                            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
-                                {STATUS_OPTIONS.map(({ value, label }) => (
-                                    <button
-                                        key={value}
-                                        onClick={() => handleStatus(value)}
-                                        className={`px-3 py-1.5 font-medium transition-colors
-                                            ${status === value
-                                                ? 'bg-blue-600 text-white'
-                                                : 'text-gray-600 hover:bg-gray-50 bg-white'
-                                            }`}
-                                    >
-                                        {label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
                     </div>
 
                     {/* Error */}
@@ -97,25 +67,24 @@ export default function Dashboard() {
                                     <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
                                         <th className="px-5 py-3 font-medium">Form Name</th>
                                         <th className="px-5 py-3 font-medium hidden md:table-cell">Form ID</th>
-                                        <th className="px-5 py-3 font-medium">Status</th>
                                         <th className="px-5 py-3 font-medium" />
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {forms.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} className="px-5 py-16 text-center">
+                                            <td colSpan={3} className="px-5 py-16 text-center">
                                                 <svg className="mx-auto w-10 h-10 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                                                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                 </svg>
                                                 <p className="text-gray-400 text-sm">No forms found</p>
-                                                {hasFilters && (
+                                                {search && (
                                                     <button
-                                                        onClick={() => { setSearch(''); setStatus('all'); navigate({ search: '', status: 'all', page: 1 }); }}
+                                                        onClick={() => handleSearch('')}
                                                         className="mt-2 text-sm text-blue-600 hover:underline"
                                                     >
-                                                        Clear filters
+                                                        Clear search
                                                     </button>
                                                 )}
                                             </td>
@@ -128,9 +97,6 @@ export default function Dashboard() {
                                                 </td>
                                                 <td className="px-5 py-3.5 hidden md:table-cell font-mono text-xs text-gray-400">
                                                     {form.Id ?? form.id}
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <StatusBadge available={form.IsAvailable ?? form.isAvailable ?? false} />
                                                 </td>
                                                 <td className="px-5 py-3.5 text-right">
                                                     <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
