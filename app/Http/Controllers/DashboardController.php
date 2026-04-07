@@ -15,11 +15,18 @@ class DashboardController extends Controller
 
     public function __invoke(Request $request): Response
     {
-        $forms = [];
-        $error = null;
+        $status = $request->string('status', 'all')->toString();
+        $forms  = [];
+        $error  = null;
 
         try {
             $forms = app(CognitoFormsService::class)->getForms();
+
+            if ($status === 'active') {
+                $forms = array_values(array_filter($forms, fn ($f) => ($f['IsAvailable'] ?? false) === true));
+            } elseif ($status === 'inactive') {
+                $forms = array_values(array_filter($forms, fn ($f) => ($f['IsAvailable'] ?? false) === false));
+            }
         } catch (RuntimeException $e) {
             $error = $e->getMessage();
         }
@@ -29,6 +36,7 @@ class DashboardController extends Controller
         return Inertia::render('Dashboard', [
             'forms'      => $paginated['items'],
             'search'     => $paginated['search'],
+            'status'     => $status,
             'pagination' => $paginated['pagination'],
             'error'      => $error,
         ]);
