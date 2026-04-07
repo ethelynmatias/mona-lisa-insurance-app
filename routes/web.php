@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\CognitoController;
 use Illuminate\Support\Facades\Route;
 
 // Guest only
@@ -12,7 +12,8 @@ Route::middleware('guest')->group(function () {
 
 // Authenticated only
 Route::middleware('auth')->group(function () {
-    Route::get('/dashboard', DashboardController::class)->name('dashboard');
+    Route::get('/dashboard',              [CognitoController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/forms/{formId}', [CognitoController::class, 'show'])->name('forms.show');
 
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 });

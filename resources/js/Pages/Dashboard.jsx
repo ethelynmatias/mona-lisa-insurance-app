@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { router, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SearchInput from '@/Components/SearchInput';
 import Pagination from '@/Components/Pagination';
@@ -121,12 +121,15 @@ export default function Dashboard() {
                                                     {form.Id ?? form.id}
                                                 </td>
                                                 <td className="px-5 py-3.5 text-right">
-                                                    <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                                                    <Link
+                                                        href={`/dashboard/forms/${form.Id ?? form.id}`}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                                                    >
                                                         View Details
                                                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                         </svg>
-                                                    </button>
+                                                    </Link>
                                                 </td>
                                             </tr>
                                         ))
