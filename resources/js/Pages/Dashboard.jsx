@@ -3,14 +3,17 @@ import { router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SearchInput from '@/Components/SearchInput';
 import Pagination from '@/Components/Pagination';
+import SortableHeader from '@/Components/SortableHeader';
 
 export default function Dashboard() {
-    const { forms, search: initialSearch, pagination, error } = usePage().props;
+    const { forms, search: initialSearch, sort: initialSort, direction: initialDirection, pagination, error } = usePage().props;
 
-    const [search, setSearch] = useState(initialSearch ?? '');
+    const [search,    setSearch]    = useState(initialSearch    ?? '');
+    const [sort,      setSort]      = useState(initialSort      ?? '');
+    const [direction, setDirection] = useState(initialDirection ?? 'asc');
 
     const navigate = (params) => {
-        router.get('/dashboard', { search, page: 1, ...params }, {
+        router.get('/dashboard', { search, sort, direction, page: 1, ...params }, {
             preserveState: true,
             replace: true,
         });
@@ -19,6 +22,12 @@ export default function Dashboard() {
     const handleSearch = (value) => {
         setSearch(value);
         navigate({ search: value, page: 1 });
+    };
+
+    const handleSort = (field, dir) => {
+        setSort(field);
+        setDirection(dir);
+        navigate({ sort: field, direction: dir, page: 1 });
     };
 
     const handlePageChange = (page) => {
@@ -64,10 +73,23 @@ export default function Dashboard() {
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="text-left text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
-                                        <th className="px-5 py-3 font-medium">Form Name</th>
-                                        <th className="px-5 py-3 font-medium hidden md:table-cell">Form ID</th>
-                                        <th className="px-5 py-3 font-medium" />
+                                    <tr className="text-left text-xs border-b border-gray-100 bg-gray-50">
+                                        <SortableHeader
+                                            label="Form Name"
+                                            field="Name"
+                                            sort={sort}
+                                            direction={direction}
+                                            onSort={handleSort}
+                                        />
+                                        <SortableHeader
+                                            label="Form ID"
+                                            field="Id"
+                                            sort={sort}
+                                            direction={direction}
+                                            onSort={handleSort}
+                                            className="hidden md:table-cell"
+                                        />
+                                        <th className="px-5 py-3" />
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">

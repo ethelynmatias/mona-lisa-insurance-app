@@ -24,11 +24,13 @@ class DashboardController extends Controller
             $error = $e->getMessage();
         }
 
-        $paginated = $this->paginateArray($forms, $request);
+        $paginated = $this->paginateArray($forms, $request, sortableFields: ['Name', 'Id']);
 
         return Inertia::render('Dashboard', [
             'forms'      => $paginated['items'],
             'search'     => $paginated['search'],
+            'sort'       => $paginated['sort'],
+            'direction'  => $paginated['direction'],
             'pagination' => $paginated['pagination'],
             'error'      => $error,
         ]);

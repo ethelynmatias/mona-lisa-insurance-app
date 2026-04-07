@@ -7,16 +7,21 @@ use Illuminate\Http\Request;
 trait PaginatesArray
 {
     /**
-     * Paginate an array and return data + pagination meta.
+     * Search, sort, and paginate an array.
      *
      * @param  array<int, mixed>  $items
-     * @return array{items: array, pagination: array, search: string}
+     * @param  string[]           $sortableFields  Keys allowed for sorting
+     * @return array{items: array, pagination: array, search: string, sort: string, direction: string}
      */
-    protected function paginateArray(array $items, Request $request, int $perPage = 10): array
+    protected function paginateArray(array $items, Request $request, int $perPage = 10, array $sortableFields = []): array
     {
-        $search = $request->string('search')->trim()->toString();
-        $page   = max(1, (int) $request->get('page', 1));
+        $search    = $request->string('search')->trim()->toString();
+        $sort      = $request->string('sort')->toString();
+        $direction = $request->string('direction', 'asc')->lower()->toString();
+        $direction = in_array($direction, ['asc', 'desc']) ? $direction : 'asc';
+        $page      = max(1, (int) $request->get('page', 1));
 
+        // Search
         if ($search !== '') {
             $items = array_values(array_filter(
                 $items,
@@ -24,6 +29,17 @@ trait PaginatesArray
             ));
         }
 
+        // Sort
+        if ($sort !== '' && (empty($sortableFields) || in_array($sort, $sortableFields))) {
+            usort($items, function ($a, $b) use ($sort, $direction) {
+                $aVal = strtolower((string) ($a[$sort] ?? ''));
+                $bVal = strtolower((string) ($b[$sort] ?? ''));
+                $cmp  = strcmp($aVal, $bVal);
+                return $direction === 'desc' ? -$cmp : $cmp;
+            });
+        }
+
+        // Paginate
         $total      = count($items);
         $totalPages = $total > 0 ? (int) ceil($total / $perPage) : 0;
         $page       = min($page, max(1, $totalPages));
@@ -32,6 +48,8 @@ trait PaginatesArray
         return [
             'items'      => $sliced,
             'search'     => $search,
+            'sort'       => $sort,
+            'direction'  => $direction,
             'pagination' => [
                 'currentPage' => $page,
                 'perPage'     => $perPage,
@@ -42,8 +60,7 @@ trait PaginatesArray
     }
 
     /**
-     * Override in your controller to customise search matching.
-     * Default: searches all string values in the item.
+     * Override to customise search matching.
      */
     protected function matchesSearch(mixed $item, string $search): bool
     {
