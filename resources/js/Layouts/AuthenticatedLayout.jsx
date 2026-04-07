@@ -49,12 +49,16 @@ export default function AuthenticatedLayout({ children, title }) {
                     lg:static lg:translate-x-0`}
             >
                 {/* Logo */}
-                <div className="flex items-center px-6 py-4 border-b border-gray-200">
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-200">
                     <img
                         src="/images/logo.png"
                         alt="Mona Lisa Insurance"
-                        className="h-12 w-auto object-contain"
+                        className="h-10 w-10 object-contain flex-shrink-0"
                     />
+                    <span className="font-semibold text-gray-900 text-sm leading-tight">
+                        Mona Lisa<br />
+                        <span className="text-blue-600 font-medium">Insurance</span>
+                    </span>
                 </div>
 
                 {/* Navigation */}
