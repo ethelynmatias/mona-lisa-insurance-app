@@ -25,15 +25,16 @@ WORKDIR /var/www
 
 COPY . .
 
-# Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+# Install PHP dependencies (including dev — this is a dev container)
+RUN composer install --optimize-autoloader --no-interaction
 
 # Install Node dependencies and build assets
 RUN npm ci && npm run build
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-
 EXPOSE 8000
 
-CMD php artisan serve --host=0.0.0.0 --port=8000
+CMD chmod -R 775 /var/www/storage /var/www/bootstrap/cache \
+    && chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache \
+    && php artisan package:discover --ansi \
+    && php artisan migrate --force \
+    && php artisan serve --host=0.0.0.0 --port=8000

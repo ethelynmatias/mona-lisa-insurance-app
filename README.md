@@ -6,14 +6,14 @@ A web application built with **Laravel 13**, **Inertia.js**, **React**, and **Ta
 
 ## Tech Stack
 
-| Layer       | Technology                      |
-|-------------|---------------------------------|
-| Backend     | Laravel 13 (PHP 8.4)            |
-| Frontend    | React 19 + Inertia.js v3        |
-| Styling     | Tailwind CSS v4                 |
-| Build tool  | Vite                            |
-| Database    | MySQL 8.0                       |
-| Runtime     | Docker + Docker Compose         |
+| Layer      | Technology               |
+|------------|--------------------------|
+| Backend    | Laravel 13 (PHP 8.4)     |
+| Frontend   | React 19 + Inertia.js v3 |
+| Styling    | Tailwind CSS v4          |
+| Build tool | Vite                     |
+| Database   | MySQL 8.0                |
+| Runtime    | Docker + Docker Compose  |
 
 ---
 
@@ -32,36 +32,50 @@ A web application built with **Laravel 13**, **Inertia.js**, **React**, and **Ta
 ### 1. Clone the repository
 
 ```bash
-git clone <repository-url> mona-lisa-insurance
+git clone https://github.com/ethelynmatias/mona-lisa-insurance.git
 cd mona-lisa-insurance
 ```
 
-### 2. Run the one-command setup
+### 2. Configure environment variables
 
 ```bash
-make install
+cp .env.example .env
 ```
 
-This single command will:
-
-1. Copy `.env.example` → `.env` (if `.env` does not exist)
-2. Build Docker images
-3. Start all containers
-4. Generate the application key
-5. Run all database migrations and seeders
-
-The app will be available at **http://localhost:8000**.
-
-### 3. (Optional) Customise environment variables
-
-Edit `.env` before running `make install` if you need different credentials:
+Edit `.env` if you need to change the default credentials:
 
 ```env
+APP_NAME="Mona Lisa Insurance"
+APP_URL=http://localhost:8000
+
 DB_DATABASE=mona_lisa_insurance
 DB_USERNAME=sail
 DB_PASSWORD=password
 DB_ROOT_PASSWORD=rootpassword
 ```
+
+### 3. Build and start
+
+```bash
+make build    # build Docker images from scratch
+make up       # start all containers in the background
+```
+
+On first boot the container automatically:
+- Fixes storage directory permissions
+- Regenerates the package manifest (`package:discover`)
+- Runs all pending database migrations (`migrate --force`)
+
+The app will be available at **http://localhost:8000**.
+
+### 4. Build frontend assets
+
+```bash
+make build-assets   # compiles React + Tailwind via Vite
+```
+
+> Run this once after first install, and again whenever you want a production build.
+> During active development use `make dev` instead (see below).
 
 ---
 
@@ -79,7 +93,7 @@ make ps        # show running containers
 ### Frontend — hot module replacement
 
 ```bash
-make dev       # starts the Vite HMR dev server inside the container
+make dev       # start the Vite HMR dev server inside the container
 ```
 
 Keep this running in a dedicated terminal while developing. Changes to React
@@ -96,7 +110,7 @@ make logs-db     # tail MySQL only
 ### Shell access
 
 ```bash
-make shell     # bash inside the app container
+make shell     # bash shell inside the app container
 make tinker    # Laravel Tinker REPL
 make mysql     # MySQL CLI connected to the app database
 ```
@@ -107,10 +121,21 @@ make mysql     # MySQL CLI connected to the app database
 
 ```bash
 make migrate               # run pending migrations
-make rollback              # roll back the last batch
+make rollback              # roll back the last migration batch
 make migrate-fresh         # drop all tables and re-run migrations
 make migrate-fresh-seed    # drop → migrate → seed (resets dev data)
 make seed                  # run seeders only
+```
+
+> Migrations also run automatically every time the container starts via `php artisan migrate --force`.
+
+---
+
+## Cache & Optimisation
+
+```bash
+make optimize      # php artisan optimize  — cache config, routes, views
+make cache-clear   # php artisan optimize:clear — clear all caches
 ```
 
 ---
@@ -129,36 +154,29 @@ make lint-dry                      # check style without writing changes
 ## Generating Code
 
 ```bash
-make make-model      NAME=Policy          # model + migration
-make make-controller NAME=PolicyController
+make make-model      NAME=Policy              # model + migration
+make make-controller NAME=PolicyController    # controller
 make make-migration  NAME=create_policies_table
 make make-seeder     NAME=PolicySeeder
 ```
 
 ---
 
-## Production Build
+## Rebuilding Docker Images
 
-Build optimised frontend assets and cache Laravel config/routes/views:
-
-```bash
-make build-assets   # npm run build inside the container
-make cache          # php artisan optimize
-```
-
-To rebuild Docker images from scratch (e.g. after a Dockerfile change):
+Required after changes to `Dockerfile`, `docker-compose.yml`, or PHP/Node dependencies:
 
 ```bash
-make build
+make down
+make build    # rebuild images from scratch (no cache)
+make up
 ```
 
 ---
 
 ## All Available Commands
 
-Run `make help` at any time to see the full list:
-
-```
+```bash
 make help
 ```
 
@@ -181,7 +199,7 @@ mona-lisa-insurance/
 │   │   └── Pages/          # React page components (one per route)
 │   └── views/app.blade.php # Single Blade template (Inertia root)
 ├── routes/
-│   └── web.php             # Web routes (return Inertia::render(...))
+│   └── web.php             # Web routes — return Inertia::render(...)
 ├── tests/                  # PHPUnit feature & unit tests
 ├── Dockerfile
 ├── docker-compose.yml
@@ -193,17 +211,17 @@ mona-lisa-insurance/
 
 ## Ports
 
-| Service | Host port |
-|---------|-----------|
-| Laravel app | `8000` |
-| MySQL | `3306` |
-| Vite HMR | `5173` |
+| Service     | Host port |
+|-------------|-----------|
+| Laravel app | `8000`    |
+| MySQL       | `3306`    |
+| Vite HMR    | `5173`    |
 
 ---
 
 ## Stopping & Cleanup
 
 ```bash
-make down       # stop containers, keep DB volume
-make destroy    # stop containers AND delete DB volume (all data lost)
+make down       # stop containers, keep DB volume intact
+make destroy    # stop containers AND delete the DB volume (all data lost)
 ```

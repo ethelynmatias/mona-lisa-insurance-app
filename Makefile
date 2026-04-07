@@ -113,7 +113,11 @@ dev: ## Start Vite dev server (HMR) inside the container
 	$(APP) npm run dev
 
 .PHONY: build-assets
-build-assets: ## Build frontend assets for production
+build-assets: ## Build frontend assets for production (alias: npm-build)
+	$(APP) npm run build
+
+.PHONY: npm-build
+npm-build: ## Run npm run build inside the container
 	$(APP) npm run build
 
 # ─────────────────────────────────────────────
@@ -144,6 +148,10 @@ cache-clear: ## Clear all application caches
 
 .PHONY: cache
 cache: ## Cache config, routes, and views for production
+	$(ART) optimize
+
+.PHONY: optimize
+optimize: ## Alias for cache — run php artisan optimize
 	$(ART) optimize
 
 .PHONY: routes
