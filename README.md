@@ -129,6 +129,29 @@ make seed                  # run seeders only
 
 > Migrations also run automatically every time the container starts via `php artisan migrate --force`.
 
+### Default Admin Account
+
+Run the seeder to create the default admin user:
+
+```bash
+make seed
+```
+
+| Field    | Value                  |
+|----------|------------------------|
+| Email    | `admin@monalisa.com`   |
+| Password | `password`             |
+
+The seeder uses `firstOrCreate` — running it multiple times will not create duplicate accounts.
+
+To reset all data and re-seed from scratch:
+
+```bash
+make migrate-fresh-seed
+```
+
+> **Important:** Change the default password after first login in a production environment.
+
 ---
 
 ## Cache & Optimisation
