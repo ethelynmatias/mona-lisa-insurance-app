@@ -4,11 +4,12 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SchemaField from '@/Components/SchemaField';
 import SearchInput from '@/Components/SearchInput';
 import Pagination from '@/Components/Pagination';
+import WebhookHistoryPanel from '@/Components/WebhookHistoryPanel';
 
 const PER_PAGE_OPTIONS = [20, 50, 100];
 
 export default function FormDetails() {
-    const { form, fields = [], mappingLookup = {}, availableFields = {}, availableFieldsError = null, error } = usePage().props;
+    const { form, fields = [], mappingLookup = {}, availableFields = {}, availableFieldsError = null, webhooks = [], error } = usePage().props;
     const flash = usePage().props.flash ?? {};
 
     const formName = form?.Name ?? form?.name ?? 'Form Details';
@@ -166,6 +167,9 @@ export default function FormDetails() {
                                 </div>
                             </div>
                         )}
+
+                        {/* Webhook History */}
+                        <WebhookHistoryPanel webhooks={webhooks} />
 
                         {/* Schema */}
                         <div className="bg-white rounded-xl border border-gray-200">

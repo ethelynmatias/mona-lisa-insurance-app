@@ -4,9 +4,10 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SearchInput from '@/Components/SearchInput';
 import Pagination from '@/Components/Pagination';
 import SortableHeader from '@/Components/SortableHeader';
+import WebhookHistoryPanel from '@/Components/WebhookHistoryPanel';
 
 export default function Dashboard() {
-    const { forms, search: initialSearch, sort: initialSort, direction: initialDirection, pagination, perPageOptions = [20, 50, 100], error } = usePage().props;
+    const { forms, search: initialSearch, sort: initialSort, direction: initialDirection, pagination, perPageOptions = [20, 50, 100], webhooks = [], error } = usePage().props;
 
     const [search,    setSearch]    = useState(initialSearch             ?? '');
     const [sort,      setSort]      = useState(initialSort               ?? '');
@@ -168,6 +169,9 @@ export default function Dashboard() {
                         />
                     )}
                 </div>
+                {/* Webhook History */}
+                <WebhookHistoryPanel webhooks={webhooks} showFormColumn />
+
             </div>
         </AuthenticatedLayout>
     );

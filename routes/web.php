@@ -3,7 +3,11 @@
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\CognitoController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\Webhook\CognitoWebhookController;
 use Illuminate\Support\Facades\Route;
+
+// Public webhooks (no auth, no CSRF)
+Route::post('/webhook/cognito', [CognitoWebhookController::class, 'receive'])->name('webhook.cognito');
 
 // Guest only
 Route::middleware('guest')->group(function () {

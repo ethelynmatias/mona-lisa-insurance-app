@@ -168,13 +168,15 @@ if (auth.user.role === 'admin') {
 
 ## Settings
 
-The **Settings** page (`/settings`) is accessible from the sidebar and the user dropdown menu.
+The **Settings** page (`/settings`) is accessible from the sidebar and the user dropdown menu. The **Profile** and **Change Password** panels are displayed side-by-side on wider screens and stack vertically on mobile.
 
 ### Profile & Password
 
 Every logged-in user can:
 - Update their **name** and **email address** (duplicate emails are blocked)
 - Change their **password** (requires current password, enforces strong password rules)
+
+Password fields on both the Login page and the Settings page include an **eye icon** to toggle password visibility.
 
 ### User Management (Admin only)
 
@@ -333,6 +335,8 @@ mona-lisa-insurance/
 │   │   ├── Controllers/
 │   │   │   ├── Auth/
 │   │   │   │   └── AuthenticatedSessionController.php
+│   │   │   ├── Webhook/
+│   │   │   │   └── CognitoWebhookController.php  # Receives Cognito Forms webhook events
 │   │   │   ├── CognitoController.php   # Dashboard + form details pages
 │   │   │   └── SettingsController.php  # Profile, password, user management
 │   │   ├── Middleware/
@@ -344,6 +348,7 @@ mona-lisa-insurance/
 │   │       └── PaginatesArray.php      # Reusable search/sort/pagination for arrays
 │   ├── Models/
 │   │   ├── FormFieldMapping.php        # Persisted Cognito → NowCerts field mappings
+│   │   ├── WebhookLog.php              # Incoming webhook event log
 │   │   └── User.php                    # isAdmin() / isManager() / isActive() helpers
 │   └── Services/
 │       ├── CognitoFormsService.php     # Cognito Forms REST API client
@@ -370,7 +375,8 @@ mona-lisa-insurance/
 │   │   │   ├── SchemaField.jsx         # Schema field table row with NowCerts dropdown
 │   │   │   ├── SearchInput.jsx         # Reusable search input with icon
 │   │   │   ├── SortableHeader.jsx      # Sortable table header with direction arrows
-│   │   │   └── StatusBadge.jsx         # Active/Inactive status badge
+│   │   │   ├── StatusBadge.jsx         # Active/Inactive status badge
+│   │   │   └── WebhookHistoryPanel.jsx # Webhook event log table (used on Dashboard + FormDetails)
 │   │   ├── constants/
 │   │   │   ├── nowcerts.js             # NOWCERTS_ENTITY_COLORS
 │   │   │   └── statusOptions.js        # STATUS_OPTIONS array (all/active/inactive)
@@ -541,6 +547,56 @@ The route list is injected into every page via the `@routes` Blade directive and
 // Example usage
 router.post(route('forms.mappings.save', { formId }), payload);
 ```
+
+---
+
+## Webhook History
+
+Incoming Cognito Forms webhook events are logged to the `webhook_logs` table and displayed in a **Webhook History** panel on both the Dashboard and the Form Details page.
+
+### Receiving webhooks
+
+The public endpoint accepts `POST` requests — no authentication or CSRF token required:
+
+```
+POST /webhook/cognito
+```
+
+Configure this URL in your Cognito Forms form settings under **Webhooks**. Pass the form ID and optional event type as query parameters:
+
+```
+POST /webhook/cognito?form_id=YOUR_FORM_ID&event=entry.submitted
+```
+
+Supported `event` values:
+
+| Value              | Badge colour |
+|--------------------|--------------|
+| `entry.submitted`  | Blue         |
+| `entry.updated`    | Amber        |
+| `entry.deleted`    | Red          |
+
+The controller (`app/Http/Controllers/Webhook/CognitoWebhookController.php`) also reads `FormId`, `FormName`, `EventType`, and `Id` directly from the JSON payload body if query params are not present.
+
+### Webhook History panels
+
+| Location       | Scope                              |
+|----------------|------------------------------------|
+| Dashboard      | All forms — most recent 50 events  |
+| Form Details   | Current form — most recent 50 events |
+
+The Dashboard panel includes a **Form** column showing the form name and ID. The Form Details panel omits it since it is already scoped to one form.
+
+### Database table
+
+| Column       | Type    | Description                        |
+|--------------|---------|------------------------------------|
+| `form_id`    | string  | Cognito form ID                    |
+| `form_name`  | string  | Human-readable form name (optional)|
+| `event_type` | string  | e.g. `entry.submitted`             |
+| `entry_id`   | string  | Cognito entry ID (optional)        |
+| `status`     | string  | Always `received` on ingest        |
+| `payload`    | json    | Full raw request body              |
 
 ---
 

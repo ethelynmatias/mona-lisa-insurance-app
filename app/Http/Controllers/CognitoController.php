@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FormFieldMapping;
+use App\Models\WebhookLog;
 use App\Services\CognitoFormsService;
 use App\Services\NowCertsFieldMapper;
 use App\Services\NowCertsService;
@@ -39,6 +40,11 @@ class CognitoController extends Controller
 
         $paginated = $this->paginateArray($forms, $request, sortableFields: ['Name', 'Id']);
 
+        $webhooks = WebhookLog::orderByDesc('created_at')
+            ->limit(50)
+            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'created_at'])
+            ->toArray();
+
         return Inertia::render('Dashboard', [
             'forms'          => $paginated['items'],
             'search'         => $paginated['search'],
@@ -46,6 +52,7 @@ class CognitoController extends Controller
             'direction'      => $paginated['direction'],
             'pagination'     => $paginated['pagination'],
             'perPageOptions' => $this->perPageOptions,
+            'webhooks'       => $webhooks,
             'error'          => $error,
         ]);
     }
@@ -92,12 +99,19 @@ class CognitoController extends Controller
             $availableFieldsError = $e->getMessage();
         }
 
+        $webhooks = WebhookLog::where('form_id', $formId)
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'created_at'])
+            ->toArray();
+
         return Inertia::render('Cognito/FormDetails', [
             'form'                 => $form,
             'fields'               => $fields,
             'mappingLookup'        => $lookup,
             'availableFields'      => $availableFields,
             'availableFieldsError' => $availableFieldsError,
+            'webhooks'             => $webhooks,
             'error'                => $error,
         ]);
     }
