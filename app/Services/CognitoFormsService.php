@@ -41,14 +41,6 @@ class CognitoFormsService
     }
 
     /**
-     * Get a single form by ID.
-     */
-    public function getForm(string $formId): array
-    {
-        return $this->send('GET', "forms/{$formId}");
-    }
-
-    /**
      * Get the field schema for a form.
      */
     public function getFormFields(string $formId): array
@@ -64,32 +56,6 @@ class CognitoFormsService
         return $this->send('PUT', "forms/{$formId}", [
             'IsAvailable' => $available,
         ]);
-    }
-
-    // ──────────────────────────────────────────
-    //  Entries
-    // ──────────────────────────────────────────
-
-    /**
-     * List entries for a form.
-     *
-     * @param  array{filter?:string, sort?:string, page?:int, pageSize?:int}  $params
-     */
-    public function getEntries(string $formId, array $params = []): array
-    {
-        $response = $this->send('GET', "forms/{$formId}/entries", [], $params);
-
-        // Unwrap if the API returns { "Entries": [...] } or { "entries": [...] }
-        if (isset($response['Entries']) && is_array($response['Entries'])) {
-            return $response['Entries'];
-        }
-
-        if (isset($response['entries']) && is_array($response['entries'])) {
-            return $response['entries'];
-        }
-
-        // Direct array of entries
-        return array_is_list($response) ? $response : [];
     }
 
     /**

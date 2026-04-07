@@ -1,40 +1,41 @@
+import { useState, useMemo } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import SchemaField from '@/Components/SchemaField';
+import SearchInput from '@/Components/SearchInput';
+import Pagination from '@/Components/Pagination';
 
-function SchemaField({ field, depth = 0 }) {
-    const name     = field.Name       ?? field.name       ?? '—';
-    const type     = field.Type       ?? field.type       ?? '—';
-    const required = field.Required   ?? field.required   ?? false;
-    const children = field.Children   ?? field.children   ?? field.Fields ?? field.fields ?? [];
-
-    return (
-        <div className={depth > 0 ? 'ml-5 border-l-2 border-gray-100 pl-4' : ''}>
-            <div className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-gray-900">{name}</span>
-                    {required && (
-                        <span className="ml-2 text-xs text-red-500 font-medium">required</span>
-                    )}
-                </div>
-                <span className="text-xs font-mono px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
-                    {type}
-                </span>
-            </div>
-            {children.length > 0 && children.map((child, i) => (
-                <SchemaField key={i} field={child} depth={depth + 1} />
-            ))}
-        </div>
-    );
-}
+const PER_PAGE = 10;
 
 export default function FormDetails() {
-    const { form, schema, error } = usePage().props;
+    const { form, fields = [], error } = usePage().props;
 
     const formName = form?.Name ?? form?.name ?? 'Form Details';
     const formId   = form?.Id   ?? form?.id   ?? '';
-    const fields   = Array.isArray(schema)
-        ? schema
-        : (schema?.Fields ?? schema?.fields ?? []);
+
+    const [search, setSearch]     = useState('');
+    const [currentPage, setPage]  = useState(1);
+
+    const filtered = useMemo(() => {
+        if (!search.trim()) return fields;
+        const q = search.toLowerCase();
+        return fields.filter(f =>
+            (f.Name         ?? f.name         ?? '').toLowerCase().includes(q) ||
+            (f.InternalName ?? f.internalName ?? '').toLowerCase().includes(q) ||
+            (f.Type         ?? f.type         ?? '').toLowerCase().includes(q) ||
+            (f.FieldType    ?? f.fieldType    ?? '').toLowerCase().includes(q) ||
+            (f.PropertyType ?? f.propertyType ?? '').toLowerCase().includes(q)
+        );
+    }, [fields, search]);
+
+    const totalPages  = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+    const safePage    = Math.min(currentPage, totalPages);
+    const paginated   = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
+
+    function handleSearch(value) {
+        setSearch(value);
+        setPage(1);
+    }
 
     return (
         <AuthenticatedLayout title={formName}>
@@ -63,59 +64,84 @@ export default function FormDetails() {
                 )}
 
                 {form && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="space-y-4">
 
                         {/* Form info */}
-                        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-3">
-                            <h2 className="text-sm font-semibold text-gray-900">Form Info</h2>
+                        <div className="bg-white rounded-xl border border-gray-200 p-5">
+                            <h2 className="text-sm font-semibold text-gray-900 mb-4">Form Info</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-                            <div>
-                                <p className="text-xs text-gray-500 mb-0.5">Form Name</p>
-                                <p className="text-sm font-semibold text-gray-900">{formName}</p>
-                            </div>
-
-                            <div>
-                                <p className="text-xs text-gray-500 mb-0.5">Form ID</p>
-                                <p className="text-sm font-mono text-gray-600 break-all">{formId}</p>
-                            </div>
-
-                            {form.IsAvailable !== undefined && (
                                 <div>
-                                    <p className="text-xs text-gray-500 mb-0.5">Status</p>
-                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium
-                                        ${form.IsAvailable ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${form.IsAvailable ? 'bg-green-500' : 'bg-gray-400'}`} />
-                                        {form.IsAvailable ? 'Active' : 'Inactive'}
-                                    </span>
+                                    <p className="text-xs text-gray-500 mb-0.5">Form Name</p>
+                                    <p className="text-sm font-semibold text-gray-900">{formName}</p>
                                 </div>
-                            )}
 
-                            {(form.EntryCount ?? form.entryCount) !== undefined && (
                                 <div>
-                                    <p className="text-xs text-gray-500 mb-0.5">Total Entries</p>
-                                    <p className="text-sm font-semibold text-gray-900">
-                                        {Number(form.EntryCount ?? form.entryCount).toLocaleString()}
-                                    </p>
+                                    <p className="text-xs text-gray-500 mb-0.5">Form ID</p>
+                                    <p className="text-sm font-mono text-gray-600 break-all">{formId}</p>
                                 </div>
-                            )}
+
+                                {form.IsAvailable !== undefined && (
+                                    <div>
+                                        <p className="text-xs text-gray-500 mb-0.5">Status</p>
+                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium
+                                            ${form.IsAvailable ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${form.IsAvailable ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                            {form.IsAvailable ? 'Active' : 'Inactive'}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {(form.EntryCount ?? form.entryCount) !== undefined && (
+                                    <div>
+                                        <p className="text-xs text-gray-500 mb-0.5">Total Entries</p>
+                                        <p className="text-sm font-semibold text-gray-900">
+                                            {Number(form.EntryCount ?? form.entryCount).toLocaleString()}
+                                        </p>
+                                    </div>
+                                )}
+
+                            </div>
                         </div>
 
                         {/* Schema */}
-                        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200">
-                            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                                <h2 className="text-sm font-semibold text-gray-900">Form Schema</h2>
-                                <span className="text-xs text-gray-400">{fields.length} field{fields.length !== 1 ? 's' : ''}</span>
+                        <div className="bg-white rounded-xl border border-gray-200">
+                            <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center gap-3">
+                                <div className="flex-1">
+                                    <h2 className="text-sm font-semibold text-gray-900">Form Schema</h2>
+                                    <p className="text-xs text-gray-400 mt-0.5">
+                                        {filtered.length} of {fields.length} field{fields.length !== 1 ? 's' : ''}
+                                    </p>
+                                </div>
+                                <div className="w-full sm:w-64">
+                                    <SearchInput
+                                        value={search}
+                                        onChange={handleSearch}
+                                        placeholder="Search fields…"
+                                    />
+                                </div>
                             </div>
 
-                            <div className="px-5 py-2">
-                                {fields.length === 0 ? (
-                                    <p className="text-sm text-gray-400 py-8 text-center">No schema fields available</p>
+                            <div className="px-5 py-2 min-h-[4rem]">
+                                {paginated.length === 0 ? (
+                                    <p className="text-sm text-gray-400 py-8 text-center">No fields found</p>
                                 ) : (
-                                    fields.map((field, i) => (
+                                    paginated.map((field, i) => (
                                         <SchemaField key={i} field={field} />
                                     ))
                                 )}
                             </div>
+
+                            <Pagination
+                                pagination={{
+                                    currentPage: safePage,
+                                    perPage: PER_PAGE,
+                                    total: filtered.length,
+                                    totalPages,
+                                }}
+                                onPageChange={setPage}
+                                label="fields"
+                            />
                         </div>
 
                     </div>
