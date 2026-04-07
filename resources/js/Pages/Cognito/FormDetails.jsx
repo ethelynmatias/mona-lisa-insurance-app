@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SchemaField from '@/Components/SchemaField';
 import SearchInput from '@/Components/SearchInput';
@@ -8,13 +8,16 @@ import Pagination from '@/Components/Pagination';
 const PER_PAGE = 10;
 
 export default function FormDetails() {
-    const { form, fields = [], error } = usePage().props;
+    const { form, fields = [], mappingLookup = {}, availableFields = {}, error } = usePage().props;
+    const flash = usePage().props.flash ?? {};
 
     const formName = form?.Name ?? form?.name ?? 'Form Details';
     const formId   = form?.Id   ?? form?.id   ?? '';
 
     const [search, setSearch]     = useState('');
     const [currentPage, setPage]  = useState(1);
+    const [mappings, setMappings] = useState(mappingLookup);
+    const [saving, setSaving]     = useState(false);
 
     const filtered = useMemo(() => {
         if (!search.trim()) return fields;
@@ -28,13 +31,43 @@ export default function FormDetails() {
         );
     }, [fields, search]);
 
-    const totalPages  = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-    const safePage    = Math.min(currentPage, totalPages);
-    const paginated   = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+    const safePage   = Math.min(currentPage, totalPages);
+    const paginated  = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
 
     function handleSearch(value) {
         setSearch(value);
         setPage(1);
+    }
+
+    function handleMappingChange(cognitoField, mapping) {
+        setMappings(prev => ({ ...prev, [cognitoField]: mapping }));
+    }
+
+    function handleSave() {
+        setSaving(true);
+
+        // Collect all fields (including nested) with their current mappings
+        const allFields = flattenFields(fields);
+        const payload   = allFields.map(f => {
+            const key     = f.InternalName ?? f.internalName ?? f.Name ?? f.name;
+            const mapping = mappings[key] ?? null;
+            return {
+                cognito_field:   key,
+                nowcerts_entity: mapping?.entity ?? null,
+                nowcerts_field:  mapping?.field  ?? null,
+            };
+        });
+
+        router.post(
+            route('forms.mappings.save', { formId }),
+            { mappings: payload },
+            {
+                preserveScroll: true,
+                preserveState:  true,
+                onFinish:       () => setSaving(false),
+            }
+        );
     }
 
     return (
@@ -60,6 +93,16 @@ export default function FormDetails() {
                                 d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <span>{error}</span>
+                    </div>
+                )}
+
+                {/* Success */}
+                {flash.success && (
+                    <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+                        <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>{flash.success}</span>
                     </div>
                 )}
 
@@ -106,6 +149,8 @@ export default function FormDetails() {
 
                         {/* Schema */}
                         <div className="bg-white rounded-xl border border-gray-200">
+
+                            {/* Header */}
                             <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center gap-3">
                                 <div className="flex-1">
                                     <h2 className="text-sm font-semibold text-gray-900">Form Schema</h2>
@@ -113,22 +158,74 @@ export default function FormDetails() {
                                         {filtered.length} of {fields.length} field{fields.length !== 1 ? 's' : ''}
                                     </p>
                                 </div>
-                                <div className="w-full sm:w-64">
-                                    <SearchInput
-                                        value={search}
-                                        onChange={handleSearch}
-                                        placeholder="Search fields…"
-                                    />
+                                <div className="flex items-center gap-3">
+                                    <div className="w-full sm:w-64">
+                                        <SearchInput
+                                            value={search}
+                                            onChange={handleSearch}
+                                            placeholder="Search fields…"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleSave}
+                                        disabled={saving}
+                                        className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white
+                                            text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60
+                                            disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        {saving ? (
+                                            <>
+                                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                    <path className="opacity-75" fill="currentColor"
+                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                </svg>
+                                                Saving…
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                                </svg>
+                                                Save Mappings
+                                            </>
+                                        )}
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="px-5 py-2 min-h-[4rem]">
+                            {/* Table */}
+                            <div className="overflow-x-auto">
                                 {paginated.length === 0 ? (
                                     <p className="text-sm text-gray-400 py-8 text-center">No fields found</p>
                                 ) : (
-                                    paginated.map((field, i) => (
-                                        <SchemaField key={i} field={field} />
-                                    ))
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-gray-100 bg-gray-50/50">
+                                                <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide w-1/5">
+                                                    Field Name
+                                                </th>
+                                                <th className="py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                                    Cognito Form Fields
+                                                </th>
+                                                <th className="py-3 pr-5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-56">
+                                                    NowCerts Field
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {paginated.map((field, i) => (
+                                                <SchemaField
+                                                    key={i}
+                                                    field={field}
+                                                    mappings={mappings}
+                                                    availableFields={availableFields}
+                                                    onChange={handleMappingChange}
+                                                />
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 )}
                             </div>
 
@@ -149,4 +246,13 @@ export default function FormDetails() {
             </div>
         </AuthenticatedLayout>
     );
+}
+
+function flattenFields(fields, result = []) {
+    for (const field of fields) {
+        result.push(field);
+        const children = field.Children ?? field.children ?? field.Fields ?? field.fields ?? [];
+        if (children.length > 0) flattenFields(children, result);
+    }
+    return result;
 }

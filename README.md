@@ -255,38 +255,162 @@ mona-lisa-insurance/
 ├── app/
 │   ├── Http/
 │   │   ├── Controllers/
-│   │   │   └── Auth/
-│   │   │       └── AuthenticatedSessionController.php
-│   │   └── Middleware/
-│   │       ├── HandleInertiaRequests.php
-│   │       └── RoleMiddleware.php
-│   └── Models/
-│       └── User.php              # isAdmin() / isManager() helpers
-├── bootstrap/                    # Laravel bootstrap & middleware registration
-├── config/                       # Laravel configuration files
+│   │   │   ├── Auth/
+│   │   │   │   └── AuthenticatedSessionController.php
+│   │   │   └── CognitoController.php   # Dashboard + form details pages
+│   │   ├── Middleware/
+│   │   │   ├── HandleInertiaRequests.php
+│   │   │   └── RoleMiddleware.php
+│   │   └── Traits/
+│   │       └── PaginatesArray.php      # Reusable search/sort/pagination for arrays
+│   ├── Models/
+│   │   └── User.php                    # isAdmin() / isManager() helpers
+│   └── Services/
+│       ├── CognitoFormsService.php     # Cognito Forms REST API client
+│       ├── NowCertsService.php         # NowCerts REST API client
+│       └── NowCertsFieldMapper.php     # Maps Cognito form fields → NowCerts fields
+├── bootstrap/                          # Laravel bootstrap & middleware registration
+├── config/
+│   ├── cognito.php                     # Cognito Forms API config
+│   └── nowcerts.php                    # NowCerts API config
 ├── database/
-│   ├── migrations/               # Database migrations
+│   ├── migrations/                     # Database migrations
 │   └── seeders/
-│       ├── AdminSeeder.php       # Seeds default admin account
+│       ├── AdminSeeder.php             # Seeds default admin account
 │       └── DatabaseSeeder.php
 ├── resources/
-│   ├── css/app.css               # Tailwind CSS entry point
+│   ├── css/app.css                     # Tailwind CSS entry point
 │   ├── js/
-│   │   ├── app.jsx               # Inertia + React bootstrap
+│   │   ├── app.jsx                     # Inertia + React bootstrap
 │   │   ├── Layouts/
-│   │   │   └── AuthenticatedLayout.jsx  # Sidebar + header layout
+│   │   │   └── AuthenticatedLayout.jsx # Sidebar + header layout
+│   │   ├── Components/
+│   │   │   ├── Pagination.jsx          # Reusable pagination component
+│   │   │   ├── SchemaField.jsx         # Renders a single form schema field row
+│   │   │   ├── SearchInput.jsx         # Reusable search input with icon
+│   │   │   ├── SortableHeader.jsx      # Sortable table header with direction arrows
+│   │   │   └── StatusBadge.jsx         # Active/Inactive status badge
+│   │   ├── constants/
+│   │   │   └── statusOptions.js        # STATUS_OPTIONS array (all/active/inactive)
 │   │   └── Pages/
 │   │       ├── Auth/
-│   │       │   └── Login.jsx     # Login page (home)
-│   │       └── Dashboard.jsx     # Main dashboard
-│   └── views/app.blade.php       # Single Blade template (Inertia root)
+│   │       │   └── Login.jsx           # Login page (home)
+│   │       ├── Cognito/
+│   │       │   └── FormDetails.jsx     # Form details + schema with search & pagination
+│   │       └── Dashboard.jsx           # Cognito Forms listing
+│   └── views/app.blade.php             # Single Blade template (Inertia root)
 ├── routes/
-│   └── web.php                   # Web routes
-├── tests/                        # PHPUnit feature & unit tests
+│   └── web.php                         # Web routes
+├── tests/                              # PHPUnit feature & unit tests
 ├── Dockerfile
 ├── docker-compose.yml
 ├── Makefile
 └── vite.config.js
+```
+
+---
+
+## Third-Party Integrations
+
+### Cognito Forms
+
+Used to list forms and display their field schema on the dashboard.
+
+| Variable            | Description                                          |
+|---------------------|------------------------------------------------------|
+| `COGNITO_API_KEY`   | Bearer token from Organization Settings → API Keys  |
+| `COGNITO_BASE_URL`  | Default: `https://www.cognitoforms.com/api/`         |
+
+**Service:** `app/Services/CognitoFormsService.php`
+
+Key methods:
+
+```php
+$cognito->getForms();                        // list all forms
+$cognito->getFormFields($formId);            // get field schema for a form
+$cognito->getEntries($formId, $params);      // list entries
+$cognito->createEntry($formId, $data);       // create entry
+$cognito->updateEntry($formId, $id, $data);  // update entry
+$cognito->deleteEntry($formId, $id);         // delete entry
+```
+
+---
+
+### NowCerts
+
+Insurance management system. The service maps Cognito form submissions to NowCerts records.
+
+| Variable              | Description                         |
+|-----------------------|-------------------------------------|
+| `NOWCERTS_USERNAME`   | NowCerts account username (email)   |
+| `NOWCERTS_PASSWORD`   | NowCerts account password           |
+| `NOWCERTS_BASE_URL`   | Default: `https://api.nowcerts.com/api/` |
+
+**Service:** `app/Services/NowCertsService.php`
+**Field Mapper:** `app/Services/NowCertsFieldMapper.php`
+
+Authentication is handled automatically — the service obtains a Bearer token via OAuth2 password grant and caches it for ~1 hour, refreshing on expiry.
+
+Key methods:
+
+```php
+// Insureds
+$nowcerts->getInsureds($params);
+$nowcerts->findInsureds(['Name' => 'Smith', 'Email' => 'smith@example.com']);
+$nowcerts->upsertInsured($data);
+$nowcerts->upsertInsuredWithPolicies($data);
+
+// Policies
+$nowcerts->getPolicies($params);
+$nowcerts->findPolicies(['Number' => 'POL-001']);
+$nowcerts->upsertPolicy($data);
+$nowcerts->patchPolicy($data);
+
+// Drivers & Vehicles
+$nowcerts->insertDriver($data);
+$nowcerts->bulkInsertDrivers($drivers);
+$nowcerts->insertVehicle($data);
+$nowcerts->bulkInsertVehicles($vehicles);
+
+// Claims, Notes, Tasks
+$nowcerts->insertClaim($data);
+$nowcerts->insertNote($data);
+$nowcerts->upsertTask($data);
+
+// Opportunities
+$nowcerts->upsertOpportunity($data);
+
+// Lookup data
+$nowcerts->getAgents();
+$nowcerts->getCarriers();
+$nowcerts->getLinesOfBusiness();
+```
+
+#### Field Mapping
+
+`NowCertsFieldMapper` translates Cognito form entry fields into NowCerts API payloads:
+
+```php
+$mapper = new NowCertsFieldMapper();
+
+$insuredPayload = $mapper->mapInsured($cognitoEntry);
+$policyPayload  = $mapper->mapPolicy($cognitoEntry);
+$driverPayload  = $mapper->mapDriver($cognitoEntry);
+$vehiclePayload = $mapper->mapVehicle($cognitoEntry);
+```
+
+Custom field mappings can be passed per form:
+
+```php
+$mapper = new NowCertsFieldMapper([
+    'insured' => [
+        'My_Custom_Field' => 'CommercialName',
+        'Business_Email'  => 'EMail',
+    ],
+    'policy' => [
+        'Pol_Number' => 'Number',
+    ],
+]);
 ```
 
 ---
