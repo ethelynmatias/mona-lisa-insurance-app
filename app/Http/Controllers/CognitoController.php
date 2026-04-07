@@ -42,47 +42,27 @@ class CognitoController extends Controller
     }
 
     /**
-     * Show a form's entries.
+     * Show form details.
      */
     public function show(Request $request, string $formId): Response
     {
-        $form    = null;
-        $entries = [];
-        $error   = null;
+        $form  = null;
+        $error = null;
 
         try {
-            $form    = $this->cognito->getForm($formId);
-            $entries = $this->cognito->getEntries($formId);
+            $form = $this->cognito->getForm($formId);
         } catch (RuntimeException $e) {
             $error = $e->getMessage();
         }
 
-        $paginated = $this->paginateArray($entries, $request, perPage: 10);
-
-        return Inertia::render('Cognito/FormEntries', [
-            'form'       => $form,
-            'entries'    => $paginated['items'],
-            'search'     => $paginated['search'],
-            'pagination' => $paginated['pagination'],
-            'error'      => $error,
+        return Inertia::render('Cognito/FormDetails', [
+            'form'  => $form,
+            'error' => $error,
         ]);
     }
 
     protected function matchesSearch(mixed $item, string $search): bool
     {
-        if (! is_array($item)) {
-            return false;
-        }
-
-        foreach ($item as $key => $value) {
-            if (str_starts_with((string) $key, '$') || str_starts_with((string) $key, '_')) {
-                continue;
-            }
-            if (is_string($value) && str_contains(strtolower($value), strtolower($search))) {
-                return true;
-            }
-        }
-
-        return false;
+        return str_contains(strtolower($item['Name'] ?? ''), strtolower($search));
     }
 }
