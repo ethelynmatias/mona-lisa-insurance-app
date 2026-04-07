@@ -42,22 +42,25 @@ class CognitoController extends Controller
     }
 
     /**
-     * Show form details.
+     * Show form details and schema.
      */
     public function show(Request $request, string $formId): Response
     {
-        $form  = null;
-        $error = null;
+        $form   = null;
+        $schema = [];
+        $error  = null;
 
         try {
-            $form = $this->cognito->getForm($formId);
+            $form   = $this->cognito->getForm($formId);
+            $schema = $this->cognito->getFormFields($formId);
         } catch (RuntimeException $e) {
             $error = $e->getMessage();
         }
 
         return Inertia::render('Cognito/FormDetails', [
-            'form'  => $form,
-            'error' => $error,
+            'form'   => $form,
+            'schema' => $schema,
+            'error'  => $error,
         ]);
     }
 
