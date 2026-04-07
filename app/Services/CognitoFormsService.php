@@ -77,7 +77,19 @@ class CognitoFormsService
      */
     public function getEntries(string $formId, array $params = []): array
     {
-        return $this->send('GET', "forms/{$formId}/entries", [], $params);
+        $response = $this->send('GET', "forms/{$formId}/entries", [], $params);
+
+        // Unwrap if the API returns { "Entries": [...] } or { "entries": [...] }
+        if (isset($response['Entries']) && is_array($response['Entries'])) {
+            return $response['Entries'];
+        }
+
+        if (isset($response['entries']) && is_array($response['entries'])) {
+            return $response['entries'];
+        }
+
+        // Direct array of entries
+        return array_is_list($response) ? $response : [];
     }
 
     /**

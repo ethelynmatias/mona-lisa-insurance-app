@@ -57,7 +57,7 @@ class CognitoController extends Controller
             $error = $e->getMessage();
         }
 
-        $paginated = $this->paginateArray($entries, $request);
+        $paginated = $this->paginateArray($entries, $request, perPage: 10);
 
         return Inertia::render('Cognito/FormEntries', [
             'form'       => $form,
