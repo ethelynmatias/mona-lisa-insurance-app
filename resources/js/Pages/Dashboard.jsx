@@ -3,12 +3,7 @@ import { router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SearchInput from '@/Components/SearchInput';
 import Pagination from '@/Components/Pagination';
-
-const STATUS_OPTIONS = [
-    { value: 'all',      label: 'All' },
-    { value: 'active',   label: 'Active' },
-    { value: 'inactive', label: 'Inactive' },
-];
+import { STATUS_OPTIONS } from '@/constants/statusOptions';
 
 function StatusBadge({ available }) {
     return available ? (
