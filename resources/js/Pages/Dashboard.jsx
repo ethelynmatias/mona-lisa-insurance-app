@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import SearchInput from '@/Components/SearchInput';
+import Pagination from '@/Components/Pagination';
 
 function StatusBadge({ available }) {
     return available ? (
@@ -16,79 +18,12 @@ function StatusBadge({ available }) {
     );
 }
 
-function Pagination({ pagination, onPageChange }) {
-    const { currentPage, totalPages, total, perPage } = pagination;
-
-    if (totalPages <= 1) return null;
-
-    const from = (currentPage - 1) * perPage + 1;
-    const to   = Math.min(currentPage * perPage, total);
-
-    const pages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(
-        (p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2
-    );
-
-    return (
-        <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100">
-            <p className="text-sm text-gray-500">
-                Showing <span className="font-medium text-gray-900">{from}–{to}</span> of{' '}
-                <span className="font-medium text-gray-900">{total}</span> forms
-            </p>
-
-            <div className="flex items-center gap-1">
-                <button
-                    onClick={() => onPageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-
-                {pages.map((p, i) => {
-                    const prev = pages[i - 1];
-                    return (
-                        <span key={p} className="flex items-center gap-1">
-                            {prev && p - prev > 1 && (
-                                <span className="px-1 text-gray-400 text-sm">…</span>
-                            )}
-                            <button
-                                onClick={() => onPageChange(p)}
-                                className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors
-                                    ${p === currentPage
-                                        ? 'bg-blue-600 text-white'
-                                        : 'text-gray-600 hover:bg-gray-100'
-                                    }`}
-                            >
-                                {p}
-                            </button>
-                        </span>
-                    );
-                })}
-
-                <button
-                    onClick={() => onPageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                </button>
-            </div>
-        </div>
-    );
-}
-
 export default function Dashboard() {
-    const { forms, search: initialSearch, filter: initialFilter, pagination, error } = usePage().props;
-
+    const { forms, search: initialSearch, pagination, error } = usePage().props;
     const [search, setSearch] = useState(initialSearch ?? '');
-    const [filter, setFilter] = useState(initialFilter ?? 'all');
 
     const navigate = (params) => {
-        router.get('/dashboard', { search, filter, page: 1, ...params }, {
+        router.get('/dashboard', { search, page: 1, ...params }, {
             preserveState: true,
             replace: true,
         });
@@ -97,11 +32,6 @@ export default function Dashboard() {
     const handleSearch = (value) => {
         setSearch(value);
         navigate({ search: value, page: 1 });
-    };
-
-    const handleFilter = (value) => {
-        setFilter(value);
-        navigate({ filter: value, page: 1 });
     };
 
     const handlePageChange = (page) => {
@@ -113,55 +43,25 @@ export default function Dashboard() {
             <div className="space-y-4">
 
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h2 className="text-lg font-semibold text-gray-900">Cognito Forms</h2>
-                        <p className="text-sm text-gray-500 mt-0.5">All forms from your Cognito Forms organisation</p>
-                    </div>
+                <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Cognito Forms</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">All forms from your Cognito Forms organisation</p>
                 </div>
 
                 {/* Card */}
                 <div className="bg-white rounded-xl border border-gray-200">
 
-                    {/* Search + filter toolbar */}
-                    <div className="flex flex-col sm:flex-row gap-3 px-5 py-4 border-b border-gray-100">
-                        {/* Search */}
-                        <div className="relative flex-1">
-                            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                            <input
-                                type="text"
-                                value={search}
-                                onChange={(e) => handleSearch(e.target.value)}
-                                placeholder="Search forms by name…"
-                                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg outline-none
-                                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                        </div>
-
-                        {/* Filter */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-500 whitespace-nowrap">Status:</span>
-                            <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
-                                {['all', 'active', 'inactive'].map((f) => (
-                                    <button
-                                        key={f}
-                                        onClick={() => handleFilter(f)}
-                                        className={`px-3 py-2 capitalize transition-colors
-                                            ${filter === f
-                                                ? 'bg-blue-600 text-white'
-                                                : 'text-gray-600 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        {f}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                    {/* Toolbar */}
+                    <div className="px-5 py-4 border-b border-gray-100">
+                        <SearchInput
+                            value={search}
+                            onChange={handleSearch}
+                            placeholder="Search forms by name…"
+                            className="max-w-sm"
+                        />
                     </div>
 
-                    {/* Error state */}
+                    {/* Error */}
                     {error && (
                         <div className="mx-5 my-4 flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                             <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -194,12 +94,12 @@ export default function Dashboard() {
                                                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                 </svg>
                                                 <p className="text-gray-400 text-sm">No forms found</p>
-                                                {(search || filter !== 'all') && (
+                                                {search && (
                                                     <button
-                                                        onClick={() => { setSearch(''); setFilter('all'); navigate({ search: '', filter: 'all', page: 1 }); }}
+                                                        onClick={() => handleSearch('')}
                                                         className="mt-2 text-sm text-blue-600 hover:underline"
                                                     >
-                                                        Clear filters
+                                                        Clear search
                                                     </button>
                                                 )}
                                             </td>
@@ -207,8 +107,8 @@ export default function Dashboard() {
                                     ) : (
                                         forms.map((form) => (
                                             <tr key={form.Id ?? form.id} className="hover:bg-gray-50 transition-colors">
-                                                <td className="px-5 py-3.5">
-                                                    <span className="font-medium text-gray-900">{form.Name ?? form.name}</span>
+                                                <td className="px-5 py-3.5 font-medium text-gray-900">
+                                                    {form.Name ?? form.name}
                                                 </td>
                                                 <td className="px-5 py-3.5 hidden md:table-cell font-mono text-xs text-gray-400">
                                                     {form.Id ?? form.id}
@@ -222,8 +122,7 @@ export default function Dashboard() {
                                                 <td className="px-5 py-3.5 hidden lg:table-cell text-gray-500">
                                                     {form.Created || form.created
                                                         ? new Date(form.Created ?? form.created).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-                                                        : '—'
-                                                    }
+                                                        : '—'}
                                                 </td>
                                             </tr>
                                         ))
@@ -234,8 +133,12 @@ export default function Dashboard() {
                     )}
 
                     {/* Pagination */}
-                    {!error && pagination.total > 0 && (
-                        <Pagination pagination={pagination} onPageChange={handlePageChange} />
+                    {!error && (
+                        <Pagination
+                            pagination={pagination}
+                            onPageChange={handlePageChange}
+                            label="forms"
+                        />
                     )}
                 </div>
             </div>
