@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\FormFieldMapping;
 use App\Services\CognitoFormsService;
 use App\Services\NowCertsFieldMapper;
+use App\Services\NowCertsService;
 use App\Traits\PaginatesArray;
+use App\Http\Requests\SaveMappingsRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -16,7 +18,10 @@ class CognitoController extends Controller
 {
     use PaginatesArray;
 
-    public function __construct(private readonly CognitoFormsService $cognito) {}
+    public function __construct(
+    private readonly CognitoFormsService $cognito,
+    private readonly NowCertsService     $nowcerts,
+) {}
 
     /**
      * List all forms.
@@ -35,12 +40,13 @@ class CognitoController extends Controller
         $paginated = $this->paginateArray($forms, $request, sortableFields: ['Name', 'Id']);
 
         return Inertia::render('Dashboard', [
-            'forms'      => $paginated['items'],
-            'search'     => $paginated['search'],
-            'sort'       => $paginated['sort'],
-            'direction'  => $paginated['direction'],
-            'pagination' => $paginated['pagination'],
-            'error'      => $error,
+            'forms'          => $paginated['items'],
+            'search'         => $paginated['search'],
+            'sort'           => $paginated['sort'],
+            'direction'      => $paginated['direction'],
+            'pagination'     => $paginated['pagination'],
+            'perPageOptions' => $this->perPageOptions,
+            'error'          => $error,
         ]);
     }
 
@@ -66,48 +72,42 @@ class CognitoController extends Controller
             $error = $e->getMessage();
         }
 
-        // Build mapping lookup: DB-saved records override the defaults
-        $mapper  = new NowCertsFieldMapper();
-        $lookup  = $mapper->getLookup();
+        $availableFields      = [];
+        $availableFieldsError = null;
+        $lookup               = [];
 
-        $saved = FormFieldMapping::where('form_id', $formId)
-            ->get()
-            ->keyBy('cognito_field');
+        try {
+            $availableFields = $this->nowcerts->getAvailableFields();
 
-        foreach ($saved as $cognitoField => $record) {
-            if ($record->nowcerts_entity && $record->nowcerts_field) {
-                $lookup[$cognitoField] = [
-                    'entity' => $record->nowcerts_entity,
-                    'field'  => $record->nowcerts_field,
-                ];
-            } else {
-                // Explicitly unmapped in DB — remove default
-                unset($lookup[$cognitoField]);
+            // Build lookup: DB-saved mappings + auto-suggestions for unmapped fields
+            $mapper      = new NowCertsFieldMapper($formId, $this->nowcerts);
+            $lookup      = $mapper->getLookup();
+            $suggestions = $mapper->getSuggestions($fields);
+
+            // Merge suggestions only for fields not already saved
+            foreach ($suggestions as $cognitoField => $mapping) {
+                $lookup[$cognitoField] ??= $mapping;
             }
+        } catch (\Throwable $e) {
+            $availableFieldsError = $e->getMessage();
         }
 
         return Inertia::render('Cognito/FormDetails', [
-            'form'            => $form,
-            'fields'          => $fields,
-            'mappingLookup'   => $lookup,
-            'availableFields' => NowCertsFieldMapper::availableFields(),
-            'error'           => $error,
+            'form'                 => $form,
+            'fields'               => $fields,
+            'mappingLookup'        => $lookup,
+            'availableFields'      => $availableFields,
+            'availableFieldsError' => $availableFieldsError,
+            'error'                => $error,
         ]);
     }
 
     /**
      * Save field mappings for a form.
      */
-    public function saveMappings(Request $request, string $formId): RedirectResponse
+    public function saveMappings(SaveMappingsRequest $request, string $formId): RedirectResponse
     {
-        $request->validate([
-            'mappings'                  => ['required', 'array'],
-            'mappings.*.cognito_field'  => ['required', 'string'],
-            'mappings.*.nowcerts_entity'=> ['nullable', 'string'],
-            'mappings.*.nowcerts_field' => ['nullable', 'string'],
-        ]);
-
-        foreach ($request->input('mappings') as $mapping) {
+        foreach ($request->validated()['mappings'] as $mapping) {
             FormFieldMapping::updateOrCreate(
                 [
                     'form_id'       => $formId,

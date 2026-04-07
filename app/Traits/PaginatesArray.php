@@ -13,13 +13,20 @@ trait PaginatesArray
      * @param  string[]           $sortableFields  Keys allowed for sorting
      * @return array{items: array, pagination: array, search: string, sort: string, direction: string}
      */
-    protected function paginateArray(array $items, Request $request, int $perPage = 10, array $sortableFields = []): array
+    /** Allowed per-page values. First entry is the default. */
+    protected array $perPageOptions = [20, 50, 100];
+
+    protected function paginateArray(array $items, Request $request, int $perPage = 20, array $sortableFields = []): array
     {
         $search    = $request->string('search')->trim()->toString();
         $sort      = $request->string('sort')->toString();
         $direction = $request->string('direction', 'asc')->lower()->toString();
         $direction = in_array($direction, ['asc', 'desc']) ? $direction : 'asc';
         $page      = max(1, (int) $request->get('page', 1));
+
+        // Honour per-page from request if it's an allowed value
+        $requestedPerPage = (int) $request->get('per_page', $perPage);
+        $perPage = in_array($requestedPerPage, $this->perPageOptions) ? $requestedPerPage : $perPage;
 
         // Search
         if ($search !== '') {

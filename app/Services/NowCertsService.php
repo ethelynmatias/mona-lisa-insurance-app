@@ -28,6 +28,71 @@ class NowCertsService
     }
 
     // ──────────────────────────────────────────
+    //  Dynamic field schema
+    // ──────────────────────────────────────────
+
+    /**
+     * Return available NowCerts fields grouped by entity, derived from live API responses.
+     * Results are cached for 24 hours. Falls back to NowCertsFieldMapper::availableFields()
+     * if the API returns no data.
+     *
+     * Shape: [ 'Insured' => ['FirstName', 'LastName', ...], 'Policy' => [...], ... ]
+     */
+    public function getAvailableFields(): array
+    {
+        return Cache::remember('nowcerts_available_fields', now()->addHours(24), function () {
+            $entities = [
+                'Insured' => fn () => $this->send('GET', 'InsuredDetailList', query: ['Active' => 'true']),
+                'Policy'  => fn () => $this->send('GET', 'PolicyDetailList',  query: ['isActive' => 'true']),
+                'Driver'  => fn () => $this->send('GET', 'DriverList'),
+                'Vehicle' => fn () => $this->send('GET', 'VehicleList',       query: ['Active' => 'true']),
+            ];
+
+            $result  = [];
+            $missing = [];
+
+            foreach ($entities as $entity => $fetch) {
+                $records = $fetch();
+
+                // Unwrap if wrapped: { "Insureds": [...] } etc.
+                $list = collect($records)->first(fn ($v) => is_array($v) && array_is_list($v))
+                    ?? (array_is_list($records) ? $records : []);
+
+                $first = $list[0] ?? null;
+
+                if ($first && is_array($first)) {
+                    $result[$entity] = collect(array_keys($first))
+                        ->filter(fn ($k) => ! in_array($k, ['Id', 'DatabaseId', 'AgencyDatabaseId', 'IsDeleted']))
+                        ->values()
+                        ->all();
+                } else {
+                    $missing[] = $entity;
+                }
+            }
+
+            if (! empty($missing)) {
+                // Do not cache partial results
+                Cache::forget('nowcerts_available_fields');
+
+                throw new RuntimeException(
+                    'Could not retrieve NowCerts fields for: ' . implode(', ', $missing) . '. '
+                    . 'Make sure your NowCerts account has at least one record for each entity (Insured, Policy, Driver, Vehicle).'
+                );
+            }
+
+            return $result;
+        });
+    }
+
+    /**
+     * Clear the cached available fields (call after credentials change).
+     */
+    public function clearAvailableFieldsCache(): void
+    {
+        Cache::forget('nowcerts_available_fields');
+    }
+
+    // ──────────────────────────────────────────
     //  Authentication
     // ──────────────────────────────────────────
 

@@ -5,10 +5,10 @@ import SchemaField from '@/Components/SchemaField';
 import SearchInput from '@/Components/SearchInput';
 import Pagination from '@/Components/Pagination';
 
-const PER_PAGE = 10;
+const PER_PAGE_OPTIONS = [20, 50, 100];
 
 export default function FormDetails() {
-    const { form, fields = [], mappingLookup = {}, availableFields = {}, error } = usePage().props;
+    const { form, fields = [], mappingLookup = {}, availableFields = {}, availableFieldsError = null, error } = usePage().props;
     const flash = usePage().props.flash ?? {};
 
     const formName = form?.Name ?? form?.name ?? 'Form Details';
@@ -16,6 +16,7 @@ export default function FormDetails() {
 
     const [search, setSearch]     = useState('');
     const [currentPage, setPage]  = useState(1);
+    const [perPage, setPerPage]   = useState(PER_PAGE_OPTIONS[0]);
     const [mappings, setMappings] = useState(mappingLookup);
     const [saving, setSaving]     = useState(false);
 
@@ -31,12 +32,17 @@ export default function FormDetails() {
         );
     }, [fields, search]);
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+    const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
     const safePage   = Math.min(currentPage, totalPages);
-    const paginated  = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
+    const paginated  = filtered.slice((safePage - 1) * perPage, safePage * perPage);
 
     function handleSearch(value) {
         setSearch(value);
+        setPage(1);
+    }
+
+    function handlePerPageChange(value) {
+        setPerPage(Number(value));
         setPage(1);
     }
 
@@ -147,6 +153,20 @@ export default function FormDetails() {
                             </div>
                         </div>
 
+                        {/* NowCerts fields error */}
+                        {availableFieldsError && (
+                            <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                        d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                                </svg>
+                                <div>
+                                    <p className="font-medium">NowCerts fields unavailable</p>
+                                    <p className="mt-0.5 text-amber-600">{availableFieldsError}</p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Schema */}
                         <div className="bg-white rounded-xl border border-gray-200">
 
@@ -159,6 +179,19 @@ export default function FormDetails() {
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-xs text-gray-500 whitespace-nowrap">Show</label>
+                                        <select
+                                            value={perPage}
+                                            onChange={e => handlePerPageChange(e.target.value)}
+                                            className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700
+                                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        >
+                                            {PER_PAGE_OPTIONS.map(n => (
+                                                <option key={n} value={n}>{n} per page</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                     <div className="w-full sm:w-64">
                                         <SearchInput
                                             value={search}
@@ -168,7 +201,7 @@ export default function FormDetails() {
                                     </div>
                                     <button
                                         onClick={handleSave}
-                                        disabled={saving}
+                                        disabled={saving || !!availableFieldsError || Object.keys(availableFields).length === 0}
                                         className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white
                                             text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60
                                             disabled:cursor-not-allowed transition-colors"
@@ -232,7 +265,7 @@ export default function FormDetails() {
                             <Pagination
                                 pagination={{
                                     currentPage: safePage,
-                                    perPage: PER_PAGE,
+                                    perPage,
                                     total: filtered.length,
                                     totalPages,
                                 }}

@@ -6,14 +6,15 @@ import Pagination from '@/Components/Pagination';
 import SortableHeader from '@/Components/SortableHeader';
 
 export default function Dashboard() {
-    const { forms, search: initialSearch, sort: initialSort, direction: initialDirection, pagination, error } = usePage().props;
+    const { forms, search: initialSearch, sort: initialSort, direction: initialDirection, pagination, perPageOptions = [20, 50, 100], error } = usePage().props;
 
-    const [search,    setSearch]    = useState(initialSearch    ?? '');
-    const [sort,      setSort]      = useState(initialSort      ?? '');
-    const [direction, setDirection] = useState(initialDirection ?? 'asc');
+    const [search,    setSearch]    = useState(initialSearch             ?? '');
+    const [sort,      setSort]      = useState(initialSort               ?? '');
+    const [direction, setDirection] = useState(initialDirection          ?? 'asc');
+    const [perPage,   setPerPage]   = useState(pagination?.perPage ?? perPageOptions[0]);
 
     const navigate = (params) => {
-        router.get('/dashboard', { search, sort, direction, page: 1, ...params }, {
+        router.get('/dashboard', { search, sort, direction, page: 1, per_page: perPage, ...params }, {
             preserveState: true,
             replace: true,
         });
@@ -34,6 +35,12 @@ export default function Dashboard() {
         navigate({ page });
     };
 
+    const handlePerPageChange = (value) => {
+        const val = Number(value);
+        setPerPage(val);
+        navigate({ per_page: val, page: 1 });
+    };
+
     return (
         <AuthenticatedLayout title="Dashboard">
             <div className="space-y-4">
@@ -48,13 +55,26 @@ export default function Dashboard() {
                 <div className="bg-white rounded-xl border border-gray-200">
 
                     {/* Toolbar */}
-                    <div className="px-5 py-4 border-b border-gray-100">
+                    <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center gap-3">
                         <SearchInput
                             value={search}
                             onChange={handleSearch}
                             placeholder="Search forms by name…"
                             className="w-full sm:max-w-xs"
                         />
+                        <div className="flex items-center gap-2 sm:ml-auto">
+                            <label className="text-xs text-gray-500 whitespace-nowrap">Show</label>
+                            <select
+                                value={perPage}
+                                onChange={e => handlePerPageChange(e.target.value)}
+                                className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700
+                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            >
+                                {perPageOptions.map(n => (
+                                    <option key={n} value={n}>{n} per page</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
 
                     {/* Error */}

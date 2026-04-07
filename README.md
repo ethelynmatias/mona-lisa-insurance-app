@@ -111,6 +111,8 @@ The application supports two roles: **admin** and **manager**.
 | `admin`   | Full access including user management     |
 | `manager` | Standard access for day-to-day operations |
 
+Both roles require the account to be **active** (`is_active = true`) to log in.
+
 ### Default Accounts
 
 | Role  | Email                 | Password   |
@@ -178,8 +180,17 @@ Every logged-in user can:
 
 Admins can:
 - **Create** new users with a name, email, password, and role
-- **View** all users in a table with role badges and creation dates
+- **View** all users in a table with role badges, status badges, and creation dates
+- **Activate / Deactivate** any user except their own account
 - **Delete** any user except their own account
+
+#### User Status (Active / Inactive)
+
+Users have an `is_active` flag (default `true`). Inactive users are blocked at login with the message:
+
+> _Your account has been deactivated. Please contact an administrator._
+
+Admins can toggle a user's status from the **All Users** table on the Settings page (Activate / Deactivate buttons). Admins cannot deactivate their own account.
 
 ---
 
@@ -327,15 +338,17 @@ mona-lisa-insurance/
 │   │   ├── Middleware/
 │   │   │   ├── HandleInertiaRequests.php  # Shares auth, flash, ziggy props
 │   │   │   └── RoleMiddleware.php
+│   │   ├── Requests/
+│   │   │   └── SaveMappingsRequest.php    # Validates field mapping save payload
 │   │   └── Traits/
 │   │       └── PaginatesArray.php      # Reusable search/sort/pagination for arrays
 │   ├── Models/
 │   │   ├── FormFieldMapping.php        # Persisted Cognito → NowCerts field mappings
-│   │   └── User.php                    # isAdmin() / isManager() helpers
+│   │   └── User.php                    # isAdmin() / isManager() / isActive() helpers
 │   └── Services/
 │       ├── CognitoFormsService.php     # Cognito Forms REST API client
-│       ├── NowCertsService.php         # NowCerts REST API client
-│       └── NowCertsFieldMapper.php     # Maps Cognito form fields → NowCerts fields
+│       ├── NowCertsService.php         # NowCerts REST API client + dynamic field schema
+│       └── NowCertsFieldMapper.php     # DB + API driven field mapper (no hardcoded maps)
 ├── bootstrap/
 │   └── providers.php                   # Registers ZiggyServiceProvider
 ├── config/
@@ -377,6 +390,27 @@ mona-lisa-insurance/
 ├── Makefile
 └── vite.config.js
 ```
+
+---
+
+## Per-Page Filter
+
+The **Dashboard** listing and the **Form Schema** panel on the Form Details page both support a configurable number of records per page.
+
+| Location         | Options          | Default |
+|------------------|------------------|---------|
+| Dashboard        | 20 / 50 / 100    | 20      |
+| Form Schema panel| 20 / 50 / 100    | 20      |
+
+The selected value is preserved in the URL query string (`per_page`) so it survives page navigation and browser refreshes.
+
+---
+
+## Page Titles & Favicon
+
+Every page sets a descriptive `<title>` in the format `{Page} — Mona Lisa Insurance` using Inertia's `<Head>` component.
+
+The favicon is derived from the company logo (`/images/logo.png`) and is declared in `resources/views/app.blade.php` as 16×16, 32×32, and Apple-touch-icon variants.
 
 ---
 
@@ -454,38 +488,46 @@ $nowcerts->upsertOpportunity($data);
 $nowcerts->getAgents();
 $nowcerts->getCarriers();
 $nowcerts->getLinesOfBusiness();
+
+// Dynamic field schema (cached 24h, derived from live API records)
+$nowcerts->getAvailableFields();        // ['Insured' => [...], 'Policy' => [...], ...]
+$nowcerts->clearAvailableFieldsCache(); // force refresh
 ```
 
 #### Field Mapping UI
 
 On the **Form Details** page, each Cognito form schema field has a dropdown to select the corresponding NowCerts entity and field. Click **Save Mappings** to persist to the database.
 
-Mappings are stored in the `form_field_mappings` table and override the default mapper on subsequent loads.
+- Available NowCerts fields are fetched **live from the API** (cached 24 hours) — no hardcoded field lists
+- If the API is unreachable or returns no records, an amber warning is shown and the dropdowns are disabled
+- To force a field list refresh: `php artisan cache:forget nowcerts_available_fields`
+
+Mappings are stored in the `form_field_mappings` table (`form_id`, `cognito_field`, `nowcerts_entity`, `nowcerts_field`).
 
 #### Programmatic Field Mapping
 
-```php
-$mapper = new NowCertsFieldMapper();
+`NowCertsFieldMapper` is fully DB + API driven — no hardcoded maps. It requires a `$formId` and the `NowCertsService` instance.
 
+```php
+$mapper = new NowCertsFieldMapper($formId, $nowcerts);
+
+// Map a Cognito entry to NowCerts payloads using saved DB mappings
 $insuredPayload = $mapper->mapInsured($cognitoEntry);
 $policyPayload  = $mapper->mapPolicy($cognitoEntry);
 $driverPayload  = $mapper->mapDriver($cognitoEntry);
 $vehiclePayload = $mapper->mapVehicle($cognitoEntry);
+
+// Get the lookup for the frontend (DB-saved mappings only)
+$lookup = $mapper->getLookup();
+
+// Auto-suggest mappings for fields not yet saved in DB
+// Uses normalised name-matching against live NowCerts API fields
+$suggestions = $mapper->getSuggestions($cognitoSchemaFields);
 ```
 
-Custom field mappings can be passed per form:
+#### Validation
 
-```php
-$mapper = new NowCertsFieldMapper([
-    'insured' => [
-        'My_Custom_Field' => 'CommercialName',
-        'Business_Email'  => 'EMail',
-    ],
-    'policy' => [
-        'Pol_Number' => 'Number',
-    ],
-]);
-```
+Field mapping saves are validated via `app/Http/Requests/SaveMappingsRequest.php`.
 
 ---
 

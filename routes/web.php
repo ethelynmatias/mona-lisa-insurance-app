@@ -22,7 +22,8 @@ Route::middleware('auth')->group(function () {
     Route::put('/settings/profile',              [SettingsController::class, 'updateProfile'])->name('settings.profile');
     Route::put('/settings/password',             [SettingsController::class, 'updatePassword'])->name('settings.password');
     Route::post('/settings/users',               [SettingsController::class, 'createUser'])->name('settings.users.create')->middleware('role:admin');
-    Route::delete('/settings/users/{user}',      [SettingsController::class, 'deleteUser'])->name('settings.users.delete')->middleware('role:admin');
+    Route::patch('/settings/users/{user}/status', [SettingsController::class, 'toggleUserStatus'])->name('settings.users.status')->middleware('role:admin');
+    Route::delete('/settings/users/{user}',       [SettingsController::class, 'deleteUser'])->name('settings.users.delete')->middleware('role:admin');
 
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 });

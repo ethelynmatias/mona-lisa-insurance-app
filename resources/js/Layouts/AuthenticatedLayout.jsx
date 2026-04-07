@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 
 const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: DashboardIcon },
@@ -43,6 +43,8 @@ export default function AuthenticatedLayout({ children, title }) {
         .slice(0, 2);
 
     return (
+        <>
+        <Head title={title} />
         <div className="min-h-screen bg-gray-50 flex">
             {/* Sidebar overlay (mobile) */}
             {sidebarOpen && (
@@ -190,5 +192,6 @@ export default function AuthenticatedLayout({ children, title }) {
                 </main>
             </div>
         </div>
+        </>
     );
 }

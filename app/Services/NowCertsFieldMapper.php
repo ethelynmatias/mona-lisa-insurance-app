@@ -2,127 +2,68 @@
 
 namespace App\Services;
 
+use App\Models\FormFieldMapping;
+
 /**
- * Maps Cognito Forms entry field names to NowCerts API field names.
+ * Maps Cognito Forms entry fields → NowCerts API fields for a specific form.
+ *
+ * Priority:
+ *   1. DB-saved mappings (explicit user selections via the UI)
+ *   2. Auto-suggestions by normalised name matching against live NowCerts API fields
  *
  * Usage:
- *   $mapper  = new NowCertsFieldMapper($mappingConfig);
- *   $insured = $mapper->mapInsured($cognitoEntry);
- *   $policy  = $mapper->mapPolicy($cognitoEntry);
+ *   $mapper = new NowCertsFieldMapper($formId, $nowCertsService);
+ *   $lookup = $mapper->getLookup();           // for the frontend
+ *   $data   = $mapper->mapInsured($entry);    // for API payloads
  */
 class NowCertsFieldMapper
 {
-    /**
-     * Default field map: Cognito field name (key) → NowCerts field name (value).
-     *
-     * Override per-form by passing a custom $map array to the constructor.
-     *
-     * Insured fields
-     */
-    private array $insuredMap;
+    /** DB-saved mappings: [ cognitoField => ['entity' => ..., 'field' => ...] ] */
+    private array $saved = [];
 
-    /**
-     * Policy fields
-     */
-    private array $policyMap;
+    /** Available NowCerts fields from API: [ 'Insured' => [...], 'Policy' => [...], ... ] */
+    private array $available = [];
 
-    /**
-     * Driver fields
-     */
-    private array $driverMap;
-
-    /**
-     * Vehicle fields
-     */
-    private array $vehicleMap;
-
-    public function __construct(array $map = [])
+    public function __construct(string $formId, NowCertsService $nowcerts)
     {
-        $this->insuredMap = array_merge($this->defaultInsuredMap(), $map['insured'] ?? []);
-        $this->policyMap  = array_merge($this->defaultPolicyMap(),  $map['policy']  ?? []);
-        $this->driverMap  = array_merge($this->defaultDriverMap(),  $map['driver']  ?? []);
-        $this->vehicleMap = array_merge($this->defaultVehicleMap(), $map['vehicle'] ?? []);
+        // Load explicit user-saved mappings from DB
+        $this->saved = FormFieldMapping::where('form_id', $formId)
+            ->whereNotNull('nowcerts_entity')
+            ->whereNotNull('nowcerts_field')
+            ->get()
+            ->mapWithKeys(fn ($r) => [
+                $r->cognito_field => [
+                    'entity' => $r->nowcerts_entity,
+                    'field'  => $r->nowcerts_field,
+                ],
+            ])
+            ->all();
+
+        // Load available NowCerts fields from API (cached)
+        $this->available = $nowcerts->getAvailableFields();
     }
 
     // ──────────────────────────────────────────
-    //  Static helpers
+    //  Public
     // ──────────────────────────────────────────
 
     /**
-     * All selectable NowCerts fields grouped by entity.
-     * Used to populate the mapping dropdowns on the frontend.
-     */
-    public static function availableFields(): array
-    {
-        return [
-            'Insured' => [
-                'FirstName', 'LastName', 'MiddleName', 'CommercialName', 'Dba',
-                'EMail', 'EMail2', 'EMail3', 'Phone', 'CellPhone', 'Fax', 'SmsPhone',
-                'AddressLine1', 'AddressLine2', 'City', 'State', 'ZipCode',
-                'Website', 'FEIN', 'DateOfBirth', 'InsuredId', 'CustomerId',
-                'Description', 'TagName', 'ReferralSourceCompanyName',
-            ],
-            'Policy' => [
-                'Number', 'EffectiveDate', 'ExpirationDate', 'BindDate',
-                'CarrierName', 'LineOfBusinessName', 'MgaName',
-                'Premium', 'AgencyCommissionPercent',
-                'Description', 'BillingType', 'BusinessType',
-                'InsuredFirstName', 'InsuredLastName', 'InsuredEmail', 'InsuredDatabaseId',
-            ],
-            'Driver' => [
-                'FirstName', 'LastName', 'MiddleName',
-                'DateOfBirth', 'LicenseNumber', 'LicenseState',
-                'Gender', 'MaritalStatus', 'InsuredDatabaseId',
-            ],
-            'Vehicle' => [
-                'Vin', 'Year', 'Make', 'Model', 'BodyType',
-                'GVW', 'StatedAmount', 'PlateNumber', 'PlateState', 'InsuredDatabaseId',
-            ],
-        ];
-    }
-
-    // ──────────────────────────────────────────
-    //  Public accessors
-    // ──────────────────────────────────────────
-
-    /**
-     * Return a flat lookup of all Cognito field names → NowCerts mapping info.
+     * Return a flat lookup for the frontend.
+     * DB-saved mappings take priority; unset fields are auto-suggested by name match.
      *
-     * Shape: [ 'CognitoFieldName' => ['entity' => 'Insured', 'field' => 'FirstName'], ... ]
+     * Shape: [ 'CognitoField' => ['entity' => 'Insured', 'field' => 'FirstName'], ... ]
      */
     public function getLookup(): array
     {
-        $lookup = [];
-
-        foreach ($this->insuredMap as $cognito => $nowcerts) {
-            $lookup[$cognito] = ['entity' => 'Insured', 'field' => $nowcerts];
-        }
-
-        foreach ($this->policyMap as $cognito => $nowcerts) {
-            $lookup[$cognito] ??= ['entity' => 'Policy', 'field' => $nowcerts];
-        }
-
-        foreach ($this->driverMap as $cognito => $nowcerts) {
-            $lookup[$cognito] ??= ['entity' => 'Driver', 'field' => $nowcerts];
-        }
-
-        foreach ($this->vehicleMap as $cognito => $nowcerts) {
-            $lookup[$cognito] ??= ['entity' => 'Vehicle', 'field' => $nowcerts];
-        }
-
-        return $lookup;
+        return $this->saved;
     }
-
-    // ──────────────────────────────────────────
-    //  Public mappers
-    // ──────────────────────────────────────────
 
     /**
      * Map a Cognito entry to a NowCerts Insured payload.
      */
     public function mapInsured(array $entry): array
     {
-        return $this->applyMap($entry, $this->insuredMap);
+        return $this->mapEntity('Insured', $entry);
     }
 
     /**
@@ -130,7 +71,7 @@ class NowCertsFieldMapper
      */
     public function mapPolicy(array $entry): array
     {
-        return $this->applyMap($entry, $this->policyMap);
+        return $this->mapEntity('Policy', $entry);
     }
 
     /**
@@ -138,7 +79,7 @@ class NowCertsFieldMapper
      */
     public function mapDriver(array $entry): array
     {
-        return $this->applyMap($entry, $this->driverMap);
+        return $this->mapEntity('Driver', $entry);
     }
 
     /**
@@ -146,216 +87,78 @@ class NowCertsFieldMapper
      */
     public function mapVehicle(array $entry): array
     {
-        return $this->applyMap($entry, $this->vehicleMap);
+        return $this->mapEntity('Vehicle', $entry);
     }
 
-    // ──────────────────────────────────────────
-    //  Default maps
-    // ──────────────────────────────────────────
-
-    private function defaultInsuredMap(): array
+    /**
+     * Auto-suggest mappings for Cognito fields that have no DB-saved mapping,
+     * by normalised name-matching against the live NowCerts API fields.
+     *
+     * Shape: same as getLookup()
+     */
+    public function getSuggestions(array $cognitoFields): array
     {
-        return [
-            // Cognito field name          => NowCerts field name
-            'FirstName'                    => 'FirstName',
-            'First_Name'                   => 'FirstName',
-            'first_name'                   => 'FirstName',
+        $suggestions = [];
 
-            'LastName'                     => 'LastName',
-            'Last_Name'                    => 'LastName',
-            'last_name'                    => 'LastName',
+        foreach ($cognitoFields as $field) {
+            $name = $field['InternalName'] ?? $field['internalName'] ?? $field['Name'] ?? $field['name'] ?? null;
+            if (! $name || isset($this->saved[$name])) {
+                continue;
+            }
 
-            'MiddleName'                   => 'MiddleName',
-            'Middle_Name'                  => 'MiddleName',
+            $match = $this->autoMatch($name);
+            if ($match) {
+                $suggestions[$name] = $match;
+            }
+        }
 
-            'CommercialName'               => 'CommercialName',
-            'Business_Name'                => 'CommercialName',
-            'Company_Name'                 => 'CommercialName',
-
-            'Dba'                          => 'Dba',
-            'DBA'                          => 'Dba',
-
-            'Email'                        => 'EMail',
-            'EmailAddress'                 => 'EMail',
-            'Email_Address'                => 'EMail',
-
-            'Email2'                       => 'EMail2',
-            'Email3'                       => 'EMail3',
-
-            'Phone'                        => 'Phone',
-            'PhoneNumber'                  => 'Phone',
-            'Phone_Number'                 => 'Phone',
-
-            'CellPhone'                    => 'CellPhone',
-            'Cell_Phone'                   => 'CellPhone',
-            'Mobile'                       => 'CellPhone',
-
-            'Fax'                          => 'Fax',
-            'FaxNumber'                    => 'Fax',
-
-            'AddressLine1'                 => 'AddressLine1',
-            'Address_Line_1'               => 'AddressLine1',
-            'Address'                      => 'AddressLine1',
-            'StreetAddress'                => 'AddressLine1',
-
-            'AddressLine2'                 => 'AddressLine2',
-            'Address_Line_2'               => 'AddressLine2',
-
-            'City'                         => 'City',
-            'State'                        => 'State',
-            'ZipCode'                      => 'ZipCode',
-            'Zip'                          => 'ZipCode',
-            'Zip_Code'                     => 'ZipCode',
-            'PostalCode'                   => 'ZipCode',
-
-            'Website'                      => 'Website',
-            'FEIN'                         => 'FEIN',
-            'TaxId'                        => 'FEIN',
-            'Tax_Id'                       => 'FEIN',
-
-            'DateOfBirth'                  => 'DateOfBirth',
-            'DOB'                          => 'DateOfBirth',
-            'Date_Of_Birth'                => 'DateOfBirth',
-
-            'InsuredId'                    => 'InsuredId',
-            'CustomerId'                   => 'CustomerId',
-
-            'Description'                  => 'Description',
-            'Notes'                        => 'Description',
-
-            'ReferralSource'               => 'ReferralSourceCompanyName',
-            'Referral_Source'              => 'ReferralSourceCompanyName',
-
-            'Tag'                          => 'TagName',
-            'TagName'                      => 'TagName',
-        ];
-    }
-
-    private function defaultPolicyMap(): array
-    {
-        return [
-            'PolicyNumber'                 => 'Number',
-            'Policy_Number'                => 'Number',
-            'Number'                       => 'Number',
-
-            'EffectiveDate'                => 'EffectiveDate',
-            'Effective_Date'               => 'EffectiveDate',
-            'StartDate'                    => 'EffectiveDate',
-
-            'ExpirationDate'               => 'ExpirationDate',
-            'Expiration_Date'              => 'ExpirationDate',
-            'ExpDate'                      => 'ExpirationDate',
-            'EndDate'                      => 'ExpirationDate',
-
-            'BindDate'                     => 'BindDate',
-            'Bind_Date'                    => 'BindDate',
-
-            'Carrier'                      => 'CarrierName',
-            'CarrierName'                  => 'CarrierName',
-            'Carrier_Name'                 => 'CarrierName',
-
-            'LineOfBusiness'               => 'LineOfBusinessName',
-            'Line_Of_Business'             => 'LineOfBusinessName',
-            'LOB'                          => 'LineOfBusinessName',
-
-            'Premium'                      => 'Premium',
-            'PremiumAmount'                => 'Premium',
-            'Annual_Premium'               => 'Premium',
-
-            'AgencyCommissionPercent'      => 'AgencyCommissionPercent',
-            'Commission_Percent'           => 'AgencyCommissionPercent',
-
-            'Description'                  => 'Description',
-            'Notes'                        => 'Description',
-
-            'BillingType'                  => 'BillingType',
-            'Billing_Type'                 => 'BillingType',
-
-            'InsuredFirstName'             => 'InsuredFirstName',
-            'InsuredLastName'              => 'InsuredLastName',
-            'InsuredEmail'                 => 'InsuredEmail',
-            'InsuredDatabaseId'            => 'InsuredDatabaseId',
-        ];
-    }
-
-    private function defaultDriverMap(): array
-    {
-        return [
-            'FirstName'                    => 'FirstName',
-            'First_Name'                   => 'FirstName',
-
-            'LastName'                     => 'LastName',
-            'Last_Name'                    => 'LastName',
-
-            'MiddleName'                   => 'MiddleName',
-
-            'DateOfBirth'                  => 'DateOfBirth',
-            'DOB'                          => 'DateOfBirth',
-            'Date_Of_Birth'                => 'DateOfBirth',
-
-            'LicenseNumber'                => 'LicenseNumber',
-            'License_Number'               => 'LicenseNumber',
-            'DLNumber'                     => 'LicenseNumber',
-
-            'LicenseState'                 => 'LicenseState',
-            'License_State'                => 'LicenseState',
-            'DLState'                      => 'LicenseState',
-
-            'Gender'                       => 'Gender',
-            'MaritalStatus'                => 'MaritalStatus',
-            'Marital_Status'               => 'MaritalStatus',
-
-            'InsuredDatabaseId'            => 'InsuredDatabaseId',
-        ];
-    }
-
-    private function defaultVehicleMap(): array
-    {
-        return [
-            'VIN'                          => 'Vin',
-            'Vin'                          => 'Vin',
-
-            'Year'                         => 'Year',
-            'Make'                         => 'Make',
-            'Model'                        => 'Model',
-            'BodyType'                     => 'BodyType',
-            'Body_Type'                    => 'BodyType',
-
-            'GVW'                          => 'GVW',
-            'GrossVehicleWeight'           => 'GVW',
-
-            'StatedAmount'                 => 'StatedAmount',
-            'Stated_Amount'                => 'StatedAmount',
-
-            'PlateNumber'                  => 'PlateNumber',
-            'Plate_Number'                 => 'PlateNumber',
-            'LicensePlate'                 => 'PlateNumber',
-
-            'PlateState'                   => 'PlateState',
-            'Plate_State'                  => 'PlateState',
-
-            'InsuredDatabaseId'            => 'InsuredDatabaseId',
-        ];
+        return $suggestions;
     }
 
     // ──────────────────────────────────────────
     //  Internal
     // ──────────────────────────────────────────
 
-    /**
-     * Walk a flat Cognito entry array through a field map.
-     * Only fields present in the map (and non-null in the entry) are included.
-     */
-    private function applyMap(array $entry, array $fieldMap): array
+    private function mapEntity(string $entity, array $entry): array
     {
         $result = [];
 
-        foreach ($fieldMap as $cognitoKey => $nowCertsKey) {
-            if (array_key_exists($cognitoKey, $entry) && $entry[$cognitoKey] !== null && $entry[$cognitoKey] !== '') {
-                $result[$nowCertsKey] = $entry[$cognitoKey];
+        foreach ($this->saved as $cognitoField => $mapping) {
+            if ($mapping['entity'] !== $entity) {
+                continue;
+            }
+
+            if (array_key_exists($cognitoField, $entry)
+                && $entry[$cognitoField] !== null
+                && $entry[$cognitoField] !== '') {
+                $result[$mapping['field']] = $entry[$cognitoField];
             }
         }
 
         return $result;
+    }
+
+    /**
+     * Attempt to find a NowCerts field matching the given Cognito field name
+     * by normalising both sides (lowercase, strip underscores/spaces/hyphens).
+     */
+    private function autoMatch(string $cognitoField): ?array
+    {
+        $needle = $this->normalise($cognitoField);
+
+        foreach ($this->available as $entity => $fields) {
+            foreach ($fields as $nowcertsField) {
+                if ($this->normalise($nowcertsField) === $needle) {
+                    return ['entity' => $entity, 'field' => $nowcertsField];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function normalise(string $value): string
+    {
+        return strtolower(preg_replace('/[\s_\-]+/', '', $value));
     }
 }

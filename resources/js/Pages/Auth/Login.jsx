@@ -1,4 +1,4 @@
-import { useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 
 export default function Login() {
     const { data, setData, post, processing, errors } = useForm({
@@ -13,6 +13,8 @@ export default function Login() {
     };
 
     return (
+        <>
+        <Head title="Sign In" />
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
             <div className="w-full max-w-md">
                 {/* Card */}
@@ -103,5 +105,6 @@ export default function Login() {
                 </p>
             </div>
         </div>
+        </>
     );
 }

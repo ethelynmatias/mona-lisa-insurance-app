@@ -42,6 +42,48 @@ function Input({ type = 'text', value, onChange, placeholder, className = '' }) 
     );
 }
 
+function PasswordInput({ value, onChange, placeholder }) {
+    const [show, setShow] = useState(false);
+    return (
+        <div className="relative">
+            <input
+                type={show ? 'text' : 'password'}
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                placeholder={placeholder}
+                className="w-full px-3 py-2 pr-9 text-sm border border-gray-300 rounded-lg
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <button
+                type="button"
+                onClick={() => setShow(s => !s)}
+                className="absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400 hover:text-gray-600"
+                tabIndex={-1}
+                aria-label={show ? 'Hide password' : 'Show password'}
+            >
+                {show ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7
+                               a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878
+                               l4.242 4.242M9.88 9.88L6.59 6.59m7.532 7.532l3.29 3.29M3 3l3.59 3.59
+                               m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025
+                               0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7
+                               -1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                )}
+            </button>
+        </div>
+    );
+}
+
 // ──────────────────────────────────────────
 //  Profile section
 // ──────────────────────────────────────────
@@ -108,14 +150,14 @@ function PasswordSection() {
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <FormField label="Current Password" error={errors.current_password}>
-                <Input type="password" value={form.current_password} onChange={set('current_password')} placeholder="••••••••" />
+                <PasswordInput value={form.current_password} onChange={set('current_password')} placeholder="••••••••" />
             </FormField>
             <FormField label="New Password" error={errors.password}>
-                <Input type="password" value={form.password} onChange={set('password')} placeholder="••••••••" />
+                <PasswordInput value={form.password} onChange={set('password')} placeholder="••••••••" />
                 <p className="mt-1 text-xs text-gray-400">Min. 8 characters with uppercase, lowercase, and numbers.</p>
             </FormField>
             <FormField label="Confirm New Password" error={errors.password_confirmation}>
-                <Input type="password" value={form.password_confirmation} onChange={set('password_confirmation')} placeholder="••••••••" />
+                <PasswordInput value={form.password_confirmation} onChange={set('password_confirmation')} placeholder="••••••••" />
             </FormField>
             <div className="flex justify-end">
                 <button
@@ -163,10 +205,10 @@ function CreateUserSection() {
                     <Input type="email" value={form.email} onChange={set('email')} placeholder="email@example.com" />
                 </FormField>
                 <FormField label="Password" error={errors.password}>
-                    <Input type="password" value={form.password} onChange={set('password')} placeholder="••••••••" />
+                    <PasswordInput value={form.password} onChange={set('password')} placeholder="••••••••" />
                 </FormField>
                 <FormField label="Confirm Password" error={errors.password_confirmation}>
-                    <Input type="password" value={form.password_confirmation} onChange={set('password_confirmation')} placeholder="••••••••" />
+                    <PasswordInput value={form.password_confirmation} onChange={set('password_confirmation')} placeholder="••••••••" />
                 </FormField>
             </div>
             <FormField label="Role" error={errors.role}>
@@ -198,6 +240,12 @@ function CreateUserSection() {
 //  Users list (admin only)
 // ──────────────────────────────────────────
 function UsersSection({ users, currentUserId }) {
+    function handleToggleStatus(user) {
+        const action = user.is_active ? 'deactivate' : 'activate';
+        if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} user "${user.name}"?`)) return;
+        router.patch(`/settings/users/${user.id}/status`, {}, { preserveScroll: true });
+    }
+
     function handleDelete(user) {
         if (!confirm(`Delete user "${user.name}"? This cannot be undone.`)) return;
         router.delete(`/settings/users/${user.id}`, { preserveScroll: true });
@@ -211,13 +259,14 @@ function UsersSection({ users, currentUserId }) {
                         <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
                         <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
                         <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                         <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Created</th>
                         <th className="px-4 py-3" />
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                     {users.map(user => (
-                        <tr key={user.id} className="hover:bg-gray-50/50">
+                        <tr key={user.id} className={`hover:bg-gray-50/50 ${!user.is_active ? 'opacity-60' : ''}`}>
                             <td className="px-4 py-3 font-medium text-gray-900">
                                 {user.name}
                                 {user.id === currentUserId && (
@@ -231,17 +280,36 @@ function UsersSection({ users, currentUserId }) {
                                     {user.role}
                                 </span>
                             </td>
+                            <td className="px-4 py-3">
+                                <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full
+                                    ${user.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${user.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                    {user.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                            </td>
                             <td className="px-4 py-3 text-gray-400 text-xs">
                                 {new Date(user.created_at).toLocaleDateString()}
                             </td>
                             <td className="px-4 py-3 text-right">
                                 {user.id !== currentUserId && (
-                                    <button
-                                        onClick={() => handleDelete(user)}
-                                        className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
-                                    >
-                                        Delete
-                                    </button>
+                                    <div className="flex items-center justify-end gap-3">
+                                        <button
+                                            onClick={() => handleToggleStatus(user)}
+                                            className={`text-xs font-medium transition-colors ${
+                                                user.is_active
+                                                    ? 'text-amber-500 hover:text-amber-700'
+                                                    : 'text-green-600 hover:text-green-800'
+                                            }`}
+                                        >
+                                            {user.is_active ? 'Deactivate' : 'Activate'}
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(user)}
+                                            className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
                                 )}
                             </td>
                         </tr>
@@ -267,7 +335,7 @@ export default function Settings() {
 
     return (
         <AuthenticatedLayout title="Settings">
-            <div className="max-w-3xl space-y-6">
+            <div className="space-y-6">
 
                 {/* Flash messages */}
                 {currentFlash.success && (
@@ -277,18 +345,19 @@ export default function Settings() {
                     <Alert type="error" message={currentFlash.error} onClose={() => {}} />
                 )}
 
-                {/* Profile */}
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <h2 className="text-sm font-semibold text-gray-900 mb-1">Profile</h2>
-                    <p className="text-xs text-gray-400 mb-5">Update your name and email address.</p>
-                    <ProfileSection user={user} />
-                </div>
+                {/* Profile + Password side by side */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-white rounded-xl border border-gray-200 p-6">
+                        <h2 className="text-sm font-semibold text-gray-900 mb-1">Profile</h2>
+                        <p className="text-xs text-gray-400 mb-5">Update your name and email address.</p>
+                        <ProfileSection user={user} />
+                    </div>
 
-                {/* Password */}
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <h2 className="text-sm font-semibold text-gray-900 mb-1">Change Password</h2>
-                    <p className="text-xs text-gray-400 mb-5">Choose a strong password.</p>
-                    <PasswordSection />
+                    <div className="bg-white rounded-xl border border-gray-200 p-6">
+                        <h2 className="text-sm font-semibold text-gray-900 mb-1">Change Password</h2>
+                        <p className="text-xs text-gray-400 mb-5">Choose a strong password.</p>
+                        <PasswordSection />
+                    </div>
                 </div>
 
                 {/* Admin: Create User */}

@@ -22,7 +22,7 @@ class SettingsController extends Controller
         $users = [];
 
         if (Auth::user()->isAdmin()) {
-            $users = User::orderBy('name')->get(['id', 'name', 'email', 'role', 'created_at']);
+            $users = User::orderBy('name')->get(['id', 'name', 'email', 'role', 'is_active', 'created_at']);
         }
 
         return Inertia::render('Settings', [
@@ -87,6 +87,22 @@ class SettingsController extends Controller
         ]);
 
         return back()->with('success', 'User created successfully.');
+    }
+
+    /**
+     * Toggle a user's active status (admin only, cannot deactivate self).
+     */
+    public function toggleUserStatus(User $user): RedirectResponse
+    {
+        if ($user->id === Auth::id()) {
+            return back()->with('error', 'You cannot change your own account status.');
+        }
+
+        $user->update(['is_active' => ! $user->is_active]);
+
+        $status = $user->is_active ? 'activated' : 'deactivated';
+
+        return back()->with('success', "User {$status} successfully.");
     }
 
     /**
