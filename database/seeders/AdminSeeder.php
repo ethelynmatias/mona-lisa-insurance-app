@@ -20,6 +20,8 @@ class AdminSeeder extends Seeder
         );
 
         // Manager account
+
+        /*
         User::firstOrCreate(
             ['email' => 'manager@monalisa.com'],
             [
@@ -27,6 +29,6 @@ class AdminSeeder extends Seeder
                 'password' => bcrypt('password'),
                 'role'     => 'manager',
             ]
-        );
+        );*/
     }
 }

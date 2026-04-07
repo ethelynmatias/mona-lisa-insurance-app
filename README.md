@@ -77,6 +77,66 @@ make build-assets   # compiles React + Tailwind via Vite
 > Run this once after first install, and again whenever you want a production build.
 > During active development use `make dev` instead (see below).
 
+### 5. Seed the database
+
+```bash
+make seed
+```
+
+This creates the default admin account (see [User Roles](#user-roles) below).
+
+---
+
+## User Roles
+
+The application supports two roles: **admin** and **manager**.
+
+| Role      | Description                              |
+|-----------|------------------------------------------|
+| `admin`   | Full access to all features              |
+| `manager` | Standard access for day-to-day operations |
+
+### Default Accounts
+
+| Role    | Email                   | Password   |
+|---------|-------------------------|------------|
+| Admin   | `admin@monalisa.com`    | `MNL452$$` |
+
+Run `make seed` to create the accounts. The seeder uses `firstOrCreate` — safe to run multiple times without creating duplicates.
+
+> **Important:** Change default passwords after first login in a production environment.
+
+### Protecting Routes by Role
+
+```php
+// Admin only
+Route::middleware(['auth', 'role:admin'])->group(function () { ... });
+
+// Admin or manager
+Route::middleware(['auth', 'role:admin,manager'])->group(function () { ... });
+```
+
+### Checking Role in PHP
+
+```php
+$user->isAdmin();    // true if role === 'admin'
+$user->isManager();  // true if role === 'manager'
+```
+
+### Checking Role in React
+
+The authenticated user's role is available on every page via Inertia shared props:
+
+```jsx
+import { usePage } from '@inertiajs/react';
+
+const { auth } = usePage().props;
+
+if (auth.user.role === 'admin') {
+    // show admin-only UI
+}
+```
+
 ---
 
 ## Daily Development
@@ -129,28 +189,11 @@ make seed                  # run seeders only
 
 > Migrations also run automatically every time the container starts via `php artisan migrate --force`.
 
-### Default Admin Account
-
-Run the seeder to create the default admin user:
-
-```bash
-make seed
-```
-
-| Field    | Value                  |
-|----------|------------------------|
-| Email    | `admin@monalisa.com`   |
-| Password | `password`             |
-
-The seeder uses `firstOrCreate` — running it multiple times will not create duplicate accounts.
-
 To reset all data and re-seed from scratch:
 
 ```bash
 make migrate-fresh-seed
 ```
-
-> **Important:** Change the default password after first login in a production environment.
 
 ---
 
@@ -209,21 +252,37 @@ make help
 
 ```
 mona-lisa-insurance/
-├── app/                    # PHP application (controllers, models, etc.)
-├── bootstrap/              # Laravel bootstrap & middleware registration
-├── config/                 # Laravel configuration files
+├── app/
+│   ├── Http/
+│   │   ├── Controllers/
+│   │   │   └── Auth/
+│   │   │       └── AuthenticatedSessionController.php
+│   │   └── Middleware/
+│   │       ├── HandleInertiaRequests.php
+│   │       └── RoleMiddleware.php
+│   └── Models/
+│       └── User.php              # isAdmin() / isManager() helpers
+├── bootstrap/                    # Laravel bootstrap & middleware registration
+├── config/                       # Laravel configuration files
 ├── database/
-│   ├── migrations/         # Database migrations
-│   └── seeders/            # Database seeders
+│   ├── migrations/               # Database migrations
+│   └── seeders/
+│       ├── AdminSeeder.php       # Seeds default admin account
+│       └── DatabaseSeeder.php
 ├── resources/
-│   ├── css/app.css         # Tailwind CSS entry point
+│   ├── css/app.css               # Tailwind CSS entry point
 │   ├── js/
-│   │   ├── app.jsx         # Inertia + React bootstrap
-│   │   └── Pages/          # React page components (one per route)
-│   └── views/app.blade.php # Single Blade template (Inertia root)
+│   │   ├── app.jsx               # Inertia + React bootstrap
+│   │   ├── Layouts/
+│   │   │   └── AuthenticatedLayout.jsx  # Sidebar + header layout
+│   │   └── Pages/
+│   │       ├── Auth/
+│   │       │   └── Login.jsx     # Login page (home)
+│   │       └── Dashboard.jsx     # Main dashboard
+│   └── views/app.blade.php       # Single Blade template (Inertia root)
 ├── routes/
-│   └── web.php             # Web routes — return Inertia::render(...)
-├── tests/                  # PHPUnit feature & unit tests
+│   └── web.php                   # Web routes
+├── tests/                        # PHPUnit feature & unit tests
 ├── Dockerfile
 ├── docker-compose.yml
 ├── Makefile
