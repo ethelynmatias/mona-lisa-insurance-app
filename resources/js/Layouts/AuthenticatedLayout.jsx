@@ -131,7 +131,13 @@ export default function AuthenticatedLayout({ children, title }) {
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{auth.user?.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{auth.user?.email}</p>
+                            <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full capitalize
+                                ${auth.user?.role === 'admin'
+                                    ? 'bg-purple-100 text-purple-700'
+                                    : 'bg-blue-100 text-blue-700'
+                                }`}>
+                                {auth.user?.role}
+                            </span>
                         </div>
                     </div>
                 </div>
