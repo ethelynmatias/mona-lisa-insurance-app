@@ -6,6 +6,7 @@ use App\Enums\NowCertsEntity;
 use App\Enums\SyncStatus;
 use App\Http\Controllers\Controller;
 use App\Models\WebhookLog;
+use App\Repositories\Contracts\FormFieldMappingRepositoryInterface;
 use App\Repositories\Contracts\WebhookLogRepositoryInterface;
 use App\Services\NowCertsFieldMapper;
 use App\Services\NowCertsService;
@@ -18,8 +19,9 @@ use Throwable;
 class CognitoWebhookController extends Controller
 {
     public function __construct(
-        private readonly NowCertsService $nowcerts,
-        private readonly WebhookLogRepositoryInterface $webhookLogs,
+        private readonly NowCertsService                     $nowcerts,
+        private readonly WebhookLogRepositoryInterface       $webhookLogs,
+        private readonly FormFieldMappingRepositoryInterface $mappings,
     ) {}
 
     /**
@@ -65,7 +67,7 @@ class CognitoWebhookController extends Controller
 
         try {
             $entry  = NowCertsFieldMapper::flattenEntry($entry);
-            $mapper = new NowCertsFieldMapper($formId, $this->nowcerts);
+            $mapper = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
 
             Log::info('NowCerts sync started', array_merge($context, [
                 'flattened_entry_keys' => array_keys($entry),

@@ -3,46 +3,23 @@
 namespace App\Services;
 
 use App\Enums\NowCertsEntity;
-use App\Models\FormFieldMapping;
+use App\Repositories\Contracts\FormFieldMappingRepositoryInterface;
 
-/**
- * Maps Cognito Forms entry fields → NowCerts API fields for a specific form.
- *
- * Priority:
- *   1. DB-saved mappings (explicit user selections via the UI)
- *   2. Auto-suggestions by normalised name matching against live NowCerts API fields
- *
- * Usage:
- *   $mapper = new NowCertsFieldMapper($formId, $nowCertsService);
- *   $lookup = $mapper->getLookup();           // for the frontend
- *   $data   = $mapper->mapInsured($entry);    // for API payloads
- */
 class NowCertsFieldMapper
 {
     /** DB-saved mappings: [ cognitoField => ['entity' => ..., 'field' => ...] ] */
     private array $saved = [];
 
-    /** Available NowCerts fields from API: [ 'Insured' => [...], 'Policy' => [...], ... ] */
+    /** Available NowCerts fields: [ 'Insured' => [...], 'Policy' => [...], ... ] */
     private array $available = [];
 
-    public function __construct(string $formId, NowCertsService $nowcerts)
-    {
-        // Load explicit user-saved mappings from DB
-        $this->saved = FormFieldMapping::where('form_id', $formId)
-            ->whereNotNull('nowcerts_entity')
-            ->whereNotNull('nowcerts_field')
-            ->get()
-            ->mapWithKeys(fn ($r) => [
-                $r->cognito_field => [
-                    'entity' => $r->nowcerts_entity,
-                    'field'  => $r->nowcerts_field,
-                ],
-            ])
-            ->all();
+    public function __construct(
+        string $formId,
+        NowCertsService $nowcerts,
+        FormFieldMappingRepositoryInterface $mappingRepository,
+    ) {
+        $this->saved = $mappingRepository->getMappingsForForm($formId);
 
-        // Load available NowCerts fields from API (cached).
-        // Only used for getSuggestions() — not needed for mapEntity() sync.
-        // Silently falls back to empty array so sync still works when API is unavailable.
         try {
             $this->available = $nowcerts->getAvailableFields();
         } catch (\Throwable) {
