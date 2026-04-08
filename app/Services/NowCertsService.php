@@ -42,7 +42,6 @@ class NowCertsService
             'AddressLine1', 'AddressLine2', 'City', 'State', 'ZipCode', 'County',
             'Website', 'FEIN', 'Description', 'Active',
             'CustomerId', 'InsuredId', 'TagName', 'ReferralSourceCompanyName',
-            '__custom__full_name',
         ],
         NowCertsEntity::Policy->value => [
             'Number', 'EffectiveDate', 'ExpirationDate', 'BindDate',
@@ -56,7 +55,6 @@ class NowCertsService
             'DateOfBirth', 'LicenseNumber', 'LicenseState',
             'Gender', 'MaritalStatus', 'Relation',
             'InsuredDatabaseId',
-            '__custom__full_name',
         ],
         NowCertsEntity::Vehicle->value => [
             'Year', 'Make', 'Model', 'VIN', 'BodyStyle',
@@ -159,6 +157,83 @@ class NowCertsService
     public function upsertInsured(array $data): array
     {
         return $this->send('POST', 'Insured/Insert', body: $data);
+    }
+
+    /**
+     * Find an existing insured by email or name, then insert or update.
+     * Prevents duplicate records on repeated webhook fires.
+     *
+     * - Looks up by EMail first (most reliable identifier)
+     * - Falls back to FirstName + LastName if no email
+     * - If found, injects insuredDatabaseId so NowCerts updates instead of inserting
+     */
+    public function syncInsured(array $data): array
+    {
+        $existing = $this->findExistingInsured($data);
+
+        if ($existing) {
+            $data['insuredDatabaseId'] = $existing['insuredDatabaseId']
+                ?? $existing['DatabaseId']
+                ?? $existing['databaseId']
+                ?? null;
+
+            Log::info('NowCerts existing insured found — will update', [
+                'insuredDatabaseId' => $data['insuredDatabaseId'],
+                'name'              => trim(($existing['firstName'] ?? $existing['FirstName'] ?? '') . ' ' . ($existing['lastName'] ?? $existing['LastName'] ?? '')),
+            ]);
+        }
+
+        return $this->upsertInsured($data);
+    }
+
+    /**
+     * Look up an existing insured by email, then by name.
+     * Returns the first matching record or null.
+     */
+    private function findExistingInsured(array $data): ?array
+    {
+        // 1. Look up by email (most reliable)
+        if (! empty($data['EMail'])) {
+            $result = $this->firstFromResponse(
+                $this->findInsureds(['Email' => $data['EMail']])
+            );
+            if ($result) {
+                return $result;
+            }
+        }
+
+        // 2. Fall back to name lookup
+        $firstName = $data['FirstName'] ?? '';
+        $lastName  = $data['LastName']  ?? '';
+
+        if ($firstName || $lastName) {
+            $result = $this->firstFromResponse(
+                $this->findInsureds(['Name' => trim("{$firstName} {$lastName}")])
+            );
+            if ($result) {
+                return $result;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract the first record from a NowCerts list response.
+     * Handles both wrapped { data: [...] } and bare [...] shapes.
+     */
+    private function firstFromResponse(array $response): ?array
+    {
+        $list = collect($response)
+            ->first(fn ($v) => is_array($v) && array_is_list($v) && count($v) > 0);
+
+        if (! $list) {
+            $list = array_is_list($response) ? $response : [];
+        }
+
+        $record = $list[0] ?? null;
+
+        return is_array($record) ? $record : null;
     }
 
     /**

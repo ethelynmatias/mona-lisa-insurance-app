@@ -76,6 +76,7 @@ class CognitoWebhookController extends Controller
             $syncedEntities = [];
             $errors         = [];
 
+            // Sync primary entry (all entities)
             foreach ($this->entitySyncMap($mapper) as $entity => $callbacks) {
                 $data = $callbacks['map']($entry);
 
@@ -95,6 +96,7 @@ class CognitoWebhookController extends Controller
                     $errors[] = "{$entity}: " . $e->getMessage();
                 }
             }
+
 
             if (empty($syncedEntities) && empty($errors)) {
                 Log::warning('NowCerts sync skipped — no field mappings configured', $context);
@@ -131,7 +133,7 @@ class CognitoWebhookController extends Controller
         return [
             NowCertsEntity::Insured->value => [
                 'map'  => fn (array $e) => $mapper->mapInsured($e),
-                'push' => fn (array $d) => $this->nowcerts->upsertInsured($d),
+                'push' => fn (array $d) => $this->nowcerts->syncInsured($d),
             ],
             NowCertsEntity::Policy->value => [
                 'map'  => fn (array $e) => $mapper->mapPolicy($e),

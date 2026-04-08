@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\WebhookLog;
 use App\Repositories\Contracts\WebhookLogRepositoryInterface;
+use App\Services\NowCertsFieldMapper;
 
 class WebhookLogRepository implements WebhookLogRepositoryInterface
 {
@@ -48,5 +49,24 @@ class WebhookLogRepository implements WebhookLogRepositoryInterface
     public function deleteByForm(string $formId): void
     {
         WebhookLog::where('form_id', $formId)->delete();
+    }
+
+    public function getDiscoveredFields(string $formId): array
+    {
+        $keys = [];
+
+        WebhookLog::where('form_id', $formId)
+            ->whereNotNull('payload')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get(['payload'])
+            ->each(function ($log) use (&$keys) {
+                $flattened = NowCertsFieldMapper::flattenEntry($log->payload ?? []);
+                foreach (array_keys($flattened) as $key) {
+                    $keys[$key] = true;
+                }
+            });
+
+        return array_keys($keys);
     }
 }

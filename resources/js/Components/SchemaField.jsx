@@ -1,18 +1,5 @@
 import { NOWCERTS_ENTITY_COLORS } from '@/constants/nowcerts';
 
-/** Human-readable labels for custom transform fields. */
-const CUSTOM_FIELD_LABELS = {
-    '__custom__full_name': 'Full Name → First + Last',
-};
-
-function fieldLabel(f) {
-    return CUSTOM_FIELD_LABELS[f] ?? f;
-}
-
-function isCustomField(f) {
-    return f.startsWith('__custom__');
-}
-
 export default function SchemaField({ field, depth = 0, mappings, availableFields, onChange }) {
     const name         = field.Name         ?? field.name         ?? '—';
     const internalName = field.InternalName ?? field.internalName ?? name;
@@ -21,6 +8,7 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
     const propertyType = field.PropertyType ?? field.propertyType ?? '—';
     const required     = field.Required     ?? field.required     ?? false;
     const children     = field.Children     ?? field.children     ?? field.Fields ?? field.fields ?? [];
+    const isDiscovered = type === 'discovered';
 
     const current  = mappings[internalName] ?? null;
     // Value format: "Entity.Field" or ""
@@ -57,15 +45,26 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                         <span className="text-xs font-mono text-gray-500" title="Internal Name">
                             {internalName}
                         </span>
-                        <span className="text-xs font-mono px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded" title="Type">
-                            {type}
-                        </span>
-                        <span className="text-xs font-mono px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded" title="Field Type">
-                            {fieldType}
-                        </span>
-                        <span className="text-xs font-mono px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded" title="Property Type">
-                            {propertyType}
-                        </span>
+                        {isDiscovered ? (
+                            <span className="text-xs font-medium px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded border border-amber-200"
+                                title="Discovered from webhook payload">
+                                webhook
+                            </span>
+                        ) : (
+                            <>
+                                <span className="text-xs font-mono px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded" title="Type">
+                                    {type}
+                                </span>
+                                <span className="text-xs font-mono px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded" title="Field Type">
+                                    {fieldType}
+                                </span>
+                                {propertyType && (
+                                    <span className="text-xs font-mono px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded" title="Property Type">
+                                        {propertyType}
+                                    </span>
+                                )}
+                            </>
+                        )}
                     </div>
                 </td>
 
@@ -80,28 +79,14 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                                 ${current ? NOWCERTS_ENTITY_COLORS[current.entity] ?? 'text-gray-700' : 'text-gray-400'}`}
                         >
                             <option value="">— unmapped —</option>
-                            {Object.entries(availableFields).map(([entity, fieldList]) => {
-                                const standard = fieldList.filter(f => !isCustomField(f));
-                                const custom   = fieldList.filter(f =>  isCustomField(f));
-                                return (
-                                    <optgroup key={entity} label={entity}>
-                                        {standard.map(f => (
-                                            <option key={f} value={`${entity}.${f}`}>{f}</option>
-                                        ))}
-                                        {custom.map(f => (
-                                            <option key={f} value={`${entity}.${f}`}>
-                                                * {fieldLabel(f)}
-                                            </option>
-                                        ))}
-                                    </optgroup>
-                                );
-                            })}
+                            {Object.entries(availableFields).map(([entity, fieldList]) => (
+                                <optgroup key={entity} label={entity}>
+                                    {fieldList.map(f => (
+                                        <option key={f} value={`${entity}.${f}`}>{f}</option>
+                                    ))}
+                                </optgroup>
+                            ))}
                         </select>
-                        {current && isCustomField(current.field) && (
-                            <span className="text-[10px] text-amber-600 font-medium">
-                                Custom transform · {fieldLabel(current.field)}
-                            </span>
-                        )}
                     </div>
                 </td>
 

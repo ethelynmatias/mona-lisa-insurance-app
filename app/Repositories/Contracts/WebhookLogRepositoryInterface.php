@@ -18,4 +18,10 @@ interface WebhookLogRepositoryInterface
     public function truncateAll(): void;
 
     public function deleteByForm(string $formId): void;
+
+    /**
+     * Return flattened field keys discovered from stored webhook payloads for a form.
+     * Used to populate the mapping UI with real field names.
+     */
+    public function getDiscoveredFields(string $formId): array;
 }

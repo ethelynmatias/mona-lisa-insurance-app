@@ -107,17 +107,7 @@ class NowCertsFieldMapper
                 continue;
             }
 
-            $field = $mapping['field'];
-            $value = $entry[$cognitoField];
-
-            if (str_starts_with($field, '__custom__')) {
-                // Custom transform — expands one Cognito field to multiple NowCerts fields
-                foreach ($this->applyCustomTransform($field, (string) $value) as $k => $v) {
-                    $result[$k] = $v;
-                }
-            } else {
-                $result[$field] = $value;
-            }
+            $result[$mapping['field']] = $entry[$cognitoField];
         }
 
         return $result;
@@ -157,11 +147,12 @@ class NowCertsFieldMapper
                 $first = $value;
             } elseif (str_ends_with($lower, '.last')) {
                 $last = $value;
-            } elseif (str_ends_with($lower, '.firstandlast')) {
-                return $this->splitFullName($value);
-            } elseif (! str_contains($lower, '.')) {
-                // Plain field e.g. "NameOfInsured" or "NameOfOccupant"
-                return $this->splitFullName($value);
+            } elseif (str_ends_with($lower, '.firstandlast') || ! str_contains($lower, '.')) {
+                $parts = explode(' ', trim($value), 2);
+                return array_filter([
+                    'FirstName' => $parts[0] ?? null,
+                    'LastName'  => $parts[1] ?? null,
+                ]);
             }
         }
 
@@ -171,38 +162,6 @@ class NowCertsFieldMapper
         ]);
     }
 
-    /**
-     * Dispatch a custom transform and return a [ nowcertsField => value ] map.
-     */
-    private function applyCustomTransform(string $customField, string $value): array
-    {
-        return match ($customField) {
-            '__custom__full_name' => $this->splitFullName($value),
-            default               => [],
-        };
-    }
-
-    /**
-     * Split "John Doe" → ['FirstName' => 'John', 'LastName' => 'Doe'].
-     * Handles single-word names (LastName omitted) and multi-word last names
-     * ("John Michael Doe" → FirstName: John, LastName: Michael Doe).
-     */
-    private function splitFullName(string $fullName): array
-    {
-        $fullName = trim($fullName);
-        if ($fullName === '') {
-            return [];
-        }
-
-        $parts  = explode(' ', $fullName, 2);
-        $result = ['FirstName' => $parts[0]];
-
-        if (! empty($parts[1])) {
-            $result['LastName'] = trim($parts[1]);
-        }
-
-        return $result;
-    }
 
     /**
      * Attempt to find a NowCerts field matching the given Cognito field name
@@ -255,9 +214,50 @@ class NowCertsFieldMapper
             } elseif (! is_array($value)) {
                 $result[$key] = $value;
             }
-            // List arrays (file attachments etc.) are skipped
+            // List arrays (repeating sections, file attachments) are skipped here —
+            // repeating occupant sections are handled by extractRepeatingEntries().
         }
 
         return $result;
+    }
+
+    /**
+     * Extract each item from repeating list sections (e.g. multiple occupants)
+     * and return them as individually flattened entries.
+     *
+     * Only processes list arrays whose items are associative (object-like).
+     * File upload arrays (items are scalars) are ignored.
+     *
+     * Example payload:
+     *   "Occupants": [
+     *     { "Name": { "First": "John", "Last": "Doe" }, "EMail": "john@example.com" },
+     *     { "Name": { "First": "Jane", "Last": "Smith" }, "EMail": "jane@example.com" }
+     *   ]
+     *
+     * Returns:
+     *   [
+     *     ["Name.First" => "John", "Name.Last" => "Doe", "EMail" => "john@example.com"],
+     *     ["Name.First" => "Jane", "Name.Last" => "Smith", "EMail" => "jane@example.com"],
+     *   ]
+     */
+    public static function extractRepeatingEntries(array $rawEntry): array
+    {
+        $results = [];
+
+        foreach ($rawEntry as $value) {
+            if (! is_array($value) || ! array_is_list($value)) {
+                continue;
+            }
+
+            foreach ($value as $item) {
+                if (! is_array($item) || array_is_list($item)) {
+                    continue; // scalar list (e.g. file upload URLs) — skip
+                }
+
+                $results[] = self::flattenEntry($item);
+            }
+        }
+
+        return $results;
     }
 }

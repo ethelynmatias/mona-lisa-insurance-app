@@ -78,6 +78,22 @@ class CognitoController extends Controller
         try {
             $availableFields = $this->nowcerts->getAvailableFields();
 
+            // Merge fields discovered from real webhook payloads into the schema field list
+            $schemaNames = array_column($fields, 'InternalName');
+            foreach ($this->webhookLogs->getDiscoveredFields($formId) as $discoveredKey) {
+                if (! in_array($discoveredKey, $schemaNames, true)) {
+                    $fields[]      = [
+                        'Name'         => $discoveredKey,
+                        'InternalName' => $discoveredKey,
+                        'Type'         => 'discovered',
+                        'FieldType'    => 'webhook',
+                        'PropertyType' => '',
+                        'Required'     => false,
+                    ];
+                    $schemaNames[] = $discoveredKey;
+                }
+            }
+
             $mapper      = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
             $lookup      = $mapper->getLookup();
             $suggestions = $mapper->getSuggestions($fields);
