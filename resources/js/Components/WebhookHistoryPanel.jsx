@@ -10,6 +10,13 @@ const EVENT_STYLES = {
     'entry.deleted':   'bg-red-100 text-red-700',
 };
 
+const SYNC_STYLES = {
+    synced:  'bg-green-100 text-green-700',
+    failed:  'bg-red-100 text-red-700',
+    skipped: 'bg-gray-100 text-gray-500',
+    pending: 'bg-yellow-100 text-yellow-700',
+};
+
 function eventLabel(type) {
     const map = {
         'entry.submitted': 'Submitted',
@@ -97,7 +104,27 @@ function PayloadModal({ webhook, onClose }) {
                 </div>
 
                 {/* Body */}
-                <div className="overflow-y-auto p-6">
+                <div className="overflow-y-auto p-6 space-y-4">
+
+                    {/* Sync result */}
+                    {webhook.sync_status && (
+                        <div className={`flex flex-wrap items-start gap-3 px-4 py-3 rounded-lg text-xs border
+                            ${webhook.sync_status === 'synced'  ? 'bg-green-50 border-green-200 text-green-700'  : ''}
+                            ${webhook.sync_status === 'failed'  ? 'bg-red-50 border-red-200 text-red-700'        : ''}
+                            ${webhook.sync_status === 'skipped' ? 'bg-gray-50 border-gray-200 text-gray-500'     : ''}
+                            ${webhook.sync_status === 'pending' ? 'bg-yellow-50 border-yellow-200 text-yellow-700' : ''}
+                        `}>
+                            <span className="font-semibold capitalize">NowCerts sync: {webhook.sync_status}</span>
+                            {webhook.synced_entities?.length > 0 && (
+                                <span>Entities pushed: {webhook.synced_entities.join(', ')}</span>
+                            )}
+                            {webhook.sync_error && (
+                                <span className="w-full mt-1 text-red-600">{webhook.sync_error}</span>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Raw payload */}
                     {webhook.payload ? (
                         <pre className="text-xs text-gray-700 bg-gray-50 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap break-all">
                             {json}
@@ -233,10 +260,15 @@ export default function WebhookHistoryPanel({ webhooks = [], showFormColumn = fa
                                             {wh.entry_id ?? <span className="text-gray-300">—</span>}
                                         </td>
                                         <td className="px-5 py-3">
-                                            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                                {wh.status}
+                                            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full capitalize
+                                                ${SYNC_STYLES[wh.sync_status] ?? 'bg-gray-100 text-gray-500'}`}>
+                                                {wh.sync_status ?? wh.status}
                                             </span>
+                                            {wh.synced_entities?.length > 0 && (
+                                                <span className="block text-xs text-gray-400 mt-0.5">
+                                                    {wh.synced_entities.join(', ')}
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-5 py-3 text-xs text-gray-400 whitespace-nowrap">
                                             {formatDate(wh.created_at)}

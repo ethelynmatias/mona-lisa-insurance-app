@@ -13,12 +13,18 @@ class WebhookLog extends Model
         'entry_id',
         'status',
         'payload',
+        'sync_status',
+        'sync_error',
+        'synced_entities',
+        'synced_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'payload' => 'array',
+            'payload'         => 'array',
+            'synced_entities' => 'array',
+            'synced_at'       => 'datetime',
         ];
     }
 }

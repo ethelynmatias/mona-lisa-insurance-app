@@ -336,7 +336,7 @@ mona-lisa-insurance/
 │   │   │   ├── Auth/
 │   │   │   │   └── AuthenticatedSessionController.php
 │   │   │   ├── Webhook/
-│   │   │   │   └── CognitoWebhookController.php  # Receives Cognito Forms webhook events
+│   │   │   │   └── CognitoWebhookController.php  # Receives webhooks, syncs to NowCerts, manages history
 │   │   │   ├── CognitoController.php   # Dashboard + form details pages
 │   │   │   └── SettingsController.php  # Profile, password, user management
 │   │   ├── Middleware/
@@ -588,25 +588,55 @@ Supported `event` values:
 
 The controller (`app/Http/Controllers/Webhook/CognitoWebhookController.php`) also reads `FormId`, `FormName`, `EventType`, and `Id` directly from the JSON payload body if query params are not present.
 
+### NowCerts sync on webhook fire
+
+When a webhook is received the controller immediately logs the raw event, then automatically pushes the data to NowCerts using the field mappings saved for that form.
+
+**Flow:**
+
+1. Payload logged with `sync_status = pending`
+2. `entry.deleted` events → marked `skipped` (no NowCerts action)
+3. `entry.submitted` / `entry.updated` events:
+   - `NowCertsFieldMapper` loads DB-saved mappings for the form
+   - Maps the Cognito payload to Insured / Policy / Driver / Vehicle payloads
+   - Calls the NowCerts API for each entity that has mapped fields
+   - Each entity is attempted independently — one failure does not block the others
+   - Log updated to reflect the outcome
+
+**Sync status values:**
+
+| Status    | Meaning                                              | Badge colour |
+|-----------|------------------------------------------------------|--------------|
+| `pending` | Received but not yet processed                       | Yellow       |
+| `synced`  | All mapped entities pushed to NowCerts successfully  | Green        |
+| `failed`  | One or more NowCerts API calls returned an error     | Red          |
+| `skipped` | No mappings configured for the form, or delete event | Gray         |
+
+The **View** button on each row opens a modal showing the sync result banner (entities pushed or error message) and the full raw JSON payload.
+
 ### Webhook History panels
 
-| Location       | Scope                              |
-|----------------|------------------------------------|
-| Dashboard      | All forms — most recent 50 events  |
-| Form Details   | Current form — most recent 50 events |
+| Location       | Scope                               | Per-page options |
+|----------------|-------------------------------------|-----------------|
+| Dashboard      | All forms — up to 500 recent events | 20 / 50 / 100   |
+| Form Details   | Current form — up to 500 events     | 20 / 50 / 100   |
 
-The Dashboard panel includes a **Form** column showing the form name and ID. The Form Details panel omits it since it is already scoped to one form.
+Both panels default to 20 events per page. The Dashboard panel includes a **Form** column. Both panels have a **Clear History** button and a **View** button per row to inspect the payload modal.
 
-### Database table
+### Database table — `webhook_logs`
 
-| Column       | Type    | Description                        |
-|--------------|---------|------------------------------------|
-| `form_id`    | string  | Cognito form ID                    |
-| `form_name`  | string  | Human-readable form name (optional)|
-| `event_type` | string  | e.g. `entry.submitted`             |
-| `entry_id`   | string  | Cognito entry ID (optional)        |
-| `status`     | string  | Always `received` on ingest        |
-| `payload`    | json    | Full raw request body              |
+| Column             | Type      | Description                                        |
+|--------------------|-----------|----------------------------------------------------|
+| `form_id`          | string    | Cognito form ID                                    |
+| `form_name`        | string    | Human-readable form name (optional)                |
+| `event_type`       | string    | `entry.submitted`, `entry.updated`, `entry.deleted`|
+| `entry_id`         | string    | Cognito entry ID (optional)                        |
+| `status`           | string    | Always `received` on ingest                        |
+| `payload`          | json      | Full raw request body                              |
+| `sync_status`      | string    | `pending`, `synced`, `failed`, `skipped`           |
+| `sync_error`       | text      | Error message(s) if sync failed                    |
+| `synced_entities`  | json      | List of entities pushed e.g. `["Insured","Policy"]`|
+| `synced_at`        | timestamp | When the NowCerts sync completed                   |
 
 ---
 

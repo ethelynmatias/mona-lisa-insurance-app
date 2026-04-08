@@ -42,7 +42,7 @@ class CognitoController extends Controller
 
         $webhooks = WebhookLog::orderByDesc('created_at')
             ->limit(500)
-            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'payload', 'created_at'])
+            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'payload', 'sync_status', 'sync_error', 'synced_entities', 'synced_at', 'created_at'])
             ->toArray();
 
         return Inertia::render('Dashboard', [
@@ -102,7 +102,7 @@ class CognitoController extends Controller
         $webhooks = WebhookLog::where('form_id', $formId)
             ->orderByDesc('created_at')
             ->limit(500)
-            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'payload', 'created_at'])
+            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'payload', 'sync_status', 'sync_error', 'synced_entities', 'synced_at', 'created_at'])
             ->toArray();
 
         return Inertia::render('Cognito/FormDetails', [
