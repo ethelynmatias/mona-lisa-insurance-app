@@ -63,10 +63,9 @@ class CognitoController extends Controller
 
             if (! $form) {
                 $error = "Form '{$formId}' not found.";
-            } else {
-                $fields = $this->cognito->getFormFields($formId);
-                $fields = $this->expandNestedFields($fields);
             }
+            // $fields = $this->cognito->getFormFields($formId);
+            // $fields = $this->expandNestedFields($fields);
         } catch (RuntimeException $e) {
             $error = $e->getMessage();
         }
@@ -80,23 +79,11 @@ class CognitoController extends Controller
 
             // Merge fields discovered from real webhook payloads into the schema field list
             $schemaNames = array_column($fields, 'InternalName');
-            foreach ($this->webhookLogs->getDiscoveredFields($formId) as $discoveredKey) {
-                if (! in_array($discoveredKey, $schemaNames, true)) {
-                    $fields[]      = [
-                        'Name'         => $discoveredKey,
-                        'InternalName' => $discoveredKey,
-                        'Type'         => 'discovered',
-                        'FieldType'    => 'webhook',
-                        'PropertyType' => '',
-                        'Required'     => false,
-                    ];
-                    $schemaNames[] = $discoveredKey;
-                }
-            }
+            $this->addDiscoveredFields($fields, $schemaNames, $this->webhookLogs->getDiscoveredFields($formId));
 
             $mapper      = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
             $lookup      = $mapper->getLookup();
-            $suggestions = $mapper->getSuggestions($fields);
+            $suggestions = $mapper->getSuggestions($this->flattenFieldList($fields));
 
             foreach ($suggestions as $cognitoField => $mapping) {
                 $lookup[$cognitoField] ??= $mapping;
@@ -126,6 +113,88 @@ class CognitoController extends Controller
     protected function matchesSearch(mixed $item, string $search): bool
     {
         return str_contains(strtolower($item['Name'] ?? ''), strtolower($search));
+    }
+
+    /**
+     * Group dot-notation discovered keys under a parent heading entry with Children.
+     * e.g. ["PropertyAddress.City", "PropertyAddress.State"] becomes one
+     * 'discovered-group' entry for "PropertyAddress" with two child entries.
+     * Keys already present in $schemaNames are skipped.
+     */
+    private function addDiscoveredFields(array &$fields, array &$schemaNames, array $discoveredKeys): void
+    {
+        $grouped    = [];
+        $standalone = [];
+
+        foreach ($discoveredKeys as $key) {
+            if (in_array($key, $schemaNames, true)) {
+                continue;
+            }
+
+            if (str_contains($key, '.')) {
+                [$parent] = explode('.', $key, 2);
+                $grouped[$parent][] = $key;
+            } else {
+                $standalone[] = $key;
+            }
+        }
+
+        if (! empty($standalone)) {
+            $children    = array_map(fn (string $k) => $this->makeDiscoveredField($k, $k), $standalone);
+            $fields[]    = array_merge(
+                $this->makeDiscoveredField('Others', '__group__others'),
+                ['Type' => 'discovered-group', 'Children' => $children],
+            );
+            $schemaNames = array_merge($schemaNames, $standalone, ['__group__others']);
+        }
+
+        foreach ($grouped as $parent => $childKeys) {
+            $parentInSchema = in_array($parent, $schemaNames, true);
+            $schemaNames    = array_merge($schemaNames, $childKeys, [$parent]);
+
+            if (! $parentInSchema) {
+                $children = array_map(function (string $k) {
+                    [, $sub] = explode('.', $k, 2);
+                    return $this->makeDiscoveredField($sub, $k);
+                }, $childKeys);
+
+                $fields[] = array_merge(
+                    $this->makeDiscoveredField($parent, $parent),
+                    ['Type' => 'discovered-group', 'Children' => $children],
+                );
+            } else {
+                // Parent already in schema — add children as individual discovered rows
+                foreach ($childKeys as $k) {
+                    $fields[] = $this->makeDiscoveredField($k, $k);
+                }
+            }
+        }
+    }
+
+    private function makeDiscoveredField(string $name, string $internalName): array
+    {
+        return [
+            'Name'         => $name,
+            'InternalName' => $internalName,
+            'Type'         => 'discovered',
+            'FieldType'    => 'webhook',
+            'PropertyType' => '',
+            'Required'     => false,
+        ];
+    }
+
+    /** Recursively flatten a field list including Children arrays. */
+    private function flattenFieldList(array $fields): array
+    {
+        $result = [];
+        foreach ($fields as $field) {
+            $result[] = $field;
+            $children = $field['Children'] ?? $field['Fields'] ?? [];
+            if (! empty($children)) {
+                $result = array_merge($result, $this->flattenFieldList($children));
+            }
+        }
+        return $result;
     }
 
     private function expandNestedFields(array $fields): array
