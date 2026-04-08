@@ -20,8 +20,13 @@ interface WebhookLogRepositoryInterface
     public function deleteByForm(string $formId): void;
 
     /**
-     * Return flattened field keys discovered from stored webhook payloads for a form.
-     * Used to populate the mapping UI with real field names.
+     * Persist flattened field keys discovered from a webhook payload.
+     * Stored independently of log history so clearing logs does not lose field keys.
+     */
+    public function saveDiscoveredFields(string $formId, array $keys): void;
+
+    /**
+     * Return persisted discovered field keys for a form.
      */
     public function getDiscoveredFields(string $formId): array;
 }

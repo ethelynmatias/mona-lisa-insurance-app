@@ -38,11 +38,8 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
     const name         = field.Name         ?? field.name         ?? '—';
     const internalName = field.InternalName ?? field.internalName ?? name;
     const type         = field.Type         ?? field.type         ?? '—';
-    const fieldType    = field.FieldType    ?? field.fieldType    ?? '—';
-    const propertyType = field.PropertyType ?? field.propertyType ?? '—';
     const required     = field.Required     ?? field.required     ?? false;
     const children     = field.Children     ?? field.children     ?? field.Fields ?? field.fields ?? [];
-    const isDiscovered = type === 'discovered';
     const isGroup      = type === 'discovered-group';
 
     const [expanded, setExpanded] = useState(false);
@@ -63,7 +60,7 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                     className="border-b border-gray-100 cursor-pointer select-none hover:bg-gray-50/60 transition-colors"
                     onClick={() => setExpanded(v => !v)}
                 >
-                    <td colSpan={3} className="px-5 py-3">
+                    <td colSpan={2} className="px-5 py-3">
                         <div className="flex items-center gap-2">
                             <svg
                                 className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-150
@@ -83,7 +80,7 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                 {/* Child rows — label + dropdown only */}
                 {expanded && (
                     <tr>
-                        <td colSpan={3} className="px-5 pb-4 pt-0">
+                        <td colSpan={2} className="px-5 pb-4 pt-0">
                             <table className="w-full border border-gray-100 rounded-lg overflow-hidden mt-1">
                                 <tbody>
                                     {children.map((child) => {
@@ -92,8 +89,8 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                                         const childCurrent = mappings[childKey] ?? null;
                                         return (
                                             <tr key={childKey} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/40">
-                                                <td className="pl-4 pr-3 py-2.5 w-40">
-                                                    <span className="text-sm text-gray-700">{childName}</span>
+                                                <td className="pl-4 pr-3 py-2.5 w-56 max-w-56">
+                                                    <span className="text-sm text-gray-700 break-words">{childName}</span>
                                                 </td>
                                                 <td className="pr-4 py-2">
                                                     <MappingSelect
@@ -122,45 +119,19 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                 ${depth > 0 ? 'bg-white' : ''}`}>
 
                 {/* Field Name */}
-                <td className="px-5 py-3 pr-4 w-1/5">
-                    <div style={{ paddingLeft: depth * 20 }} className="flex items-center gap-2">
+                <td className="px-5 py-3 pr-4 w-64 max-w-64">
+                    <div style={{ paddingLeft: depth * 20 }} className="flex items-center gap-2 min-w-0">
                         {depth > 0 && (
                             <span className="w-4 h-px bg-amber-200 flex-shrink-0" />
                         )}
-                        <span className={`text-sm font-medium ${depth > 0 ? 'text-gray-700' : 'text-gray-900'}`}>
+                        <span
+                            className={`text-sm font-medium truncate ${depth > 0 ? 'text-gray-700' : 'text-gray-900'}`}
+                            title={name}
+                        >
                             {name}
                         </span>
                         {required && (
                             <span className="text-xs text-red-500 font-medium flex-shrink-0">required</span>
-                        )}
-                    </div>
-                </td>
-
-                {/* Cognito Field Info */}
-                <td className="py-3 pr-4">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-xs font-mono text-gray-500" title="Internal Name">
-                            {internalName}
-                        </span>
-                        {isDiscovered ? (
-                            <span className="text-xs font-medium px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded border border-amber-200"
-                                title="Discovered from webhook payload">
-                                webhook
-                            </span>
-                        ) : (
-                            <>
-                                <span className="text-xs font-mono px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded" title="Type">
-                                    {type}
-                                </span>
-                                <span className="text-xs font-mono px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded" title="Field Type">
-                                    {fieldType}
-                                </span>
-                                {propertyType && (
-                                    <span className="text-xs font-mono px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded" title="Property Type">
-                                        {propertyType}
-                                    </span>
-                                )}
-                            </>
                         )}
                     </div>
                 </td>

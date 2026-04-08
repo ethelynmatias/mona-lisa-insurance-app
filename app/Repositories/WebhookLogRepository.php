@@ -2,9 +2,9 @@
 
 namespace App\Repositories;
 
+use App\Models\WebhookDiscoveredField;
 use App\Models\WebhookLog;
 use App\Repositories\Contracts\WebhookLogRepositoryInterface;
-use App\Services\NowCertsFieldMapper;
 
 class WebhookLogRepository implements WebhookLogRepositoryInterface
 {
@@ -51,22 +51,29 @@ class WebhookLogRepository implements WebhookLogRepositoryInterface
         WebhookLog::where('form_id', $formId)->delete();
     }
 
+    public function saveDiscoveredFields(string $formId, array $keys): void
+    {
+        if (empty($keys)) {
+            return;
+        }
+
+        $record = WebhookDiscoveredField::where('form_id', $formId)->first();
+
+        if ($record) {
+            // Merge incoming keys with existing ones — never removes, so saved mappings stay valid
+            $merged = array_values(array_unique(array_merge($record->fields ?? [], $keys)));
+            $record->update(['fields' => $merged]);
+        } else {
+            WebhookDiscoveredField::create([
+                'form_id' => $formId,
+                'fields'  => array_values(array_unique($keys)),
+            ]);
+        }
+    }
+
     public function getDiscoveredFields(string $formId): array
     {
-        $keys = [];
-
-        WebhookLog::where('form_id', $formId)
-            ->whereNotNull('payload')
-            ->orderByDesc('created_at')
-            ->limit(10)
-            ->get(['payload'])
-            ->each(function ($log) use (&$keys) {
-                $flattened = NowCertsFieldMapper::flattenEntry($log->payload ?? []);
-                foreach (array_keys($flattened) as $key) {
-                    $keys[$key] = true;
-                }
-            });
-
-        return array_keys($keys);
+        return WebhookDiscoveredField::where('form_id', $formId)
+            ->value('fields') ?? [];
     }
 }

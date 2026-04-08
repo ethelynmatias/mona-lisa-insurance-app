@@ -254,13 +254,10 @@ export default function FormDetails() {
                                     <table className="w-full text-left">
                                         <thead>
                                             <tr className="border-b border-gray-100 bg-gray-50/50">
-                                                <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide w-1/5">
+                                                <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                                                     Field Name
                                                 </th>
-                                                <th className="py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                                                    Cognito Form Fields
-                                                </th>
-                                                <th className="py-3 pr-5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-56">
+                                                <th className="py-3 pr-5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-72">
                                                     NowCerts Field
                                                 </th>
                                             </tr>

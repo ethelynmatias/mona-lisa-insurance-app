@@ -47,6 +47,12 @@ class CognitoWebhookController extends Controller
             'sync_status' => SyncStatus::Pending,
         ]);
 
+        // Persist discovered field keys independently of log history
+        $this->webhookLogs->saveDiscoveredFields(
+            $formId,
+            array_keys(NowCertsFieldMapper::flattenEntry($payload)),
+        );
+
         if ($eventType === 'entry.deleted') {
             $this->webhookLogs->update($log, ['sync_status' => SyncStatus::Skipped]);
             return response()->json(['ok' => true]);
