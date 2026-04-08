@@ -2,14 +2,18 @@
 
 namespace App\Services;
 
+use App\Enums\NowCertsEntity;
+use App\Traits\HandlesHttpResponse;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class NowCertsService
 {
+    use HandlesHttpResponse;
     private string $baseUrl;
     private string $username;
     private string $password;
@@ -26,49 +30,35 @@ class NowCertsService
             throw new RuntimeException('NowCerts credentials are not configured. Set NOWCERTS_USERNAME and NOWCERTS_PASSWORD in your .env file.');
         }
     }
-
-    // ──────────────────────────────────────────
-    //  Dynamic field schema
-    // ──────────────────────────────────────────
-
     /**
-     * Return available NowCerts fields grouped by entity, derived from live API responses.
-     * Results are cached for 24 hours. Falls back to NowCertsFieldMapper::availableFields()
-     * if the API returns no data.
-     *
-     * Shape: [ 'Insured' => ['FirstName', 'LastName', ...], 'Policy' => [...], ... ]
-     */
-    /**
-     * Known NowCerts fields per entity — used as the base list.
-     * Merged with any additional fields found on live API records.
+     * Known NowCerts fields per entity.
+     * Shape: [ NowCertsEntity value => string[] ]
      */
     private const KNOWN_FIELDS = [
-        'Insured' => [
+        NowCertsEntity::Insured->value => [
             'FirstName', 'LastName', 'MiddleName', 'CommercialName', 'Dba',
             'Type', 'EMail', 'EMail2', 'EMail3', 'Phone', 'CellPhone',
             'SmsPhone', 'Fax', 'BusinessPhoneNumber',
             'AddressLine1', 'AddressLine2', 'City', 'State', 'ZipCode', 'County',
             'Website', 'FEIN', 'Description', 'Active',
             'CustomerId', 'InsuredId', 'TagName', 'ReferralSourceCompanyName',
-            // Custom transforms
             '__custom__full_name',
         ],
-        'Policy' => [
+        NowCertsEntity::Policy->value => [
             'Number', 'EffectiveDate', 'ExpirationDate', 'BindDate',
             'BusinessType', 'Description', 'BillingType',
             'LineOfBusinessName', 'CarrierName', 'MgaName',
             'Premium', 'AgencyCommissionPercent',
             'InsuredDatabaseId', 'InsuredEmail', 'InsuredFirstName', 'InsuredLastName',
         ],
-        'Driver' => [
+        NowCertsEntity::Driver->value => [
             'FirstName', 'LastName', 'MiddleName',
             'DateOfBirth', 'LicenseNumber', 'LicenseState',
             'Gender', 'MaritalStatus', 'Relation',
             'InsuredDatabaseId',
-            // Custom transforms
             '__custom__full_name',
         ],
-        'Vehicle' => [
+        NowCertsEntity::Vehicle->value => [
             'Year', 'Make', 'Model', 'VIN', 'BodyStyle',
             'GrossWeight', 'CostNew', 'PurchaseDate',
             'GarageState', 'GarageZip',
@@ -78,77 +68,48 @@ class NowCertsService
 
     public function getAvailableFields(): array
     {
-        return Cache::remember('nowcerts_available_fields', now()->addHours(24), function () {
-            $entities = [
-                'Insured' => fn () => $this->send('GET', 'InsuredDetailList', query: ['Active' => 'true']),
-                'Policy'  => fn () => $this->send('GET', 'PolicyDetailList',  query: ['isActive' => 'true']),
-                'Driver'  => fn () => $this->send('GET', 'DriverList'),
-                'Vehicle' => fn () => $this->send('GET', 'VehicleList',       query: ['Active' => 'true']),
-            ];
-
-            $skip   = ['Id', 'DatabaseId', 'AgencyDatabaseId', 'IsDeleted'];
-            $result = [];
-
-            foreach ($entities as $entity => $fetch) {
-                $known = self::KNOWN_FIELDS[$entity] ?? [];
-
-                try {
-                    $records = $fetch();
-
-                    $list = collect($records)->first(fn ($v) => is_array($v) && array_is_list($v))
-                        ?? (array_is_list($records) ? $records : []);
-
-                    $first = $list[0] ?? null;
-
-                    $fromApi = $first && is_array($first)
-                        ? collect(array_keys($first))->filter(fn ($k) => ! in_array($k, $skip))->all()
-                        : [];
-                } catch (\Throwable) {
-                    $fromApi = [];
-                }
-
-                // Merge known fields + any extra fields found on the live record
-                $result[$entity] = collect(array_unique(array_merge($known, $fromApi)))
-                    ->values()
-                    ->all();
-            }
-
-            return $result;
-        });
+        return array_map(fn ($fields) => array_values($fields), self::KNOWN_FIELDS);
     }
-
     /**
-     * Clear the cached available fields (call after credentials change).
+     * Authenticate with NowCerts and return a cached Bearer token.
+     * Token is cached for ~58 minutes (NowCerts tokens expire at 60 min).
+     * Automatically refreshes if expired (401 clears the cache in handleResponse).
      */
-    public function clearAvailableFieldsCache(): void
+    public function authenticate(): string
     {
-        Cache::forget('nowcerts_available_fields');
+        return $this->getToken();
     }
 
-    // ──────────────────────────────────────────
-    //  Authentication
-    // ──────────────────────────────────────────
-
-    /**
-     * Get a cached Bearer token, refreshing if expired.
-     */
     private function getToken(): string
     {
         return Cache::remember('nowcerts_token', 3500, function () {
+            // Token endpoint: POST https://api.nowcerts.com/api/token
+            $tokenUrl = rtrim($this->baseUrl, '/') . '/token';
+
             $response = Http::timeout($this->timeout)
                 ->asForm()
-                ->post('https://api.nowcerts.com/Token', [
+                ->post($tokenUrl, [
                     'grant_type' => 'password',
                     'username'   => $this->username,
                     'password'   => $this->password,
                 ]);
 
             if (! $response->successful()) {
-                throw new RuntimeException('NowCerts authentication failed: ' . ($response->json('error_description') ?? $response->body()));
+                $error = $response->json('error_description')
+                    ?? $response->json('error')
+                    ?? $response->json('Message')
+                    ?? "HTTP {$response->status()}";
+
+                throw new RuntimeException("NowCerts authentication failed: {$error}");
             }
 
-            return $response->json('access_token')
-                ?? throw new RuntimeException('NowCerts authentication failed: no access_token in response.');
+            $token = $response->json('access_token');
+
+            if (! $token) {
+                throw new RuntimeException('NowCerts authentication failed: no access_token in response. Body: ' . $response->body());
+            }
+
+            return $token;
         });
     }
 
@@ -160,11 +121,6 @@ class NowCertsService
             ->acceptJson()
             ->asJson();
     }
-
-    // ──────────────────────────────────────────
-    //  Insureds / Prospects
-    // ──────────────────────────────────────────
-
     /**
      * List insureds/prospects.
      *
@@ -212,11 +168,6 @@ class NowCertsService
     {
         return $this->send('POST', 'InsuredAndPolicies/Insert', body: $data);
     }
-
-    // ──────────────────────────────────────────
-    //  Policies
-    // ──────────────────────────────────────────
-
     /**
      * List policies for an insured.
      *
@@ -264,11 +215,6 @@ class NowCertsService
     {
         return $this->send('PATCH', 'Policy/PartialUpdate', body: $data);
     }
-
-    // ──────────────────────────────────────────
-    //  Drivers
-    // ──────────────────────────────────────────
-
     /**
      * List drivers for an insured.
      *
@@ -305,11 +251,6 @@ class NowCertsService
     {
         return $this->send('POST', 'Driver/BulkInsertDriver', body: $drivers);
     }
-
-    // ──────────────────────────────────────────
-    //  Vehicles
-    // ──────────────────────────────────────────
-
     /**
      * List vehicles for an insured.
      *
@@ -335,11 +276,6 @@ class NowCertsService
     {
         return $this->send('POST', 'Vehicle/BulkInsertVehicle', body: $vehicles);
     }
-
-    // ──────────────────────────────────────────
-    //  Claims
-    // ──────────────────────────────────────────
-
     /**
      * List claims for an insured (all types).
      *
@@ -357,11 +293,6 @@ class NowCertsService
     {
         return $this->send('POST', 'Zapier/InsertClaim', body: $data);
     }
-
-    // ──────────────────────────────────────────
-    //  Notes
-    // ──────────────────────────────────────────
-
     /**
      * List notes for an insured.
      *
@@ -379,11 +310,6 @@ class NowCertsService
     {
         return $this->send('POST', 'Zapier/InsertNote', body: $data);
     }
-
-    // ──────────────────────────────────────────
-    //  Tasks
-    // ──────────────────────────────────────────
-
     /**
      * List tasks.
      *
@@ -401,11 +327,6 @@ class NowCertsService
     {
         return $this->send('POST', 'TasksWork/InsertUpdate', body: $data);
     }
-
-    // ──────────────────────────────────────────
-    //  Opportunities
-    // ──────────────────────────────────────────
-
     /**
      * List opportunities.
      *
@@ -423,11 +344,6 @@ class NowCertsService
     {
         return $this->send('POST', 'Zapier/InsertOpportunity', body: $data);
     }
-
-    // ──────────────────────────────────────────
-    //  Lookup / Reference Data
-    // ──────────────────────────────────────────
-
     public function getAgents(array $params = []): array
     {
         return $this->send('GET', 'AgentList', query: $params);
@@ -452,20 +368,10 @@ class NowCertsService
     {
         return $this->send('GET', 'ReferralSourceDetailList', query: $params);
     }
-
-    // ──────────────────────────────────────────
-    //  Heartbeat
-    // ──────────────────────────────────────────
-
     public function heartbeat(): array
     {
         return $this->send('GET', 'heartbeat');
     }
-
-    // ──────────────────────────────────────────
-    //  Internal
-    // ──────────────────────────────────────────
-
     private function send(string $method, string $endpoint, array $body = [], array $query = []): array
     {
         $request = $this->client();
@@ -474,40 +380,49 @@ class NowCertsService
             $request = $request->withQueryParameters($query);
         }
 
-        $response = match (strtoupper($method)) {
-            'GET'    => $request->get($endpoint),
-            'POST'   => $request->post($endpoint, $body),
-            'PUT'    => $request->put($endpoint, $body),
-            'PATCH'  => $request->patch($endpoint, $body),
-            'DELETE' => $request->delete($endpoint),
-            default  => throw new RuntimeException("Unsupported HTTP method: {$method}"),
-        };
+        Log::info('NowCerts API request', [
+            'method'   => strtoupper($method),
+            'endpoint' => $endpoint,
+            'body'     => $body,
+            'query'    => $query,
+        ]);
 
-        return $this->handleResponse($response);
-    }
+        $response = $this->dispatchRequest($request, $method, $endpoint, $body);
 
-    private function handleResponse(Response $response): array
-    {
-        if ($response->successful()) {
-            return $response->json() ?? [];
-        }
+        Log::debug('NowCerts API response', [
+            'endpoint' => $endpoint,
+            'status'   => $response->status(),
+            'body'     => $response->json() ?? $response->body(),
+        ]);
 
-        // If token expired, clear cache so next call re-authenticates
         if ($response->status() === 401) {
             Cache::forget('nowcerts_token');
         }
 
-        $status  = $response->status();
-        $body    = $response->json();
+        if (! $response->successful()) {
+            $status  = $response->status();
+            $message = $this->resolveErrorMessage($status, $response->json(), $endpoint);
 
-        $message = match ($status) {
-            401 => 'Unauthorized: check your NOWCERTS_USERNAME and NOWCERTS_PASSWORD.',
-            403 => 'Forbidden: your account does not have permission for this action.',
-            404 => 'Not found: the requested resource does not exist.',
-            429 => 'Rate limit exceeded: too many requests.',
+            Log::error('NowCerts API error', [
+                'endpoint' => $endpoint,
+                'status'   => $status,
+                'message'  => $message,
+            ]);
+
+            throw new RuntimeException($message, $status);
+        }
+
+        return $response->json() ?? [];
+    }
+
+    protected function resolveErrorMessage(int $status, ?array $body, string $endpoint = ''): string
+    {
+        return match ($status) {
+            401     => 'Unauthorized: check your NOWCERTS_USERNAME and NOWCERTS_PASSWORD.',
+            403     => 'Forbidden: your account does not have permission for this action.',
+            404     => 'Not found: the requested resource does not exist.',
+            429     => 'Rate limit exceeded: too many requests.',
             default => $body['Message'] ?? $body['message'] ?? "NowCerts API error (HTTP {$status}).",
         };
-
-        throw new RuntimeException($message, $status);
     }
 }

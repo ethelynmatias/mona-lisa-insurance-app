@@ -177,7 +177,7 @@ export default function WebhookHistoryPanel({ webhooks = [], showFormColumn = fa
                                         </td>
                                         <td className="px-5 py-3">
                                             <div className="flex items-center justify-end gap-2">
-                                                {(wh.sync_status === 'pending' || wh.sync_status === 'failed') && (
+                                                {wh.sync_status !== 'skipped' && wh.event_type !== 'entry.deleted' && (
                                                     <button
                                                         onClick={() => setRerunTarget(wh)}
                                                         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-600

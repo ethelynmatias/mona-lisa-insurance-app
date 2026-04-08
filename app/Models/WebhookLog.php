@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\SyncStatus;
 use Illuminate\Database\Eloquent\Model;
 
 class WebhookLog extends Model
@@ -25,6 +26,7 @@ class WebhookLog extends Model
             'payload'         => 'array',
             'synced_entities' => 'array',
             'synced_at'       => 'datetime',
+            'sync_status'     => SyncStatus::class,
         ];
     }
 }

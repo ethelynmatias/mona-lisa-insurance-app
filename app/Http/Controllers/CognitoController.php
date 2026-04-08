@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\FormFieldMapping;
-use App\Models\WebhookLog;
+use App\Http\Requests\SaveMappingsRequest;
+use App\Repositories\Contracts\FormFieldMappingRepositoryInterface;
+use App\Repositories\Contracts\WebhookLogRepositoryInterface;
 use App\Services\CognitoFormsService;
 use App\Services\NowCertsFieldMapper;
 use App\Services\NowCertsService;
 use App\Traits\PaginatesArray;
-use App\Http\Requests\SaveMappingsRequest;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use RuntimeException;
@@ -20,13 +20,12 @@ class CognitoController extends Controller
     use PaginatesArray;
 
     public function __construct(
-    private readonly CognitoFormsService $cognito,
-    private readonly NowCertsService     $nowcerts,
-) {}
+        private readonly CognitoFormsService              $cognito,
+        private readonly NowCertsService                  $nowcerts,
+        private readonly WebhookLogRepositoryInterface    $webhookLogs,
+        private readonly FormFieldMappingRepositoryInterface $mappings,
+    ) {}
 
-    /**
-     * List all forms.
-     */
     public function index(Request $request): Response
     {
         $forms = [];
@@ -40,11 +39,6 @@ class CognitoController extends Controller
 
         $paginated = $this->paginateArray($forms, $request, sortableFields: ['Name', 'Id']);
 
-        $webhooks = WebhookLog::orderByDesc('created_at')
-            ->limit(500)
-            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'payload', 'sync_status', 'sync_error', 'synced_entities', 'synced_at', 'created_at'])
-            ->toArray();
-
         return Inertia::render('Dashboard', [
             'forms'          => $paginated['items'],
             'search'         => $paginated['search'],
@@ -52,14 +46,11 @@ class CognitoController extends Controller
             'direction'      => $paginated['direction'],
             'pagination'     => $paginated['pagination'],
             'perPageOptions' => $this->perPageOptions,
-            'webhooks'       => $webhooks,
+            'webhooks'       => $this->webhookLogs->latestForDashboard(),
             'error'          => $error,
         ]);
     }
 
-    /**
-     * Show form details.
-     */
     public function show(Request $request, string $formId): Response
     {
         $form   = null;
@@ -87,12 +78,10 @@ class CognitoController extends Controller
         try {
             $availableFields = $this->nowcerts->getAvailableFields();
 
-            // Build lookup: DB-saved mappings + auto-suggestions for unmapped fields
-            $mapper      = new NowCertsFieldMapper($formId, $this->nowcerts);
+            $mapper      = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
             $lookup      = $mapper->getLookup();
             $suggestions = $mapper->getSuggestions($fields);
 
-            // Merge suggestions only for fields not already saved
             foreach ($suggestions as $cognitoField => $mapping) {
                 $lookup[$cognitoField] ??= $mapping;
             }
@@ -100,40 +89,20 @@ class CognitoController extends Controller
             $availableFieldsError = $e->getMessage();
         }
 
-        $webhooks = WebhookLog::where('form_id', $formId)
-            ->orderByDesc('created_at')
-            ->limit(500)
-            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'payload', 'sync_status', 'sync_error', 'synced_entities', 'synced_at', 'created_at'])
-            ->toArray();
-
         return Inertia::render('Cognito/FormDetails', [
             'form'                 => $form,
             'fields'               => $fields,
             'mappingLookup'        => $lookup,
             'availableFields'      => $availableFields,
             'availableFieldsError' => $availableFieldsError,
-            'webhooks'             => $webhooks,
+            'webhooks'             => $this->webhookLogs->latestForForm($formId),
             'error'                => $error,
         ]);
     }
 
-    /**
-     * Save field mappings for a form.
-     */
     public function saveMappings(SaveMappingsRequest $request, string $formId): RedirectResponse
     {
-        foreach ($request->validated()['mappings'] as $mapping) {
-            FormFieldMapping::updateOrCreate(
-                [
-                    'form_id'       => $formId,
-                    'cognito_field' => $mapping['cognito_field'],
-                ],
-                [
-                    'nowcerts_entity' => $mapping['nowcerts_entity'] ?? null,
-                    'nowcerts_field'  => $mapping['nowcerts_field']  ?? null,
-                ]
-            );
-        }
+        $this->mappings->upsertMappings($formId, $request->validated()['mappings']);
 
         return back()->with('success', 'Mappings saved successfully.');
     }
@@ -143,10 +112,6 @@ class CognitoController extends Controller
         return str_contains(strtolower($item['Name'] ?? ''), strtolower($search));
     }
 
-    /**
-     * Expand Cognito Name and Address fields into dot-notation sub-fields
-     * so the mapping UI can map e.g. "NameOfInsured.First" → "Insured.FirstName".
-     */
     private function expandNestedFields(array $fields): array
     {
         $subFieldMap = [
@@ -161,7 +126,6 @@ class CognitoController extends Controller
             $internalName = $field['InternalName'] ?? $field['internalName'] ?? $field['Name'] ?? '';
 
             if (isset($subFieldMap[$type])) {
-                // Expand to sub-fields with dot notation
                 foreach ($subFieldMap[$type] as $sub) {
                     $result[] = array_merge($field, [
                         'Name'         => ($field['Name'] ?? $internalName) . ' — ' . $sub,
@@ -170,7 +134,6 @@ class CognitoController extends Controller
                     ]);
                 }
             } else {
-                // Recurse into children if any
                 $children = $field['Children'] ?? $field['Fields'] ?? [];
                 if (! empty($children)) {
                     $field['Children'] = $this->expandNestedFields($children);

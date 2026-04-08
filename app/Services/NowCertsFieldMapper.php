@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\NowCertsEntity;
 use App\Models\FormFieldMapping;
 
 /**
@@ -48,11 +49,6 @@ class NowCertsFieldMapper
             $this->available = [];
         }
     }
-
-    // ──────────────────────────────────────────
-    //  Public
-    // ──────────────────────────────────────────
-
     /**
      * Return a flat lookup for the frontend.
      * DB-saved mappings take priority; unset fields are auto-suggested by name match.
@@ -66,34 +62,33 @@ class NowCertsFieldMapper
 
     /**
      * Map a Cognito entry to a NowCerts Insured payload.
+     * If no FirstName/LastName is resolved from saved mappings,
+     * falls back to occupant name fields in the entry.
      */
     public function mapInsured(array $entry): array
     {
-        return $this->mapEntity('Insured', $entry);
+        $result = $this->mapEntity(NowCertsEntity::Insured, $entry);
+
+        if (empty($result['FirstName']) && empty($result['LastName'])) {
+            $result = array_merge($result, $this->resolveOccupantName($entry));
+        }
+
+        return $result;
     }
 
-    /**
-     * Map a Cognito entry to a NowCerts Policy payload.
-     */
     public function mapPolicy(array $entry): array
     {
-        return $this->mapEntity('Policy', $entry);
+        return $this->mapEntity(NowCertsEntity::Policy, $entry);
     }
 
-    /**
-     * Map a Cognito entry to a NowCerts Driver payload.
-     */
     public function mapDriver(array $entry): array
     {
-        return $this->mapEntity('Driver', $entry);
+        return $this->mapEntity(NowCertsEntity::Driver, $entry);
     }
 
-    /**
-     * Map a Cognito entry to a NowCerts Vehicle payload.
-     */
     public function mapVehicle(array $entry): array
     {
-        return $this->mapEntity('Vehicle', $entry);
+        return $this->mapEntity(NowCertsEntity::Vehicle, $entry);
     }
 
     /**
@@ -120,17 +115,12 @@ class NowCertsFieldMapper
 
         return $suggestions;
     }
-
-    // ──────────────────────────────────────────
-    //  Internal
-    // ──────────────────────────────────────────
-
-    private function mapEntity(string $entity, array $entry): array
+    private function mapEntity(NowCertsEntity $entity, array $entry): array
     {
         $result = [];
 
         foreach ($this->saved as $cognitoField => $mapping) {
-            if ($mapping['entity'] !== $entity) {
+            if ($mapping['entity'] !== $entity->value) {
                 continue;
             }
 
@@ -154,6 +144,54 @@ class NowCertsFieldMapper
         }
 
         return $result;
+    }
+
+    /**
+     * Fallback name resolution when no FirstName/LastName came from saved mappings.
+     * Tries NameOfInsured first, then NameOfOccupant if insured name is missing.
+     */
+    private function resolveOccupantName(array $entry): array
+    {
+        return $this->extractName($entry, 'insured')
+            ?: $this->extractName($entry, 'occupant');
+    }
+
+    /**
+     * Extract FirstName/LastName from entry keys containing the given keyword.
+     * Handles dot-notation sub-fields (.First, .Last, .FirstAndLast) and plain strings.
+     */
+    private function extractName(array $entry, string $keyword): array
+    {
+        $first = null;
+        $last  = null;
+
+        foreach ($entry as $key => $value) {
+            if (! is_string($value) || $value === '') {
+                continue;
+            }
+
+            $lower = strtolower($key);
+
+            if (! str_contains($lower, $keyword)) {
+                continue;
+            }
+
+            if (str_ends_with($lower, '.first')) {
+                $first = $value;
+            } elseif (str_ends_with($lower, '.last')) {
+                $last = $value;
+            } elseif (str_ends_with($lower, '.firstandlast')) {
+                return $this->splitFullName($value);
+            } elseif (! str_contains($lower, '.')) {
+                // Plain field e.g. "NameOfInsured" or "NameOfOccupant"
+                return $this->splitFullName($value);
+            }
+        }
+
+        return array_filter([
+            'FirstName' => $first,
+            'LastName'  => $last,
+        ]);
     }
 
     /**

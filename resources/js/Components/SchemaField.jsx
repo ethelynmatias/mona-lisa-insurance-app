@@ -90,7 +90,7 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                                         ))}
                                         {custom.map(f => (
                                             <option key={f} value={`${entity}.${f}`}>
-                                                ✦ {fieldLabel(f)}
+                                                * {fieldLabel(f)}
                                             </option>
                                         ))}
                                     </optgroup>
