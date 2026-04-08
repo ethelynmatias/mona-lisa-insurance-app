@@ -74,6 +74,7 @@ class CognitoController extends Controller
                 $error = "Form '{$formId}' not found.";
             } else {
                 $fields = $this->cognito->getFormFields($formId);
+                $fields = $this->expandNestedFields($fields);
             }
         } catch (RuntimeException $e) {
             $error = $e->getMessage();
@@ -140,5 +141,44 @@ class CognitoController extends Controller
     protected function matchesSearch(mixed $item, string $search): bool
     {
         return str_contains(strtolower($item['Name'] ?? ''), strtolower($search));
+    }
+
+    /**
+     * Expand Cognito Name and Address fields into dot-notation sub-fields
+     * so the mapping UI can map e.g. "NameOfInsured.First" → "Insured.FirstName".
+     */
+    private function expandNestedFields(array $fields): array
+    {
+        $subFieldMap = [
+            'Name'    => ['First', 'Last', 'Middle', 'Prefix', 'Suffix', 'FirstAndLast'],
+            'Address' => ['Line1', 'Line2', 'City', 'State', 'PostalCode', 'Country', 'FullAddress'],
+        ];
+
+        $result = [];
+
+        foreach ($fields as $field) {
+            $type         = $field['Type'] ?? $field['type'] ?? '';
+            $internalName = $field['InternalName'] ?? $field['internalName'] ?? $field['Name'] ?? '';
+
+            if (isset($subFieldMap[$type])) {
+                // Expand to sub-fields with dot notation
+                foreach ($subFieldMap[$type] as $sub) {
+                    $result[] = array_merge($field, [
+                        'Name'         => ($field['Name'] ?? $internalName) . ' — ' . $sub,
+                        'InternalName' => $internalName . '.' . $sub,
+                        'FieldType'    => $type . '.' . $sub,
+                    ]);
+                }
+            } else {
+                // Recurse into children if any
+                $children = $field['Children'] ?? $field['Fields'] ?? [];
+                if (! empty($children)) {
+                    $field['Children'] = $this->expandNestedFields($children);
+                }
+                $result[] = $field;
+            }
+        }
+
+        return $result;
     }
 }

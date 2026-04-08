@@ -39,8 +39,14 @@ class NowCertsFieldMapper
             ])
             ->all();
 
-        // Load available NowCerts fields from API (cached)
-        $this->available = $nowcerts->getAvailableFields();
+        // Load available NowCerts fields from API (cached).
+        // Only used for getSuggestions() — not needed for mapEntity() sync.
+        // Silently falls back to empty array so sync still works when API is unavailable.
+        try {
+            $this->available = $nowcerts->getAvailableFields();
+        } catch (\Throwable) {
+            $this->available = [];
+        }
     }
 
     // ──────────────────────────────────────────
@@ -128,11 +134,56 @@ class NowCertsFieldMapper
                 continue;
             }
 
-            if (array_key_exists($cognitoField, $entry)
-                && $entry[$cognitoField] !== null
-                && $entry[$cognitoField] !== '') {
-                $result[$mapping['field']] = $entry[$cognitoField];
+            if (! array_key_exists($cognitoField, $entry)
+                || $entry[$cognitoField] === null
+                || $entry[$cognitoField] === '') {
+                continue;
             }
+
+            $field = $mapping['field'];
+            $value = $entry[$cognitoField];
+
+            if (str_starts_with($field, '__custom__')) {
+                // Custom transform — expands one Cognito field to multiple NowCerts fields
+                foreach ($this->applyCustomTransform($field, (string) $value) as $k => $v) {
+                    $result[$k] = $v;
+                }
+            } else {
+                $result[$field] = $value;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Dispatch a custom transform and return a [ nowcertsField => value ] map.
+     */
+    private function applyCustomTransform(string $customField, string $value): array
+    {
+        return match ($customField) {
+            '__custom__full_name' => $this->splitFullName($value),
+            default               => [],
+        };
+    }
+
+    /**
+     * Split "John Doe" → ['FirstName' => 'John', 'LastName' => 'Doe'].
+     * Handles single-word names (LastName omitted) and multi-word last names
+     * ("John Michael Doe" → FirstName: John, LastName: Michael Doe).
+     */
+    private function splitFullName(string $fullName): array
+    {
+        $fullName = trim($fullName);
+        if ($fullName === '') {
+            return [];
+        }
+
+        $parts  = explode(' ', $fullName, 2);
+        $result = ['FirstName' => $parts[0]];
+
+        if (! empty($parts[1])) {
+            $result['LastName'] = trim($parts[1]);
         }
 
         return $result;
@@ -160,5 +211,38 @@ class NowCertsFieldMapper
     private function normalise(string $value): string
     {
         return strtolower(preg_replace('/[\s_\-]+/', '', $value));
+    }
+
+    /**
+     * Flatten a Cognito webhook entry to dot-notation keys (one level deep).
+     *
+     * Example:
+     *   "NameOfInsured": { "First": "John", "Last": "Doe" }
+     *   becomes:
+     *   "NameOfInsured.First" => "John"
+     *   "NameOfInsured.Last"  => "Doe"
+     *
+     * Scalar top-level values are kept as-is.
+     * List arrays (e.g. file uploads) are skipped.
+     */
+    public static function flattenEntry(array $entry): array
+    {
+        $result = [];
+
+        foreach ($entry as $key => $value) {
+            if (is_array($value) && ! array_is_list($value)) {
+                // Associative array — expand one level with dot notation
+                foreach ($value as $subKey => $subValue) {
+                    if (! is_array($subValue)) {
+                        $result["{$key}.{$subKey}"] = $subValue;
+                    }
+                }
+            } elseif (! is_array($value)) {
+                $result[$key] = $value;
+            }
+            // List arrays (file attachments etc.) are skipped
+        }
+
+        return $result;
     }
 }

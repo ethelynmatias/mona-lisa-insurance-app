@@ -58,6 +58,9 @@ class CognitoWebhookController extends Controller
     private function syncToNowCerts(WebhookLog $log, string $formId, array $entry): void
     {
         try {
+            // Flatten nested objects (e.g. NameOfInsured.First, LocationAddress.City)
+            // so DB-saved mappings like "NameOfInsured.First" → "Insured.FirstName" resolve correctly.
+            $entry  = NowCertsFieldMapper::flattenEntry($entry);
             $mapper = new NowCertsFieldMapper($formId, $this->nowcerts);
 
             $syncedEntities = [];
@@ -125,6 +128,43 @@ class CognitoWebhookController extends Controller
                 'sync_error'  => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Rerun the NowCerts sync for a specific webhook log entry.
+     * Only allowed when sync_status is pending or failed.
+     */
+    public function rerunSync(WebhookLog $log): RedirectResponse
+    {
+        if (! in_array($log->sync_status, ['pending', 'failed'])) {
+            return back()->with('error', 'Only pending or failed events can be rerun.');
+        }
+
+        if ($log->event_type === 'entry.deleted') {
+            return back()->with('error', 'Delete events cannot be synced to NowCerts.');
+        }
+
+        if (empty($log->payload)) {
+            return back()->with('error', 'No payload stored for this event — cannot rerun.');
+        }
+
+        // Reset status before retrying
+        $log->update([
+            'sync_status'     => 'pending',
+            'sync_error'      => null,
+            'synced_entities' => null,
+            'synced_at'       => null,
+        ]);
+
+        $this->syncToNowCerts($log, $log->form_id, $log->payload);
+
+        $log->refresh();
+
+        return match ($log->sync_status) {
+            'synced'  => back()->with('success', 'Sync completed successfully. Entities pushed: ' . implode(', ', $log->synced_entities ?? [])),
+            'skipped' => back()->with('success', 'No field mappings configured for this form — sync skipped.'),
+            default   => back()->with('error', 'Sync failed: ' . ($log->sync_error ?? 'Unknown error.')),
+        };
     }
 
     /**

@@ -1,5 +1,18 @@
 import { NOWCERTS_ENTITY_COLORS } from '@/constants/nowcerts';
 
+/** Human-readable labels for custom transform fields. */
+const CUSTOM_FIELD_LABELS = {
+    '__custom__full_name': 'Full Name → First + Last',
+};
+
+function fieldLabel(f) {
+    return CUSTOM_FIELD_LABELS[f] ?? f;
+}
+
+function isCustomField(f) {
+    return f.startsWith('__custom__');
+}
+
 export default function SchemaField({ field, depth = 0, mappings, availableFields, onChange }) {
     const name         = field.Name         ?? field.name         ?? '—';
     const internalName = field.InternalName ?? field.internalName ?? name;
@@ -58,24 +71,38 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
 
                 {/* NowCerts Field — dropdown */}
                 <td className="py-2 pr-5">
-                    <select
-                        value={selectValue}
-                        onChange={handleChange}
-                        className={`w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white
-                            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                            ${current ? NOWCERTS_ENTITY_COLORS[current.entity] ?? 'text-gray-700' : 'text-gray-400'}`}
-                    >
-                        <option value="">— unmapped —</option>
-                        {Object.entries(availableFields).map(([entity, fieldList]) => (
-                            <optgroup key={entity} label={entity}>
-                                {fieldList.map(f => (
-                                    <option key={f} value={`${entity}.${f}`}>
-                                        {f}
-                                    </option>
-                                ))}
-                            </optgroup>
-                        ))}
-                    </select>
+                    <div className="flex flex-col gap-1">
+                        <select
+                            value={selectValue}
+                            onChange={handleChange}
+                            className={`w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white
+                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                                ${current ? NOWCERTS_ENTITY_COLORS[current.entity] ?? 'text-gray-700' : 'text-gray-400'}`}
+                        >
+                            <option value="">— unmapped —</option>
+                            {Object.entries(availableFields).map(([entity, fieldList]) => {
+                                const standard = fieldList.filter(f => !isCustomField(f));
+                                const custom   = fieldList.filter(f =>  isCustomField(f));
+                                return (
+                                    <optgroup key={entity} label={entity}>
+                                        {standard.map(f => (
+                                            <option key={f} value={`${entity}.${f}`}>{f}</option>
+                                        ))}
+                                        {custom.map(f => (
+                                            <option key={f} value={`${entity}.${f}`}>
+                                                ✦ {fieldLabel(f)}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                );
+                            })}
+                        </select>
+                        {current && isCustomField(current.field) && (
+                            <span className="text-[10px] text-amber-600 font-medium">
+                                Custom transform · {fieldLabel(current.field)}
+                            </span>
+                        )}
+                    </div>
                 </td>
 
             </tr>

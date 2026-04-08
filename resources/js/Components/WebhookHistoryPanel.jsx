@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { router } from '@inertiajs/react';
 import Pagination from '@/Components/Pagination';
+import WebhookPayloadModal from '@/Components/Modals/WebhookPayloadModal';
+import WebhookRerunModal from '@/Components/Modals/WebhookRerunModal';
 
 const PER_PAGE_OPTIONS = [20, 50, 100];
 
@@ -37,111 +39,11 @@ function formatDate(iso) {
     });
 }
 
-function PayloadModal({ webhook, onClose }) {
-    const [copied, setCopied] = useState(false);
-    const json = JSON.stringify(webhook.payload, null, 2);
-
-    function handleCopy() {
-        navigator.clipboard.writeText(json);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    }
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-
-            {/* Modal */}
-            <div className="relative bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-
-                {/* Header */}
-                <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
-                    <div>
-                        <h3 className="text-sm font-semibold text-gray-900">Webhook Payload</h3>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                            <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full mr-2
-                                ${EVENT_STYLES[webhook.event_type] ?? 'bg-gray-100 text-gray-600'}`}>
-                                {eventLabel(webhook.event_type)}
-                            </span>
-                            {webhook.entry_id && <span className="font-mono">Entry #{webhook.entry_id} · </span>}
-                            {formatDate(webhook.created_at)}
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                        <button
-                            onClick={handleCopy}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600
-                                bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                        >
-                            {copied ? (
-                                <>
-                                    <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    Copied
-                                </>
-                            ) : (
-                                <>
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                    </svg>
-                                    Copy
-                                </>
-                            )}
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                            aria-label="Close"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Body */}
-                <div className="overflow-y-auto p-6 space-y-4">
-
-                    {/* Sync result */}
-                    {webhook.sync_status && (
-                        <div className={`flex flex-wrap items-start gap-3 px-4 py-3 rounded-lg text-xs border
-                            ${webhook.sync_status === 'synced'  ? 'bg-green-50 border-green-200 text-green-700'  : ''}
-                            ${webhook.sync_status === 'failed'  ? 'bg-red-50 border-red-200 text-red-700'        : ''}
-                            ${webhook.sync_status === 'skipped' ? 'bg-gray-50 border-gray-200 text-gray-500'     : ''}
-                            ${webhook.sync_status === 'pending' ? 'bg-yellow-50 border-yellow-200 text-yellow-700' : ''}
-                        `}>
-                            <span className="font-semibold capitalize">NowCerts sync: {webhook.sync_status}</span>
-                            {webhook.synced_entities?.length > 0 && (
-                                <span>Entities pushed: {webhook.synced_entities.join(', ')}</span>
-                            )}
-                            {webhook.sync_error && (
-                                <span className="w-full mt-1 text-red-600">{webhook.sync_error}</span>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Raw payload */}
-                    {webhook.payload ? (
-                        <pre className="text-xs text-gray-700 bg-gray-50 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap break-all">
-                            {json}
-                        </pre>
-                    ) : (
-                        <p className="text-sm text-gray-400 text-center py-8">No payload recorded.</p>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-}
-
 export default function WebhookHistoryPanel({ webhooks = [], showFormColumn = false, clearRoute = null }) {
-    const [selected, setSelected]   = useState(null);
-    const [currentPage, setPage]    = useState(1);
-    const [perPage, setPerPage]     = useState(PER_PAGE_OPTIONS[0]);
+    const [selected, setSelected]       = useState(null);
+    const [rerunTarget, setRerunTarget] = useState(null);
+    const [currentPage, setPage]        = useState(1);
+    const [perPage, setPerPage]         = useState(PER_PAGE_OPTIONS[0]);
 
     const totalPages = Math.max(1, Math.ceil(webhooks.length / perPage));
     const safePage   = Math.min(currentPage, totalPages);
@@ -273,20 +175,35 @@ export default function WebhookHistoryPanel({ webhooks = [], showFormColumn = fa
                                         <td className="px-5 py-3 text-xs text-gray-400 whitespace-nowrap">
                                             {formatDate(wh.created_at)}
                                         </td>
-                                        <td className="px-5 py-3 text-right">
-                                            <button
-                                                onClick={() => setSelected(wh)}
-                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-600
-                                                    bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                                            >
-                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                </svg>
-                                                View
-                                            </button>
+                                        <td className="px-5 py-3">
+                                            <div className="flex items-center justify-end gap-2">
+                                                {(wh.sync_status === 'pending' || wh.sync_status === 'failed') && (
+                                                    <button
+                                                        onClick={() => setRerunTarget(wh)}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-600
+                                                            bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors whitespace-nowrap"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                        </svg>
+                                                        Rerun Sync
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => setSelected(wh)}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-600
+                                                        bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                    View
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -308,7 +225,22 @@ export default function WebhookHistoryPanel({ webhooks = [], showFormColumn = fa
             </div>
 
             {selected && (
-                <PayloadModal webhook={selected} onClose={() => setSelected(null)} />
+                <WebhookPayloadModal webhook={selected} onClose={() => setSelected(null)} />
+            )}
+
+            {rerunTarget && (
+                <WebhookRerunModal
+                    webhook={rerunTarget}
+                    onClose={() => setRerunTarget(null)}
+                    onConfirm={() => {
+                        router.post(
+                            route('webhook.history.rerun', { log: rerunTarget.id }),
+                            {},
+                            { preserveScroll: true }
+                        );
+                        setRerunTarget(null);
+                    }}
+                />
             )}
         </>
     );

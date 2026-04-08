@@ -38,6 +38,44 @@ class NowCertsService
      *
      * Shape: [ 'Insured' => ['FirstName', 'LastName', ...], 'Policy' => [...], ... ]
      */
+    /**
+     * Known NowCerts fields per entity — used as the base list.
+     * Merged with any additional fields found on live API records.
+     */
+    private const KNOWN_FIELDS = [
+        'Insured' => [
+            'FirstName', 'LastName', 'MiddleName', 'CommercialName', 'Dba',
+            'Type', 'EMail', 'EMail2', 'EMail3', 'Phone', 'CellPhone',
+            'SmsPhone', 'Fax', 'BusinessPhoneNumber',
+            'AddressLine1', 'AddressLine2', 'City', 'State', 'ZipCode', 'County',
+            'Website', 'FEIN', 'Description', 'Active',
+            'CustomerId', 'InsuredId', 'TagName', 'ReferralSourceCompanyName',
+            // Custom transforms
+            '__custom__full_name',
+        ],
+        'Policy' => [
+            'Number', 'EffectiveDate', 'ExpirationDate', 'BindDate',
+            'BusinessType', 'Description', 'BillingType',
+            'LineOfBusinessName', 'CarrierName', 'MgaName',
+            'Premium', 'AgencyCommissionPercent',
+            'InsuredDatabaseId', 'InsuredEmail', 'InsuredFirstName', 'InsuredLastName',
+        ],
+        'Driver' => [
+            'FirstName', 'LastName', 'MiddleName',
+            'DateOfBirth', 'LicenseNumber', 'LicenseState',
+            'Gender', 'MaritalStatus', 'Relation',
+            'InsuredDatabaseId',
+            // Custom transforms
+            '__custom__full_name',
+        ],
+        'Vehicle' => [
+            'Year', 'Make', 'Model', 'VIN', 'BodyStyle',
+            'GrossWeight', 'CostNew', 'PurchaseDate',
+            'GarageState', 'GarageZip',
+            'InsuredDatabaseId',
+        ],
+    ];
+
     public function getAvailableFields(): array
     {
         return Cache::remember('nowcerts_available_fields', now()->addHours(24), function () {
@@ -48,36 +86,31 @@ class NowCertsService
                 'Vehicle' => fn () => $this->send('GET', 'VehicleList',       query: ['Active' => 'true']),
             ];
 
-            $result  = [];
-            $missing = [];
+            $skip   = ['Id', 'DatabaseId', 'AgencyDatabaseId', 'IsDeleted'];
+            $result = [];
 
             foreach ($entities as $entity => $fetch) {
-                $records = $fetch();
+                $known = self::KNOWN_FIELDS[$entity] ?? [];
 
-                // Unwrap if wrapped: { "Insureds": [...] } etc.
-                $list = collect($records)->first(fn ($v) => is_array($v) && array_is_list($v))
-                    ?? (array_is_list($records) ? $records : []);
+                try {
+                    $records = $fetch();
 
-                $first = $list[0] ?? null;
+                    $list = collect($records)->first(fn ($v) => is_array($v) && array_is_list($v))
+                        ?? (array_is_list($records) ? $records : []);
 
-                if ($first && is_array($first)) {
-                    $result[$entity] = collect(array_keys($first))
-                        ->filter(fn ($k) => ! in_array($k, ['Id', 'DatabaseId', 'AgencyDatabaseId', 'IsDeleted']))
-                        ->values()
-                        ->all();
-                } else {
-                    $missing[] = $entity;
+                    $first = $list[0] ?? null;
+
+                    $fromApi = $first && is_array($first)
+                        ? collect(array_keys($first))->filter(fn ($k) => ! in_array($k, $skip))->all()
+                        : [];
+                } catch (\Throwable) {
+                    $fromApi = [];
                 }
-            }
 
-            if (! empty($missing)) {
-                // Do not cache partial results
-                Cache::forget('nowcerts_available_fields');
-
-                throw new RuntimeException(
-                    'Could not retrieve NowCerts fields for: ' . implode(', ', $missing) . '. '
-                    . 'Make sure your NowCerts account has at least one record for each entity (Insured, Policy, Driver, Vehicle).'
-                );
+                // Merge known fields + any extra fields found on the live record
+                $result[$entity] = collect(array_unique(array_merge($known, $fromApi)))
+                    ->values()
+                    ->all();
             }
 
             return $result;
@@ -104,7 +137,7 @@ class NowCertsService
         return Cache::remember('nowcerts_token', 3500, function () {
             $response = Http::timeout($this->timeout)
                 ->asForm()
-                ->post('https://api.nowcerts.com/Identity/Login', [
+                ->post('https://api.nowcerts.com/Token', [
                     'grant_type' => 'password',
                     'username'   => $this->username,
                     'password'   => $this->password,
