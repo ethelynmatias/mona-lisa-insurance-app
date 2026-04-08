@@ -562,11 +562,21 @@ The public endpoint accepts `POST` requests — no authentication or CSRF token 
 POST /webhook/cognito
 ```
 
-Configure this URL in your Cognito Forms form settings under **Webhooks**. Pass the form ID and optional event type as query parameters:
+Configure this URL in your Cognito Forms form settings under **"Post JSON Data to a Website"**. Cognito Forms allows one URL per trigger, so add all three separately:
 
-```
-POST /webhook/cognito?form_id=YOUR_FORM_ID&event=entry.submitted
-```
+| Trigger         | Webhook URL                                                                 |
+|-----------------|-----------------------------------------------------------------------------|
+| New Entry       | `https://YOUR_DOMAIN/webhook/cognito?form_id=YOUR_FORM_ID&event=entry.submitted` |
+| Updated Entry   | `https://YOUR_DOMAIN/webhook/cognito?form_id=YOUR_FORM_ID&event=entry.updated`   |
+| Deleted Entry   | `https://YOUR_DOMAIN/webhook/cognito?form_id=YOUR_FORM_ID&event=entry.deleted`   |
+
+Replace `YOUR_DOMAIN` with your public URL (e.g. an ngrok tunnel like `https://xxxx.ngrok-free.dev` for local testing, or your production domain).
+
+> **Local development with ngrok:**
+> ```bash
+> ngrok http 8000
+> ```
+> Run this on your host machine (not inside Docker). ngrok tunnels to `localhost:8000` which Docker already maps to the app container. Use the generated `https://xxxx.ngrok-free.dev` URL as your domain above.
 
 Supported `event` values:
 

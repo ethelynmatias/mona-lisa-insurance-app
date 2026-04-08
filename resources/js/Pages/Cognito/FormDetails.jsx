@@ -169,7 +169,10 @@ export default function FormDetails() {
                         )}
 
                         {/* Webhook History */}
-                        <WebhookHistoryPanel webhooks={webhooks} />
+                        <WebhookHistoryPanel
+                            webhooks={webhooks}
+                            clearRoute={route('webhook.history.clear-form', { formId })}
+                        />
 
                         {/* Schema */}
                         <div className="bg-white rounded-xl border border-gray-200">

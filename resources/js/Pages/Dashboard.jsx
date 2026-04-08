@@ -170,7 +170,7 @@ export default function Dashboard() {
                     )}
                 </div>
                 {/* Webhook History */}
-                <WebhookHistoryPanel webhooks={webhooks} showFormColumn />
+                <WebhookHistoryPanel webhooks={webhooks} showFormColumn clearRoute={route('webhook.history.clear')} />
 
             </div>
         </AuthenticatedLayout>

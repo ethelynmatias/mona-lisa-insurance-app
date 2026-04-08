@@ -30,4 +30,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/settings/users/{user}',       [SettingsController::class, 'deleteUser'])->name('settings.users.delete')->middleware('role:admin');
 
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+
+    // Webhook history management
+    Route::delete('/webhook/history',              [CognitoWebhookController::class, 'clearAll'])->name('webhook.history.clear');
+    Route::delete('/webhook/history/{formId}',     [CognitoWebhookController::class, 'clearByForm'])->name('webhook.history.clear-form');
 });

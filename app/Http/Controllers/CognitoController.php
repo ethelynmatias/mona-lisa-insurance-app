@@ -41,8 +41,8 @@ class CognitoController extends Controller
         $paginated = $this->paginateArray($forms, $request, sortableFields: ['Name', 'Id']);
 
         $webhooks = WebhookLog::orderByDesc('created_at')
-            ->limit(50)
-            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'created_at'])
+            ->limit(500)
+            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'payload', 'created_at'])
             ->toArray();
 
         return Inertia::render('Dashboard', [
@@ -101,8 +101,8 @@ class CognitoController extends Controller
 
         $webhooks = WebhookLog::where('form_id', $formId)
             ->orderByDesc('created_at')
-            ->limit(50)
-            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'created_at'])
+            ->limit(500)
+            ->get(['id', 'form_id', 'form_name', 'event_type', 'entry_id', 'status', 'payload', 'created_at'])
             ->toArray();
 
         return Inertia::render('Cognito/FormDetails', [

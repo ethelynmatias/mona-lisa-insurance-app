@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Webhook;
 use App\Http\Controllers\Controller;
 use App\Models\WebhookLog;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class CognitoWebhookController extends Controller
@@ -34,5 +35,25 @@ class CognitoWebhookController extends Controller
         ]);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Clear all webhook history.
+     */
+    public function clearAll(): RedirectResponse
+    {
+        WebhookLog::truncate();
+
+        return back()->with('success', 'Webhook history cleared.');
+    }
+
+    /**
+     * Clear webhook history for a specific form.
+     */
+    public function clearByForm(string $formId): RedirectResponse
+    {
+        WebhookLog::where('form_id', $formId)->delete();
+
+        return back()->with('success', 'Webhook history cleared for this form.');
     }
 }
