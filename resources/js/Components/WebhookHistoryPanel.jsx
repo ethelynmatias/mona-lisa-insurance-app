@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import Pagination from '@/Components/Pagination';
 import WebhookPayloadModal from '@/Components/Modals/WebhookPayloadModal';
 import WebhookRerunModal from '@/Components/Modals/WebhookRerunModal';
@@ -40,10 +40,17 @@ function formatDate(iso) {
 }
 
 export default function WebhookHistoryPanel({ webhooks = [], showFormColumn = false, clearRoute = null }) {
+    const { url } = usePage();
     const [selected, setSelected]       = useState(null);
     const [rerunTarget, setRerunTarget] = useState(null);
     const [currentPage, setPage]        = useState(1);
     const [perPage, setPerPage]         = useState(PER_PAGE_OPTIONS[0]);
+    const [refreshing, setRefreshing]   = useState(false);
+
+    function handleRefresh() {
+        setRefreshing(true);
+        router.reload({ preserveScroll: true, onFinish: () => setRefreshing(false) });
+    }
 
     const totalPages = Math.max(1, Math.ceil(webhooks.length / perPage));
     const safePage   = Math.min(currentPage, totalPages);
@@ -103,10 +110,22 @@ export default function WebhookHistoryPanel({ webhooks = [], showFormColumn = fa
                                 Clear History
                             </button>
                         )}
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-500">
-                            <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                            Live
-                        </span>
+                        <button
+                            onClick={handleRefresh}
+                            disabled={refreshing}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-600
+                                bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                            title="Refresh"
+                        >
+                            <svg
+                                className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            {refreshing ? 'Refreshing…' : 'Refresh'}
+                        </button>
                     </div>
                 </div>
 

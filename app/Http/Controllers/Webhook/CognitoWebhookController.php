@@ -252,15 +252,31 @@ class CognitoWebhookController extends Controller
     }
 
     /**
-     * Map property fields and inject InsuredDatabaseId so the property
-     * is linked to the correct contact in NowCerts.
+     * Map property fields, inject InsuredDatabaseId, and (on update) inject
+     * the existing property's DatabaseId so NowCerts updates rather than inserts.
      */
     private function buildPropertyData(NowCertsFieldMapper $mapper, array $entry, ?string $insuredDatabaseId): array
     {
         $data = $mapper->mapProperty($entry);
 
-        if (! empty($data) && $insuredDatabaseId) {
-            $data['InsuredDatabaseId'] = $insuredDatabaseId;
+        if (empty($data) || ! $insuredDatabaseId) {
+            return $data;
+        }
+
+        $data['InsuredDatabaseId'] = $insuredDatabaseId;
+
+        // Look up an existing property for this insured so we update instead of insert
+        if (empty($data['DatabaseId'])) {
+            try {
+                $existing = $this->nowcerts->findProperties(['InsuredId' => $insuredDatabaseId]);
+                $first    = is_array($existing) ? ($existing[0] ?? null) : null;
+
+                if (! empty($first['id'])) {
+                    $data['DatabaseId'] = $first['id'];
+                }
+            } catch (Throwable) {
+                // No existing property found — will insert a new one
+            }
         }
 
         return $data;
