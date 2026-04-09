@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('webhook_discovered_fields', function (Blueprint $table) {
             $table->id();
             $table->string('form_id')->unique();
-            $table->json('fields')->default('[]');
+            $table->json('fields')->nullable();
             $table->timestamps();
         });
     }
