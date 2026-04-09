@@ -128,8 +128,8 @@ class CognitoWebhookController extends Controller
                 }
             }
 
-            // Upload documents if we have an insured ID and file uploads
-            if ($insuredDatabaseId && ! empty($fileUploads)) {
+            // Upload documents only on new submissions — skip on updates to avoid duplicates
+            if ($insuredDatabaseId && ! empty($fileUploads) && $log->event_type !== 'entry.updated') {
                 $this->syncFileUploads($insuredDatabaseId, $fileUploads, $context);
             }
 

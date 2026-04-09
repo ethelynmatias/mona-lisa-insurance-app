@@ -292,33 +292,73 @@ class NowCertsService
 
         $fileContent = Http::timeout($this->timeout)->get($fileUrl)->body();
 
+        // Find the Documents folder ID for this insured
+        $folderId = $this->getInsuredDocumentsFolderId($insuredDatabaseId);
+
+        $endpoint = 'Insured/UploadInsuredFile';
+        $params = [
+            'insuredId'              => $insuredDatabaseId,
+            'creatorName'            => 'Webhook',
+            'isInsuredVisibleFolder' => 'true',
+        ];
+        if ($folderId) {
+            $params['folderId'] = $folderId;
+        }
+        $query = http_build_query($params);
+
         Log::info('NowCerts API request', [
-            'method'   => 'POST',
-            'endpoint' => 'Document/Insert',
-            'body'     => compact('insuredDatabaseId', 'fileName', 'fieldLabel'),
+            'method'    => 'PUT',
+            'endpoint'  => $endpoint,
+            'insuredId' => $insuredDatabaseId,
+            'folderId'  => $folderId,
+            'fileName'  => $fileName,
         ]);
 
         $response = Http::baseUrl($this->baseUrl)
             ->timeout($this->timeout)
             ->withToken($this->getToken())
             ->attach('file', $fileContent, $fileName)
-            ->post('Document/Insert', [
-                'insuredDatabaseId' => $insuredDatabaseId,
-                'documentName'      => $fieldLabel ? "{$fieldLabel} — {$fileName}" : $fileName,
-            ]);
+            ->put("{$endpoint}?{$query}");
 
         Log::debug('NowCerts API response', [
-            'endpoint' => 'Document/Insert',
+            'endpoint' => $endpoint,
             'status'   => $response->status(),
             'body'     => $response->json() ?? $response->body(),
         ]);
 
         if (! $response->successful()) {
-            $message = $this->resolveErrorMessage($response->status(), $response->json(), 'Document/Insert');
+            $message = $this->resolveErrorMessage($response->status(), $response->json(), $endpoint);
             throw new RuntimeException($message, $response->status());
         }
 
         return $response->json() ?? [];
+    }
+
+    /**
+     * Get the "Documents" folder ID for an insured.
+     * Falls back to null (root) if not found.
+     */
+    private function getInsuredDocumentsFolderId(string $insuredDatabaseId): ?string
+    {
+        try {
+            $response = $this->send('GET', "Files/GetInsuredLevelFolders/{$insuredDatabaseId}");
+            $folders  = $response['data'] ?? $response;
+
+            if (! is_array($folders)) {
+                return null;
+            }
+
+            foreach ($folders as $folder) {
+                $name = strtolower($folder['name'] ?? $folder['Name'] ?? '');
+                if (str_contains($name, 'document')) {
+                    return $folder['databaseId'] ?? $folder['DatabaseId'] ?? null;
+                }
+            }
+        } catch (\Throwable) {
+            // Fall through to root upload
+        }
+
+        return null;
     }
 
     /**
