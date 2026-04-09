@@ -69,6 +69,41 @@ class NowCertsFieldMapper
     }
 
     /**
+     * Map property fields from the entry using __property-suffixed cognito keys.
+     * Covers Property, Additional, and InsuredLocation entity mappings.
+     */
+    public function mapProperty(array $entry): array
+    {
+        $result           = [];
+        $propertyEntities = [
+            NowCertsEntity::Property->value,
+            NowCertsEntity::InsuredLocation->value,
+            'Additional',
+        ];
+
+        foreach ($this->saved as $cognitoField => $mapping) {
+            if (! in_array($mapping['entity'], $propertyEntities, true)) {
+                continue;
+            }
+
+            // Strip __property suffix to resolve the actual entry key
+            $entryKey = str_ends_with($cognitoField, '__property')
+                ? substr($cognitoField, 0, -strlen('__property'))
+                : $cognitoField;
+
+            if (! array_key_exists($entryKey, $entry)
+                || $entry[$entryKey] === null
+                || $entry[$entryKey] === '') {
+                continue;
+            }
+
+            $result[$mapping['field']] = $entry[$entryKey];
+        }
+
+        return $result;
+    }
+
+    /**
      * Auto-suggest mappings for Cognito fields that have no DB-saved mapping,
      * by normalised name-matching against the live NowCerts API fields.
      *

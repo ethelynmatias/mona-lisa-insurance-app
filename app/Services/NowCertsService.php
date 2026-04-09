@@ -375,6 +375,35 @@ class NowCertsService
     }
 
     /**
+     * Insert or update a property record linked to an insured.
+     * Requires InsuredDatabaseId to associate the property with the correct contact.
+     *
+     * Additional fields (YearBuilt, Construction, etc.) are nested under 'Additional'
+     * as the NowCerts API expects them as a sub-object on the property model.
+     */
+    public function insertOrUpdateProperty(array $data): array
+    {
+        // Fields that belong inside the 'Additional' sub-object on the NowCerts property model
+        $additionalKeys = array_flip(array_diff($this->getPropertyAdditionalFields(), ['Additional']));
+        $additional     = [];
+        $property       = [];
+
+        foreach ($data as $key => $value) {
+            if (isset($additionalKeys[$key])) {
+                $additional[$key] = $value;
+            } else {
+                $property[$key] = $value;
+            }
+        }
+
+        if (! empty($additional)) {
+            $property['Additional'] = $additional;
+        }
+
+        return $this->send('POST', 'Property/InsertOrUpdate', body: $property);
+    }
+
+    /**
      * Insert insured + policies in one call.
      */
     public function upsertInsuredWithPolicies(array $data): array

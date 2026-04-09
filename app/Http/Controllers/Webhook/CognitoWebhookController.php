@@ -87,8 +87,8 @@ class CognitoWebhookController extends Controller
             $errors             = [];
             $insuredDatabaseId  = null;
 
-            // Sync primary entry (all entities)
-            foreach ($this->entitySyncMap($mapper) as $entity => $callbacks) {
+            // Sync primary entities first (Insured, Policy, Driver, Vehicle)
+            foreach ($this->primaryEntitySyncMap($mapper) as $entity => $callbacks) {
                 $data = $callbacks['map']($entry);
 
                 Log::info("NowCerts mapped {$entity}", array_merge($context, ['data' => $data]));
@@ -103,13 +103,28 @@ class CognitoWebhookController extends Controller
                     Log::info("NowCerts {$entity} pushed", array_merge($context, ['response' => $response]));
                     $syncedEntities[] = $entity;
 
-                    // Capture insured database ID for document uploads
-                    if ($entity === \App\Enums\NowCertsEntity::Insured->value && ! $insuredDatabaseId) {
+                    // Capture insured database ID for property + document uploads
+                    if ($entity === NowCertsEntity::Insured->value && ! $insuredDatabaseId) {
                         $insuredDatabaseId = $response['_insuredDatabaseId'] ?? null;
                     }
                 } catch (Throwable $e) {
                     Log::error("NowCerts {$entity} failed", array_merge($context, ['error' => $e->getMessage()]));
                     $errors[] = "{$entity}: " . $e->getMessage();
+                }
+            }
+
+            // Sync Property — requires insuredDatabaseId resolved above
+            $propertyData = $this->buildPropertyData($mapper, $entry, $insuredDatabaseId);
+            if (! empty($propertyData)) {
+                $entityLabel = NowCertsEntity::Property->value;
+                Log::info("NowCerts mapped {$entityLabel}", array_merge($context, ['data' => $propertyData]));
+                try {
+                    $response = $this->nowcerts->insertOrUpdateProperty($propertyData);
+                    Log::info("NowCerts {$entityLabel} pushed", array_merge($context, ['response' => $response]));
+                    $syncedEntities[] = $entityLabel;
+                } catch (Throwable $e) {
+                    Log::error("NowCerts {$entityLabel} failed", array_merge($context, ['error' => $e->getMessage()]));
+                    $errors[] = "{$entityLabel}: " . $e->getMessage();
                 }
             }
 
@@ -181,10 +196,10 @@ class CognitoWebhookController extends Controller
     }
 
     /**
-     * Returns a map of entity name → [map callable, push callable].
-     * Add new entities here without touching the sync loop.
+     * Returns a map of primary entity name → [map callable, push callable].
+     * Property is handled separately after insuredDatabaseId is resolved.
      */
-    private function entitySyncMap(NowCertsFieldMapper $mapper): array
+    private function primaryEntitySyncMap(NowCertsFieldMapper $mapper): array
     {
         return [
             NowCertsEntity::Insured->value => [
@@ -204,6 +219,21 @@ class CognitoWebhookController extends Controller
                 'push' => fn (array $d) => $this->nowcerts->insertVehicle($d),
             ],
         ];
+    }
+
+    /**
+     * Map property fields and inject InsuredDatabaseId so the property
+     * is linked to the correct contact in NowCerts.
+     */
+    private function buildPropertyData(NowCertsFieldMapper $mapper, array $entry, ?string $insuredDatabaseId): array
+    {
+        $data = $mapper->mapProperty($entry);
+
+        if (! empty($data) && $insuredDatabaseId) {
+            $data['InsuredDatabaseId'] = $insuredDatabaseId;
+        }
+
+        return $data;
     }
 
     /**
