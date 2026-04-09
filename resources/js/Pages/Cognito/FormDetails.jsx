@@ -209,6 +209,9 @@ export default function FormDetails() {
                             </div>
                         </div>
 
+                        {/* Webhook Setup Instructions */}
+                        <WebhookInstructions formId={formId} />
+
                         {/* NowCerts fields error */}
                         {availableFieldsError && (
                             <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
@@ -342,6 +345,76 @@ export default function FormDetails() {
                 )}
             </div>
         </AuthenticatedLayout>
+    );
+}
+
+function CopyField({ label, value }) {
+    const [copied, setCopied] = useState(false);
+
+    function copy() {
+        navigator.clipboard.writeText(value).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    }
+
+    return (
+        <div>
+            <p className="text-xs text-blue-700 mb-1">{label}</p>
+            <div className="flex items-center gap-2 bg-white border border-blue-200 rounded-lg px-3 py-2">
+                <code className="flex-1 text-xs text-gray-700 break-all">{value}</code>
+                <button
+                    onClick={copy}
+                    className="flex-shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                >
+                    {copied ? 'Copied!' : 'Copy'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function WebhookInstructions({ formId }) {
+    const base         = window.location.origin + '/webhook/cognito?form_id=' + formId;
+    const submitUrl    = base + '&event=entry.submitted';
+    const updateUrl    = base + '&event=entry.updated';
+
+    return (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-blue-900 mb-1">Connect Cognito Forms Webhook</h2>
+            <p className="text-xs text-blue-700 mb-4">
+                Follow these steps to send form submissions to NowCerts automatically.
+            </p>
+
+            <ol className="space-y-4 text-sm text-blue-800">
+                <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-200 text-blue-800 text-xs font-bold flex items-center justify-center">1</span>
+                    <span>In Cognito Forms, open your form and click the <strong>Build</strong> tab.</span>
+                </li>
+                <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-200 text-blue-800 text-xs font-bold flex items-center justify-center">2</span>
+                    <span>Scroll down to <strong>Post JSON Data</strong> and enable it.</span>
+                </li>
+                <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-200 text-blue-800 text-xs font-bold flex items-center justify-center">3</span>
+                    <div className="flex-1 min-w-0 space-y-2">
+                        <p>Add the <strong>Submit</strong> endpoint:</p>
+                        <CopyField label="On Entry Submitted" value={submitUrl} />
+                    </div>
+                </li>
+                <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-200 text-blue-800 text-xs font-bold flex items-center justify-center">4</span>
+                    <div className="flex-1 min-w-0 space-y-2">
+                        <p>Add the <strong>Update</strong> endpoint:</p>
+                        <CopyField label="On Entry Updated" value={updateUrl} />
+                    </div>
+                </li>
+                <li className="flex gap-3">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-200 text-blue-800 text-xs font-bold flex items-center justify-center">5</span>
+                    <span>Save and submit a test entry — it will appear in <strong>Webhook History</strong> below and sync to NowCerts automatically.</span>
+                </li>
+            </ol>
+        </div>
     );
 }
 

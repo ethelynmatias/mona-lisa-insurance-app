@@ -348,12 +348,19 @@ mona-lisa-insurance/
 │   │       └── PaginatesArray.php      # Reusable search/sort/pagination for arrays
 │   ├── Models/
 │   │   ├── FormFieldMapping.php        # Persisted Cognito → NowCerts field mappings
+│   │   ├── WebhookDiscoveredField.php  # Discovered field keys per form (persisted independently)
 │   │   ├── WebhookLog.php              # Incoming webhook event log
 │   │   └── User.php                    # isAdmin() / isManager() / isActive() helpers
+│   ├── Repositories/
+│   │   ├── Contracts/
+│   │   │   ├── FormFieldMappingRepositoryInterface.php
+│   │   │   └── WebhookLogRepositoryInterface.php
+│   │   ├── FormFieldMappingRepository.php
+│   │   └── WebhookLogRepository.php
 │   └── Services/
 │       ├── CognitoFormsService.php     # Cognito Forms REST API client
-│       ├── NowCertsService.php         # NowCerts REST API client + dynamic field schema
-│       └── NowCertsFieldMapper.php     # DB + API driven field mapper (no hardcoded maps)
+│       ├── NowCertsService.php         # NowCerts REST API client + file upload
+│       └── NowCertsFieldMapper.php     # DB-driven field mapper with flatten/extract helpers
 ├── bootstrap/
 │   └── providers.php                   # Registers ZiggyServiceProvider
 ├── config/
@@ -372,19 +379,19 @@ mona-lisa-insurance/
 │   │   │   └── AuthenticatedLayout.jsx # Sidebar + header layout
 │   │   ├── Components/
 │   │   │   ├── Pagination.jsx          # Reusable pagination component
-│   │   │   ├── SchemaField.jsx         # Schema field table row with NowCerts dropdown
+│   │   │   ├── SchemaField.jsx         # Schema field row with dual NowCerts dropdowns
 │   │   │   ├── SearchInput.jsx         # Reusable search input with icon
 │   │   │   ├── SortableHeader.jsx      # Sortable table header with direction arrows
 │   │   │   ├── StatusBadge.jsx         # Active/Inactive status badge
-│   │   │   └── WebhookHistoryPanel.jsx # Webhook event log table (used on Dashboard + FormDetails)
+│   │   │   └── WebhookHistoryPanel.jsx # Webhook event log table
 │   │   ├── constants/
 │   │   │   ├── nowcerts.js             # NOWCERTS_ENTITY_COLORS
-│   │   │   └── statusOptions.js        # STATUS_OPTIONS array (all/active/inactive)
+│   │   │   └── statusOptions.js        # STATUS_OPTIONS array
 │   │   └── Pages/
 │   │       ├── Auth/
-│   │       │   └── Login.jsx           # Login page (home)
+│   │       │   └── Login.jsx
 │   │       ├── Cognito/
-│   │       │   └── FormDetails.jsx     # Form details + schema with mapping dropdowns
+│   │       │   └── FormDetails.jsx     # Form details + field mapping + webhook instructions
 │   │       ├── Dashboard.jsx           # Cognito Forms listing
 │   │       └── Settings.jsx            # Profile, password, user management
 │   └── views/app.blade.php             # Single Blade template (Inertia root)
@@ -403,10 +410,10 @@ mona-lisa-insurance/
 
 The **Dashboard** listing and the **Form Schema** panel on the Form Details page both support a configurable number of records per page.
 
-| Location         | Options          | Default |
-|------------------|------------------|---------|
-| Dashboard        | 20 / 50 / 100    | 20      |
-| Form Schema panel| 20 / 50 / 100    | 20      |
+| Location          | Options       | Default |
+|-------------------|---------------|---------|
+| Dashboard         | 20 / 50 / 100 | 20      |
+| Form Schema panel | 20 / 50 / 100 | 20      |
 
 The selected value is preserved in the URL query string (`per_page`) so it survives page navigation and browser refreshes.
 
@@ -424,7 +431,7 @@ The favicon is derived from the company logo (`/images/logo.png`) and is declare
 
 ### Cognito Forms
 
-Used to list forms and display their field schema on the dashboard.
+Used to list forms and trigger webhook-based syncs to NowCerts.
 
 | Variable            | Description                                          |
 |---------------------|------------------------------------------------------|
@@ -448,7 +455,7 @@ $cognito->deleteEntry($formId, $id);         // delete entry
 
 ### NowCerts
 
-Insurance management system. Cognito form field schemas can be mapped to NowCerts API fields directly from the Form Details page.
+Insurance management system. Cognito form submissions are automatically synced to NowCerts via webhook using the field mappings configured on each form's details page.
 
 | Variable              | Description                              |
 |-----------------------|------------------------------------------|
@@ -465,75 +472,46 @@ Key methods:
 
 ```php
 // Insureds
-$nowcerts->getInsureds($params);
-$nowcerts->findInsureds(['Name' => 'Smith', 'Email' => 'smith@example.com']);
-$nowcerts->upsertInsured($data);
-$nowcerts->upsertInsuredWithPolicies($data);
+$nowcerts->syncInsured($data);               // find-or-create/update insured
+$nowcerts->findInsureds(['Email' => '...']);
 
 // Policies
-$nowcerts->getPolicies($params);
-$nowcerts->findPolicies(['Number' => 'POL-001']);
-$nowcerts->upsertPolicy($data);
-$nowcerts->patchPolicy($data);
+$nowcerts->upsertPolicy($data);              // find-or-create/update policy by Number
+$nowcerts->findPolicies(['policyNumber' => 'POL-001']);
 
-// Drivers & Vehicles
-$nowcerts->insertDriver($data);
-$nowcerts->bulkInsertDrivers($drivers);
-$nowcerts->insertVehicle($data);
-$nowcerts->bulkInsertVehicles($vehicles);
+// Property
+$nowcerts->insertOrUpdateProperty($data);    // create or update a property record
 
-// Claims, Notes, Tasks
-$nowcerts->insertClaim($data);
-$nowcerts->insertNote($data);
-$nowcerts->upsertTask($data);
+// File uploads
+$nowcerts->uploadDocument($insuredId, $fileUrl, $fileName, $contentType, $label);
+// Uploads to: PUT Insured/UploadInsuredFile (visible in insured Files tab)
 
-// Opportunities
-$nowcerts->upsertOpportunity($data);
-
-// Lookup data
-$nowcerts->getAgents();
-$nowcerts->getCarriers();
-$nowcerts->getLinesOfBusiness();
-
-// Dynamic field schema (cached 24h, derived from live API records)
-$nowcerts->getAvailableFields();        // ['Insured' => [...], 'Policy' => [...], ...]
-$nowcerts->clearAvailableFieldsCache(); // force refresh
+// Available NowCerts fields for mapping UI
+$nowcerts->getAvailableFields();             // ['Insured' => [...], 'Policy' => [...], ...]
+$nowcerts->getPropertyFields();
+$nowcerts->getPropertyAdditionalFields();
 ```
 
 #### Field Mapping UI
 
-On the **Form Details** page, each Cognito form schema field has a dropdown to select the corresponding NowCerts entity and field. Click **Save Mappings** to persist to the database.
+On the **Form Details** page each discovered Cognito field has two dropdowns:
 
-- Available NowCerts fields are fetched **live from the API** (cached 24 hours) — no hardcoded field lists
-- If the API is unreachable or returns no records, an amber warning is shown and the dropdowns are disabled
-- To force a field list refresh: `php artisan cache:forget nowcerts_available_fields`
+| Column                       | Entities available                        |
+|------------------------------|-------------------------------------------|
+| Set NowCerts Primary Contact | Insured, Policy                           |
+| NowCerts Set Property        | Property, Additional, InsuredLocation     |
+
+A field can be mapped to both columns simultaneously (e.g. an address field can map to `Insured.AddressLine1` AND `Property.AddressLine1`).
+
+Property mappings are stored with a `__property` suffix on the `cognito_field` key to differentiate them from primary contact mappings in the same `form_field_mappings` table.
 
 Mappings are stored in the `form_field_mappings` table (`form_id`, `cognito_field`, `nowcerts_entity`, `nowcerts_field`).
 
-#### Programmatic Field Mapping
+#### Webhook-Discovered Fields
 
-`NowCertsFieldMapper` is fully DB + API driven — no hardcoded maps. It requires a `$formId` and the `NowCertsService` instance.
+Field keys discovered from real webhook payloads are persisted to the `webhook_discovered_fields` table (one row per `form_id`, JSON `fields` column). This table is never cleared when webhook history is deleted, so saved field mappings remain intact.
 
-```php
-$mapper = new NowCertsFieldMapper($formId, $nowcerts);
-
-// Map a Cognito entry to NowCerts payloads using saved DB mappings
-$insuredPayload = $mapper->mapInsured($cognitoEntry);
-$policyPayload  = $mapper->mapPolicy($cognitoEntry);
-$driverPayload  = $mapper->mapDriver($cognitoEntry);
-$vehiclePayload = $mapper->mapVehicle($cognitoEntry);
-
-// Get the lookup for the frontend (DB-saved mappings only)
-$lookup = $mapper->getLookup();
-
-// Auto-suggest mappings for fields not yet saved in DB
-// Uses normalised name-matching against live NowCerts API fields
-$suggestions = $mapper->getSuggestions($cognitoSchemaFields);
-```
-
-#### Validation
-
-Field mapping saves are validated via `app/Http/Requests/SaveMappingsRequest.php`.
+Dot-notation keys (e.g. `NameOfInsured.First`) are grouped into collapsible sections in the mapping UI. Only new keys trigger a DB write — repeat webhooks with unchanged fields are a no-op.
 
 ---
 
@@ -544,99 +522,120 @@ Ziggy exposes Laravel named routes to the frontend via the `route()` helper.
 The route list is injected into every page via the `@routes` Blade directive and shared as an Inertia prop. No additional setup is needed — `route()` is available globally in all React components.
 
 ```jsx
-// Example usage
 router.post(route('forms.mappings.save', { formId }), payload);
 ```
 
 ---
 
-## Webhook History
+## Webhook Integration
 
-Incoming Cognito Forms webhook events are logged to the `webhook_logs` table and displayed in a **Webhook History** panel on both the Dashboard and the Form Details page.
+### Connecting Cognito Forms
+
+The **Form Details** page shows step-by-step instructions with pre-filled, copyable URLs. The general setup is:
+
+1. Open your form in Cognito Forms and click the **Build** tab
+2. Scroll down to **Post JSON Data** and enable it
+3. Add the **Submit** endpoint:
+   ```
+   POST https://YOUR_DOMAIN/webhook/cognito?form_id=FORM_ID&event=entry.submitted
+   ```
+4. Add the **Update** endpoint:
+   ```
+   POST https://YOUR_DOMAIN/webhook/cognito?form_id=FORM_ID&event=entry.updated
+   ```
+5. Save and submit a test entry — it appears in **Webhook History** and syncs to NowCerts automatically
+
+> **Local development with ngrok:**
+> ```bash
+> ngrok http 8000
+> ```
+> Run on your host machine (not inside Docker). Use the generated `https://xxxx.ngrok-free.dev` as `YOUR_DOMAIN`.
 
 ### Receiving webhooks
 
 The public endpoint accepts `POST` requests — no authentication or CSRF token required:
 
 ```
-POST /webhook/cognito
+POST /webhook/cognito?form_id={formId}&event={eventType}
 ```
-
-Configure this URL in your Cognito Forms form settings under **"Post JSON Data to a Website"**. Cognito Forms allows one URL per trigger, so add all three separately:
-
-| Trigger         | Webhook URL                                                                 |
-|-----------------|-----------------------------------------------------------------------------|
-| New Entry       | `https://YOUR_DOMAIN/webhook/cognito?form_id=YOUR_FORM_ID&event=entry.submitted` |
-| Updated Entry   | `https://YOUR_DOMAIN/webhook/cognito?form_id=YOUR_FORM_ID&event=entry.updated`   |
-| Deleted Entry   | `https://YOUR_DOMAIN/webhook/cognito?form_id=YOUR_FORM_ID&event=entry.deleted`   |
-
-Replace `YOUR_DOMAIN` with your public URL (e.g. an ngrok tunnel like `https://xxxx.ngrok-free.dev` for local testing, or your production domain).
-
-> **Local development with ngrok:**
-> ```bash
-> ngrok http 8000
-> ```
-> Run this on your host machine (not inside Docker). ngrok tunnels to `localhost:8000` which Docker already maps to the app container. Use the generated `https://xxxx.ngrok-free.dev` URL as your domain above.
 
 Supported `event` values:
 
-| Value              | Badge colour |
-|--------------------|--------------|
-| `entry.submitted`  | Blue         |
-| `entry.updated`    | Amber        |
-| `entry.deleted`    | Red          |
+| Value              | Action                              |
+|--------------------|-------------------------------------|
+| `entry.submitted`  | Full sync to NowCerts + file upload |
+| `entry.updated`    | Full sync to NowCerts (no duplicate file uploads) |
+| `entry.deleted`    | Logged as skipped — no NowCerts action |
 
-The controller (`app/Http/Controllers/Webhook/CognitoWebhookController.php`) also reads `FormId`, `FormName`, `EventType`, and `Id` directly from the JSON payload body if query params are not present.
-
-### NowCerts sync on webhook fire
-
-When a webhook is received the controller immediately logs the raw event, then automatically pushes the data to NowCerts using the field mappings saved for that form.
-
-**Flow:**
+### NowCerts sync flow
 
 1. Payload logged with `sync_status = pending`
-2. `entry.deleted` events → marked `skipped` (no NowCerts action)
-3. `entry.submitted` / `entry.updated` events:
+2. Discovered field keys saved to `webhook_discovered_fields` (new keys only)
+3. `entry.submitted` / `entry.updated`:
    - `NowCertsFieldMapper` loads DB-saved mappings for the form
-   - Maps the Cognito payload to Insured / Policy / Driver / Vehicle payloads
-   - Calls the NowCerts API for each entity that has mapped fields
-   - Each entity is attempted independently — one failure does not block the others
-   - Log updated to reflect the outcome
+   - Flattens Cognito payload to dot-notation keys
+   - **Insured** synced first — `findExistingInsured()` looks up by email then name; passes `DatabaseId` in body to update if found
+   - **Policy** synced — looks up by `Number` to inject `policyDatabaseId` for update
+   - **Property** synced after Insured — `InsuredDatabaseId` injected from Insured response
+   - **File uploads** — Cognito file attachments uploaded to `Insured/UploadInsuredFile` (visible in NowCerts Files tab); Cognito file IDs tracked in `uploaded_file_ids` to prevent re-uploading unchanged files on updates
+   - Each entity is attempted independently — one failure does not block others
+4. Log updated with `sync_status`, `synced_entities`, `sync_error`, `synced_at`
 
-**Sync status values:**
+### Sync status values
 
-| Status    | Meaning                                              | Badge colour |
-|-----------|------------------------------------------------------|--------------|
-| `pending` | Received but not yet processed                       | Yellow       |
-| `synced`  | All mapped entities pushed to NowCerts successfully  | Green        |
-| `failed`  | One or more NowCerts API calls returned an error     | Red          |
-| `skipped` | No mappings configured for the form, or delete event | Gray         |
+| Status    | Meaning                                               | Badge   |
+|-----------|-------------------------------------------------------|---------|
+| `pending` | Received but not yet processed                        | Yellow  |
+| `synced`  | All mapped entities pushed to NowCerts successfully   | Green   |
+| `failed`  | One or more NowCerts API calls returned an error      | Red     |
+| `skipped` | No mappings configured, or delete event               | Gray    |
 
-The **View** button on each row opens a modal showing the sync result banner (entities pushed or error message) and the full raw JSON payload.
+### Rerunning a failed sync
+
+Each row in the Webhook History panel has a **Rerun** button that replays the sync using the stored payload — useful after fixing a misconfigured field mapping.
 
 ### Webhook History panels
 
-| Location       | Scope                               | Per-page options |
-|----------------|-------------------------------------|-----------------|
-| Dashboard      | All forms — up to 500 recent events | 20 / 50 / 100   |
-| Form Details   | Current form — up to 500 events     | 20 / 50 / 100   |
+| Location     | Scope                           | Per-page options |
+|--------------|---------------------------------|-----------------|
+| Dashboard    | All forms — up to 500 events    | 20 / 50 / 100   |
+| Form Details | Current form — up to 500 events | 20 / 50 / 100   |
 
-Both panels default to 20 events per page. The Dashboard panel includes a **Form** column. Both panels have a **Clear History** button and a **View** button per row to inspect the payload modal.
+Both panels have **Clear History** (deletes logs but not discovered fields) and a **View** button per row to inspect the raw JSON payload.
 
-### Database table — `webhook_logs`
+### Database tables
 
-| Column             | Type      | Description                                        |
-|--------------------|-----------|----------------------------------------------------|
-| `form_id`          | string    | Cognito form ID                                    |
-| `form_name`        | string    | Human-readable form name (optional)                |
-| `event_type`       | string    | `entry.submitted`, `entry.updated`, `entry.deleted`|
-| `entry_id`         | string    | Cognito entry ID (optional)                        |
-| `status`           | string    | Always `received` on ingest                        |
-| `payload`          | json      | Full raw request body                              |
-| `sync_status`      | string    | `pending`, `synced`, `failed`, `skipped`           |
-| `sync_error`       | text      | Error message(s) if sync failed                    |
-| `synced_entities`  | json      | List of entities pushed e.g. `["Insured","Policy"]`|
-| `synced_at`        | timestamp | When the NowCerts sync completed                   |
+#### `webhook_logs`
+
+| Column              | Type      | Description                                         |
+|---------------------|-----------|-----------------------------------------------------|
+| `form_id`           | string    | Cognito form ID                                     |
+| `form_name`         | string    | Human-readable form name                            |
+| `event_type`        | string    | `entry.submitted`, `entry.updated`, `entry.deleted` |
+| `entry_id`          | string    | Cognito entry ID                                    |
+| `status`            | string    | Always `received` on ingest                         |
+| `payload`           | json      | Full raw request body                               |
+| `sync_status`       | enum      | `pending`, `synced`, `failed`, `skipped`            |
+| `sync_error`        | text      | Error message(s) if sync failed                     |
+| `synced_entities`   | json      | e.g. `["Insured","Policy","Property"]`              |
+| `uploaded_file_ids` | json      | Cognito file IDs already uploaded (dedup)           |
+| `synced_at`         | timestamp | When the NowCerts sync completed                    |
+
+#### `webhook_discovered_fields`
+
+| Column    | Type   | Description                                  |
+|-----------|--------|----------------------------------------------|
+| `form_id` | string | Cognito form ID (unique)                     |
+| `fields`  | json   | Array of discovered flattened field key names |
+
+#### `form_field_mappings`
+
+| Column           | Type   | Description                                                    |
+|------------------|--------|----------------------------------------------------------------|
+| `form_id`        | string | Cognito form ID                                                |
+| `cognito_field`  | string | Flattened field key (e.g. `NameOfInsured.First`); property mappings use `__property` suffix |
+| `nowcerts_entity`| string | e.g. `Insured`, `Policy`, `Property`, `Additional`             |
+| `nowcerts_field` | string | e.g. `FirstName`, `AddressLine1`, `YearBuilt`                  |
 
 ---
 
