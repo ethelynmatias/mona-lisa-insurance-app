@@ -67,7 +67,9 @@ class NowCertsService
     public function getAvailableFields(): array
     {
         $fields = array_map(fn ($f) => array_values($f), self::KNOWN_FIELDS);
-        $fields[NowCertsEntity::Property->value] = $this->getPropertyFields();
+        $fields[NowCertsEntity::Property->value]        = $this->getPropertyFields();
+        $fields['Additional']                           = $this->getPropertyAdditionalFields();
+        $fields[NowCertsEntity::InsuredLocation->value] = $this->getInsuredLocationFields();
         return $fields;
     }
 
@@ -81,38 +83,54 @@ class NowCertsService
      */
     public function getPropertyFields(): array
     {
-        return Cache::remember('nowcerts_property_fields', 86400, function () {
+        return [
+            'DatabaseId', 'PropertyUse', 'LocationNumber', 'BuildingNumber',
+            'Description', 'DescriptionOfOperations',
+            'AddressLine1', 'AddressLine2', 'City', 'County', 'State', 'Zip',
+            'InsuredDatabaseId', 'InsuredEmail',
+            'InsuredFirstName', 'InsuredLastName', 'InsuredCommercialName',
+            'AttachToPolicyNumber', 'AnyAreaLeasedToOthers',
+            'Coverage', 'PoliciesDatabaseId',
+        ];
+    }
+
+    public function getPropertyAdditionalFields(): array
+    {
+        return [
+            'Additional', 'Additional1', 'Additional2', 'Additional3', 'Additional4',
+            'YearBuilt', 'Construction', 'NumberOfStories', 'SquareFootage',
+            'RoofType', 'RoofYear', 'ProtectionClass', 'NumberOfUnits',
+        ];
+    }
+    /**
+     * Fetch InsuredLocation entity fields from the NowCerts API.
+     *
+     * Calls InsuredLocationList to pull a live record and extracts its scalar keys.
+     * Falls back to the documented InsuredLocation fields if the API returns nothing.
+     *
+     * Cached for 24 hours.
+     */
+    public function getInsuredLocationFields(): array
+    {
+        return Cache::remember('nowcerts_insured_location_fields', 86400, function () {
             try {
-                $response = $this->send('GET', 'Property/FindProperties', query: ['key' => '']);
+                $response = $this->send('GET', 'InsuredLocationList', query: ['key' => '']);
                 $sample   = $this->firstFromResponse($response);
 
                 if (is_array($sample) && ! empty($sample)) {
-                    $fields = array_keys(array_filter(
+                    return array_keys(array_filter(
                         $sample,
                         fn ($v) => ! is_array($v),
                     ));
-
-                    if (count($fields) > 3) {
-                        return $fields;
-                    }
                 }
             } catch (\Throwable) {
-                // fall through to documented defaults
+                // return empty — no records exist yet to infer fields from
             }
 
-            // Documented fields from POST api/Property/InsertOrUpdate (PropertyModel)
-            return [
-                'DatabaseId', 'PropertyUse', 'LocationNumber', 'BuildingNumber',
-                'Description', 'DescriptionOfOperations',
-                'AddressLine1', 'AddressLine2', 'City', 'County', 'State', 'Zip',
-                'InsuredDatabaseId', 'InsuredEmail',
-                'InsuredFirstName', 'InsuredLastName', 'InsuredCommercialName',
-                'AttachToPolicyNumber', 'AnyAreaLeasedToOthers',
-                'Coverage', 'Additional', 'Additional1', 'Additional2',
-                'PoliciesDatabaseId',
-            ];
+            return [];
         });
     }
+
     /**
      * Authenticate with NowCerts and return a cached Bearer token.
      * Token is cached for ~58 minutes (NowCerts tokens expire at 60 min).

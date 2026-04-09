@@ -34,11 +34,15 @@ function MappingSelect({ internalName, current, availableFields, onChange }) {
     );
 }
 
-const PROPERTY_ENTITY = 'Property';
+const CONTACT_ENTITIES  = ['Insured', 'Policy', 'Driver', 'Vehicle'];
+const PROPERTY_ENTITIES = ['Property', 'Additional', 'InsuredLocation'];
 
 export default function SchemaField({ field, depth = 0, mappings, propertyMappings = {}, availableFields, onChange, onPropertyChange }) {
+    const contactAvailableFields  = Object.fromEntries(
+        Object.entries(availableFields).filter(([entity]) => CONTACT_ENTITIES.includes(entity))
+    );
     const propertyAvailableFields = Object.fromEntries(
-        Object.entries(availableFields).filter(([entity]) => entity === PROPERTY_ENTITY)
+        Object.entries(availableFields).filter(([entity]) => PROPERTY_ENTITIES.includes(entity))
     );
     const name         = field.Name         ?? field.name         ?? '—';
     const internalName = field.InternalName ?? field.internalName ?? name;
@@ -109,7 +113,7 @@ export default function SchemaField({ field, depth = 0, mappings, propertyMappin
                                                     <MappingSelect
                                                         internalName={childKey}
                                                         current={childCurrent}
-                                                        availableFields={availableFields}
+                                                        availableFields={contactAvailableFields}
                                                         onChange={onChange}
                                                     />
                                                 </td>
@@ -161,7 +165,7 @@ export default function SchemaField({ field, depth = 0, mappings, propertyMappin
                     <MappingSelect
                         internalName={internalName}
                         current={current}
-                        availableFields={availableFields}
+                        availableFields={contactAvailableFields}
                         onChange={onChange}
                     />
                 </td>
