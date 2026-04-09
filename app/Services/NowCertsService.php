@@ -54,13 +54,11 @@ class NowCertsService
             'FirstName', 'LastName', 'MiddleName',
             'DateOfBirth', 'LicenseNumber', 'LicenseState',
             'Gender', 'MaritalStatus', 'Relation',
-            'InsuredDatabaseId',
         ],
         NowCertsEntity::Vehicle->value => [
             'Year', 'Make', 'Model', 'VIN', 'BodyStyle',
             'GrossWeight', 'CostNew', 'PurchaseDate',
             'GarageState', 'GarageZip',
-            'InsuredDatabaseId',
         ],
     ];
 
@@ -97,7 +95,6 @@ class NowCertsService
     public function getPropertyAdditionalFields(): array
     {
         return [
-            'Additional', 'Additional1', 'Additional2', 'Additional3', 'Additional4',
             'YearBuilt', 'Construction', 'NumberOfStories', 'SquareFootage',
             'RoofType', 'RoofYear', 'ProtectionClass', 'NumberOfUnits',
         ];
@@ -241,11 +238,11 @@ class NowCertsService
         $databaseId = null;
 
         if ($existing) {
-            $databaseId                = $existing['insuredDatabaseId']
+            $databaseId          = $existing['insuredDatabaseId']
                 ?? $existing['DatabaseId']
                 ?? $existing['databaseId']
                 ?? null;
-            $data['insuredDatabaseId'] = $databaseId;
+            $data['DatabaseId']  = $databaseId;
 
             Log::info('NowCerts existing insured found — will update', [
                 'insuredDatabaseId' => $databaseId,
@@ -257,8 +254,8 @@ class NowCertsService
 
         // If we didn't have the ID before insertion, try to resolve it now
         if (! $databaseId) {
-            $databaseId = $result['databaseId']
-                ?? $result['DatabaseId']
+            $databaseId = $result['DatabaseId']
+                ?? $result['databaseId']
                 ?? $result['insuredDatabaseId']
                 ?? null;
 
@@ -383,12 +380,23 @@ class NowCertsService
      */
     public function insertOrUpdateProperty(array $data): array
     {
+        // Remove empty/zero DatabaseId — signals a new insert, not an update
+        if (isset($data['DatabaseId']) && (
+            empty($data['DatabaseId']) ||
+            $data['DatabaseId'] === '00000000-0000-0000-0000-000000000000'
+        )) {
+            unset($data['DatabaseId']);
+        }
+
         // Fields that belong inside the 'Additional' sub-object on the NowCerts property model
         $additionalKeys = array_flip(array_diff($this->getPropertyAdditionalFields(), ['Additional']));
         $additional     = [];
         $property       = [];
 
         foreach ($data as $key => $value) {
+            if ($value === null || $value === '') {
+                continue; // strip nulls — NowCerts validation rejects them
+            }
             if (isset($additionalKeys[$key])) {
                 $additional[$key] = $value;
             } else {
@@ -447,6 +455,25 @@ class NowCertsService
      */
     public function upsertPolicy(array $data): array
     {
+        // If a policy number is provided, check if it already exists and inject policyDatabaseId
+        // so NowCerts treats the insert as an update (upsert behaviour)
+        if (! empty($data['Number'])) {
+            $existing = $this->firstFromResponse(
+                $this->findPolicies(['policyNumber' => $data['Number']])
+            );
+
+            if ($existing) {
+                $policyDatabaseId = $existing['policyDatabaseId']
+                    ?? $existing['DatabaseId']
+                    ?? $existing['databaseId']
+                    ?? null;
+
+                if ($policyDatabaseId) {
+                    $data['policyDatabaseId'] = $policyDatabaseId;
+                }
+            }
+        }
+
         return $this->send('POST', 'Policy/Insert', body: $data);
     }
 
@@ -483,6 +510,7 @@ class NowCertsService
      */
     public function insertDriver(array $data): array
     {
+        unset($data['InsuredDatabaseId']);
         return $this->send('POST', 'Driver/InsertDriver', body: $data);
     }
 
@@ -508,6 +536,7 @@ class NowCertsService
      */
     public function insertVehicle(array $data): array
     {
+        unset($data['InsuredDatabaseId']);
         return $this->send('POST', 'Vehicle/InsertVehicle', body: $data);
     }
 

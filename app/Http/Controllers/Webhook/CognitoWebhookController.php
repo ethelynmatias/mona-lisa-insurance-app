@@ -53,7 +53,7 @@ class CognitoWebhookController extends Controller
             array_keys(NowCertsFieldMapper::flattenEntry($payload)),
         );
 
-        if ($eventType === 'entry.deleted') {
+        if (! in_array($eventType, ['entry.submitted', 'entry.updated'], true)) {
             $this->webhookLogs->update($log, ['sync_status' => SyncStatus::Skipped]);
             return response()->json(['ok' => true]);
         }
@@ -210,14 +210,14 @@ class CognitoWebhookController extends Controller
                 'map'  => fn (array $e) => $mapper->mapPolicy($e),
                 'push' => fn (array $d) => $this->nowcerts->upsertPolicy($d),
             ],
-            NowCertsEntity::Driver->value => [
-                'map'  => fn (array $e) => $mapper->mapDriver($e),
-                'push' => fn (array $d) => $this->nowcerts->insertDriver($d),
-            ],
-            NowCertsEntity::Vehicle->value => [
-                'map'  => fn (array $e) => $mapper->mapVehicle($e),
-                'push' => fn (array $d) => $this->nowcerts->insertVehicle($d),
-            ],
+            // NowCertsEntity::Driver->value => [
+            //     'map'  => fn (array $e) => $this->filterDriverData($mapper->mapDriver($e)),
+            //     'push' => fn (array $d) => $this->nowcerts->insertDriver($d),
+            // ],
+            // NowCertsEntity::Vehicle->value => [
+            //     'map'  => fn (array $e) => $this->filterVehicleData($mapper->mapVehicle($e)),
+            //     'push' => fn (array $d) => $this->nowcerts->insertVehicle($d),
+            // ],
         ];
     }
 
@@ -234,6 +234,39 @@ class CognitoWebhookController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * Only proceed with driver sync if at least one driver-specific field is present.
+     * Prevents accidental inserts when only shared fields (e.g. FirstName) are mapped.
+     */
+    private function filterDriverData(array $data): array
+    {
+        $driverFields = ['LicenseNumber', 'LicenseState', 'DateOfBirth', 'Gender', 'MaritalStatus'];
+
+        foreach ($driverFields as $field) {
+            if (! empty($data[$field])) {
+                return $data;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Only proceed with vehicle sync if at least one vehicle-specific field is present.
+     */
+    private function filterVehicleData(array $data): array
+    {
+        $vehicleFields = ['VIN', 'Year', 'Make', 'Model'];
+
+        foreach ($vehicleFields as $field) {
+            if (! empty($data[$field])) {
+                return $data;
+            }
+        }
+
+        return [];
     }
 
     /**
