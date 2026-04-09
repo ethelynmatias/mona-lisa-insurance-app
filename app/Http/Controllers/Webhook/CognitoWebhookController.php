@@ -128,9 +128,10 @@ class CognitoWebhookController extends Controller
                 }
             }
 
-            // Upload documents only on new submissions — skip on updates to avoid duplicates
-            if ($insuredDatabaseId && ! empty($fileUploads) && $log->event_type !== 'entry.updated') {
-                $this->syncFileUploads($insuredDatabaseId, $fileUploads, $context);
+            // Upload documents — skip files already uploaded for this entry
+            if ($insuredDatabaseId && ! empty($fileUploads)) {
+                $uploadedIds = $this->webhookLogs->getUploadedFileIds($formId, $log->entry_id ?? '');
+                $this->syncFileUploads($insuredDatabaseId, $fileUploads, $context, $log, $uploadedIds);
             }
 
 
@@ -161,18 +162,34 @@ class CognitoWebhookController extends Controller
     }
 
     /**
-     * Upload Cognito file attachments to NowCerts Documents for the given insured.
-     *
-     * @param  string  $insuredDatabaseId
-     * @param  array   $fileUploads  Output of NowCertsFieldMapper::extractFileUploads()
-     * @param  array   $context      Log context
+     * Upload Cognito file attachments to NowCerts for the given insured.
+     * Skips files whose Cognito ID was already uploaded in a previous sync for this entry.
      */
-    private function syncFileUploads(string $insuredDatabaseId, array $fileUploads, array $context): void
-    {
+    private function syncFileUploads(
+        string $insuredDatabaseId,
+        array $fileUploads,
+        array $context,
+        WebhookLog $log,
+        array $alreadyUploadedIds = [],
+    ): void {
+        $newlyUploadedIds = [];
+
         foreach ($fileUploads as $upload) {
             $fieldLabel = $upload['field'];
 
             foreach ($upload['files'] as $file) {
+                $cognitoFileId = $file['Id'] ?? null;
+
+                // Skip if already uploaded in a previous sync for this entry
+                if ($cognitoFileId && in_array($cognitoFileId, $alreadyUploadedIds, true)) {
+                    Log::info('NowCerts document skipped — already uploaded', array_merge($context, [
+                        'field'          => $fieldLabel,
+                        'file'           => $file['Name'] ?? $cognitoFileId,
+                        'cognitoFileId'  => $cognitoFileId,
+                    ]));
+                    continue;
+                }
+
                 $url         = $file['File'];
                 $name        = $file['Name']        ?? basename($url);
                 $contentType = $file['ContentType'] ?? 'application/octet-stream';
@@ -184,6 +201,10 @@ class CognitoWebhookController extends Controller
                         'field' => $fieldLabel,
                         'file'  => $name,
                     ]));
+
+                    if ($cognitoFileId) {
+                        $newlyUploadedIds[] = $cognitoFileId;
+                    }
                 } catch (Throwable $e) {
                     Log::error('NowCerts document upload failed', array_merge($context, [
                         'field' => $fieldLabel,
@@ -192,6 +213,15 @@ class CognitoWebhookController extends Controller
                     ]));
                 }
             }
+        }
+
+        // Persist newly uploaded file IDs so future syncs can skip them
+        if (! empty($newlyUploadedIds)) {
+            $this->webhookLogs->update($log, [
+                'uploaded_file_ids' => array_values(array_unique(
+                    array_merge($alreadyUploadedIds, $newlyUploadedIds)
+                )),
+            ]);
         }
     }
 

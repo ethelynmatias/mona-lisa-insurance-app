@@ -29,4 +29,9 @@ interface WebhookLogRepositoryInterface
      * Return persisted discovered field keys for a form.
      */
     public function getDiscoveredFields(string $formId): array;
+
+    /**
+     * Return all Cognito file IDs that have already been uploaded for a given entry.
+     */
+    public function getUploadedFileIds(string $formId, string $entryId): array;
 }

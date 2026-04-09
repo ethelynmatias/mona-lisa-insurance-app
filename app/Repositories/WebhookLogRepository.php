@@ -57,16 +57,22 @@ class WebhookLogRepository implements WebhookLogRepositoryInterface
             return;
         }
 
-        $record = WebhookDiscoveredField::where('form_id', $formId)->first();
+        $record   = WebhookDiscoveredField::where('form_id', $formId)->first();
+        $existing = $record?->fields ?? [];
+        $newKeys  = array_values(array_diff($keys, $existing));
+
+        if (empty($newKeys) && $record) {
+            return; // Nothing new — skip the write
+        }
+
+        $merged = array_values(array_unique(array_merge($existing, $keys)));
 
         if ($record) {
-            // Merge incoming keys with existing ones — never removes, so saved mappings stay valid
-            $merged = array_values(array_unique(array_merge($record->fields ?? [], $keys)));
             $record->update(['fields' => $merged]);
         } else {
             WebhookDiscoveredField::create([
                 'form_id' => $formId,
-                'fields'  => array_values(array_unique($keys)),
+                'fields'  => $merged,
             ]);
         }
     }
@@ -75,5 +81,17 @@ class WebhookLogRepository implements WebhookLogRepositoryInterface
     {
         return WebhookDiscoveredField::where('form_id', $formId)
             ->value('fields') ?? [];
+    }
+
+    public function getUploadedFileIds(string $formId, string $entryId): array
+    {
+        return WebhookLog::where('form_id', $formId)
+            ->where('entry_id', $entryId)
+            ->whereNotNull('uploaded_file_ids')
+            ->get()
+            ->flatMap(fn ($log) => $log->uploaded_file_ids ?? [])
+            ->unique()
+            ->values()
+            ->all();
     }
 }
