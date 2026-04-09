@@ -188,6 +188,36 @@ class NowCertsFieldMapper
     }
 
     /**
+     * Extract file upload fields from a raw (non-flattened) Cognito entry.
+     * File upload fields are list arrays whose items each contain a 'File' URL.
+     *
+     * Returns: [ ['field' => 'CurrentPolicyDeclarationPage', 'files' => [...items]] ]
+     */
+    public static function extractFileUploads(array $rawEntry): array
+    {
+        $uploads = [];
+
+        foreach ($rawEntry as $key => $value) {
+            if (! is_array($value) || ! array_is_list($value)) {
+                continue;
+            }
+
+            $files = array_values(array_filter(
+                $value,
+                fn ($item) => is_array($item)
+                    && ! empty($item['File'])
+                    && filter_var($item['File'], FILTER_VALIDATE_URL),
+            ));
+
+            if (! empty($files)) {
+                $uploads[] = ['field' => $key, 'files' => $files];
+            }
+        }
+
+        return $uploads;
+    }
+
+    /**
      * Flatten a Cognito webhook entry to dot-notation keys (one level deep).
      *
      * Example:

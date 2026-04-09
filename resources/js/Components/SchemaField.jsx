@@ -34,7 +34,12 @@ function MappingSelect({ internalName, current, availableFields, onChange }) {
     );
 }
 
-export default function SchemaField({ field, depth = 0, mappings, availableFields, onChange }) {
+const PROPERTY_ENTITY = 'Property';
+
+export default function SchemaField({ field, depth = 0, mappings, propertyMappings = {}, availableFields, onChange, onPropertyChange }) {
+    const propertyAvailableFields = Object.fromEntries(
+        Object.entries(availableFields).filter(([entity]) => entity === PROPERTY_ENTITY)
+    );
     const name         = field.Name         ?? field.name         ?? '—';
     const internalName = field.InternalName ?? field.internalName ?? name;
     const type         = field.Type         ?? field.type         ?? '—';
@@ -60,7 +65,7 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                     className="border-b border-gray-100 cursor-pointer select-none hover:bg-gray-50/60 transition-colors"
                     onClick={() => setExpanded(v => !v)}
                 >
-                    <td colSpan={2} className="px-5 py-3">
+                    <td colSpan={3} className="px-5 py-3">
                         <div className="flex items-center gap-2">
                             <svg
                                 className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-150
@@ -80,24 +85,33 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                 {/* Child rows — label + dropdown only */}
                 {expanded && (
                     <tr>
-                        <td colSpan={2} className="px-5 pb-4 pt-0">
+                        <td colSpan={3} className="px-5 pb-4 pt-0">
                             <table className="w-full border border-gray-100 rounded-lg overflow-hidden mt-1">
                                 <tbody>
                                     {children.map((child) => {
                                         const childName    = child.Name ?? child.name ?? '—';
                                         const childKey     = child.InternalName ?? child.internalName ?? childName;
-                                        const childCurrent = mappings[childKey] ?? null;
+                                        const childCurrent         = mappings[childKey]         ?? null;
+                                        const childPropertyCurrent = propertyMappings[childKey] ?? null;
                                         return (
                                             <tr key={childKey} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/40">
                                                 <td className="pl-4 pr-3 py-2.5 w-56 max-w-56">
                                                     <span className="text-sm text-gray-700 break-words">{childName}</span>
                                                 </td>
-                                                <td className="pr-4 py-2">
+                                                <td className="pr-3 py-2">
                                                     <MappingSelect
                                                         internalName={childKey}
                                                         current={childCurrent}
                                                         availableFields={availableFields}
                                                         onChange={onChange}
+                                                    />
+                                                </td>
+                                                <td className="pr-4 py-2">
+                                                    <MappingSelect
+                                                        internalName={childKey}
+                                                        current={childPropertyCurrent}
+                                                        availableFields={propertyAvailableFields}
+                                                        onChange={onPropertyChange}
                                                     />
                                                 </td>
                                             </tr>
@@ -136,13 +150,23 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                     </div>
                 </td>
 
-                {/* NowCerts mapping dropdown */}
-                <td className="py-2 pr-5">
+                {/* Primary contact mapping */}
+                <td className="py-2 pr-3">
                     <MappingSelect
                         internalName={internalName}
                         current={current}
                         availableFields={availableFields}
                         onChange={onChange}
+                    />
+                </td>
+
+                {/* Property mapping */}
+                <td className="py-2 pr-5">
+                    <MappingSelect
+                        internalName={internalName}
+                        current={propertyMappings[internalName] ?? null}
+                        availableFields={propertyAvailableFields}
+                        onChange={onPropertyChange}
                     />
                 </td>
 
@@ -154,8 +178,10 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                     field={child}
                     depth={depth + 1}
                     mappings={mappings}
+                    propertyMappings={propertyMappings}
                     availableFields={availableFields}
                     onChange={onChange}
+                    onPropertyChange={onPropertyChange}
                 />
             ))}
         </>

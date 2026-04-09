@@ -72,15 +72,20 @@ class CognitoWebhookController extends Controller
         $context = ['webhook_log_id' => $log->id, 'form_id' => $formId, 'entry_id' => $log->entry_id];
 
         try {
+            // Extract file uploads before flattening — list arrays are lost after flatten
+            $fileUploads = NowCertsFieldMapper::extractFileUploads($entry);
+
             $entry  = NowCertsFieldMapper::flattenEntry($entry);
             $mapper = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
 
             Log::info('NowCerts sync started', array_merge($context, [
                 'flattened_entry_keys' => array_keys($entry),
+                'file_upload_fields'   => array_column($fileUploads, 'field'),
             ]));
 
-            $syncedEntities = [];
-            $errors         = [];
+            $syncedEntities     = [];
+            $errors             = [];
+            $insuredDatabaseId  = null;
 
             // Sync primary entry (all entities)
             foreach ($this->entitySyncMap($mapper) as $entity => $callbacks) {
@@ -97,10 +102,20 @@ class CognitoWebhookController extends Controller
                     $response = $callbacks['push']($data);
                     Log::info("NowCerts {$entity} pushed", array_merge($context, ['response' => $response]));
                     $syncedEntities[] = $entity;
+
+                    // Capture insured database ID for document uploads
+                    if ($entity === \App\Enums\NowCertsEntity::Insured->value && ! $insuredDatabaseId) {
+                        $insuredDatabaseId = $response['_insuredDatabaseId'] ?? null;
+                    }
                 } catch (Throwable $e) {
                     Log::error("NowCerts {$entity} failed", array_merge($context, ['error' => $e->getMessage()]));
                     $errors[] = "{$entity}: " . $e->getMessage();
                 }
+            }
+
+            // Upload documents if we have an insured ID and file uploads
+            if ($insuredDatabaseId && ! empty($fileUploads)) {
+                $this->syncFileUploads($insuredDatabaseId, $fileUploads, $context);
             }
 
 
@@ -127,6 +142,41 @@ class CognitoWebhookController extends Controller
                 'sync_status' => SyncStatus::Failed,
                 'sync_error'  => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Upload Cognito file attachments to NowCerts Documents for the given insured.
+     *
+     * @param  string  $insuredDatabaseId
+     * @param  array   $fileUploads  Output of NowCertsFieldMapper::extractFileUploads()
+     * @param  array   $context      Log context
+     */
+    private function syncFileUploads(string $insuredDatabaseId, array $fileUploads, array $context): void
+    {
+        foreach ($fileUploads as $upload) {
+            $fieldLabel = $upload['field'];
+
+            foreach ($upload['files'] as $file) {
+                $url         = $file['File'];
+                $name        = $file['Name']        ?? basename($url);
+                $contentType = $file['ContentType'] ?? 'application/octet-stream';
+
+                try {
+                    $this->nowcerts->uploadDocument($insuredDatabaseId, $url, $name, $contentType, $fieldLabel);
+
+                    Log::info('NowCerts document uploaded', array_merge($context, [
+                        'field' => $fieldLabel,
+                        'file'  => $name,
+                    ]));
+                } catch (Throwable $e) {
+                    Log::error('NowCerts document upload failed', array_merge($context, [
+                        'field' => $fieldLabel,
+                        'file'  => $name,
+                        'error' => $e->getMessage(),
+                    ]));
+                }
+            }
         }
     }
 

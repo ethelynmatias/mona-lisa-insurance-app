@@ -18,8 +18,9 @@ export default function FormDetails() {
     const [search, setSearch]     = useState('');
     const [currentPage, setPage]  = useState(1);
     const [perPage, setPerPage]   = useState(PER_PAGE_OPTIONS[0]);
-    const [mappings, setMappings] = useState(mappingLookup);
-    const [saving, setSaving]     = useState(false);
+    const [mappings, setMappings]                 = useState(mappingLookup);
+    const [propertyMappings, setPropertyMappings] = useState(mappingLookup);
+    const [saving, setSaving]                     = useState(false);
 
     const filtered = useMemo(() => {
         if (!search.trim()) return fields;
@@ -51,19 +52,32 @@ export default function FormDetails() {
         setMappings(prev => ({ ...prev, [cognitoField]: mapping }));
     }
 
+    function handlePropertyMappingChange(cognitoField, mapping) {
+        setPropertyMappings(prev => ({ ...prev, [cognitoField]: mapping }));
+    }
+
     function handleSave() {
         setSaving(true);
 
-        // Collect all fields (including nested) with their current mappings
+        // Collect all fields (including nested) with their current mappings.
+        // Property mappings are stored with a '__property' suffix on the cognito key.
         const allFields = flattenFields(fields);
-        const payload   = allFields.map(f => {
-            const key     = f.InternalName ?? f.internalName ?? f.Name ?? f.name;
-            const mapping = mappings[key] ?? null;
-            return {
-                cognito_field:   key,
-                nowcerts_entity: mapping?.entity ?? null,
-                nowcerts_field:  mapping?.field  ?? null,
-            };
+        const payload   = allFields.flatMap(f => {
+            const key             = f.InternalName ?? f.internalName ?? f.Name ?? f.name;
+            const primaryMapping  = mappings[key]         ?? null;
+            const propertyMapping = propertyMappings[key] ?? null;
+            return [
+                {
+                    cognito_field:   key,
+                    nowcerts_entity: primaryMapping?.entity ?? null,
+                    nowcerts_field:  primaryMapping?.field  ?? null,
+                },
+                {
+                    cognito_field:   key + '__property',
+                    nowcerts_entity: propertyMapping?.entity ?? null,
+                    nowcerts_field:  propertyMapping?.field  ?? null,
+                },
+            ];
         });
 
         router.post(
@@ -257,8 +271,11 @@ export default function FormDetails() {
                                                 <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                                                     Field Name
                                                 </th>
+                                                <th className="py-3 pr-3 text-xs font-semibold text-gray-500 uppercase tracking-wide w-72">
+                                                    Set NowCerts Primary Contact
+                                                </th>
                                                 <th className="py-3 pr-5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-72">
-                                                    NowCerts Field
+                                                    NowCerts Set Property
                                                 </th>
                                             </tr>
                                         </thead>
@@ -268,8 +285,10 @@ export default function FormDetails() {
                                                     key={i}
                                                     field={field}
                                                     mappings={mappings}
+                                                    propertyMappings={propertyMappings}
                                                     availableFields={availableFields}
                                                     onChange={handleMappingChange}
+                                                    onPropertyChange={handlePropertyMappingChange}
                                                 />
                                             ))}
                                         </tbody>

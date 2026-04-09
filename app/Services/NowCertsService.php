@@ -66,7 +66,52 @@ class NowCertsService
 
     public function getAvailableFields(): array
     {
-        return array_map(fn ($fields) => array_values($fields), self::KNOWN_FIELDS);
+        $fields = array_map(fn ($f) => array_values($f), self::KNOWN_FIELDS);
+        $fields[NowCertsEntity::Property->value] = $this->getPropertyFields();
+        return $fields;
+    }
+
+    /**
+     * Fetch Property entity fields from the NowCerts API.
+     *
+     * Calls FindProperties to pull a live record and extracts its scalar keys.
+     * Falls back to the documented PropertyModel fields if the API returns nothing.
+     *
+     * Cached for 24 hours — Property schema rarely changes.
+     */
+    public function getPropertyFields(): array
+    {
+        return Cache::remember('nowcerts_property_fields', 86400, function () {
+            try {
+                $response = $this->send('GET', 'Property/FindProperties', query: ['key' => '']);
+                $sample   = $this->firstFromResponse($response);
+
+                if (is_array($sample) && ! empty($sample)) {
+                    $fields = array_keys(array_filter(
+                        $sample,
+                        fn ($v) => ! is_array($v),
+                    ));
+
+                    if (count($fields) > 3) {
+                        return $fields;
+                    }
+                }
+            } catch (\Throwable) {
+                // fall through to documented defaults
+            }
+
+            // Documented fields from POST api/Property/InsertOrUpdate (PropertyModel)
+            return [
+                'DatabaseId', 'PropertyUse', 'LocationNumber', 'BuildingNumber',
+                'Description', 'DescriptionOfOperations',
+                'AddressLine1', 'AddressLine2', 'City', 'County', 'State', 'Zip',
+                'InsuredDatabaseId', 'InsuredEmail',
+                'InsuredFirstName', 'InsuredLastName', 'InsuredCommercialName',
+                'AttachToPolicyNumber', 'AnyAreaLeasedToOthers',
+                'Coverage', 'Additional', 'Additional1', 'Additional2',
+                'PoliciesDatabaseId',
+            ];
+        });
     }
     /**
      * Authenticate with NowCerts and return a cached Bearer token.
@@ -167,23 +212,98 @@ class NowCertsService
      * - Falls back to FirstName + LastName if no email
      * - If found, injects insuredDatabaseId so NowCerts updates instead of inserting
      */
+    /**
+     * Sync an insured to NowCerts (find-or-create).
+     * Returns the API response with '_insuredDatabaseId' injected so callers
+     * can use it for follow-up calls (e.g. document uploads).
+     */
     public function syncInsured(array $data): array
     {
-        $existing = $this->findExistingInsured($data);
+        $existing   = $this->findExistingInsured($data);
+        $databaseId = null;
 
         if ($existing) {
-            $data['insuredDatabaseId'] = $existing['insuredDatabaseId']
+            $databaseId                = $existing['insuredDatabaseId']
                 ?? $existing['DatabaseId']
                 ?? $existing['databaseId']
                 ?? null;
+            $data['insuredDatabaseId'] = $databaseId;
 
             Log::info('NowCerts existing insured found — will update', [
-                'insuredDatabaseId' => $data['insuredDatabaseId'],
+                'insuredDatabaseId' => $databaseId,
                 'name'              => trim(($existing['firstName'] ?? $existing['FirstName'] ?? '') . ' ' . ($existing['lastName'] ?? $existing['LastName'] ?? '')),
             ]);
         }
 
-        return $this->upsertInsured($data);
+        $result = $this->upsertInsured($data);
+
+        // If we didn't have the ID before insertion, try to resolve it now
+        if (! $databaseId) {
+            $databaseId = $result['databaseId']
+                ?? $result['DatabaseId']
+                ?? $result['insuredDatabaseId']
+                ?? null;
+
+            if (! $databaseId) {
+                $found      = $this->findExistingInsured($data);
+                $databaseId = $found
+                    ? ($found['insuredDatabaseId'] ?? $found['DatabaseId'] ?? $found['databaseId'] ?? null)
+                    : null;
+            }
+        }
+
+        $result['_insuredDatabaseId'] = $databaseId;
+
+        return $result;
+    }
+
+    /**
+     * Download a file from the given URL and upload it to NowCerts Documents.
+     *
+     * @param  string  $insuredDatabaseId  NowCerts insured DB ID
+     * @param  string  $fileUrl            Cognito download URL
+     * @param  string  $fileName           Original filename (e.g. "policy.pdf")
+     * @param  string  $contentType        MIME type
+     * @param  string  $fieldLabel         Cognito field name used as document description
+     */
+    public function uploadDocument(
+        string $insuredDatabaseId,
+        string $fileUrl,
+        string $fileName,
+        string $contentType,
+        string $fieldLabel = '',
+    ): array {
+        Log::info('NowCerts downloading file for upload', ['url' => $fileUrl, 'name' => $fileName]);
+
+        $fileContent = Http::timeout($this->timeout)->get($fileUrl)->body();
+
+        Log::info('NowCerts API request', [
+            'method'   => 'POST',
+            'endpoint' => 'Document/Insert',
+            'body'     => compact('insuredDatabaseId', 'fileName', 'fieldLabel'),
+        ]);
+
+        $response = Http::baseUrl($this->baseUrl)
+            ->timeout($this->timeout)
+            ->withToken($this->getToken())
+            ->attach('file', $fileContent, $fileName)
+            ->post('Document/Insert', [
+                'insuredDatabaseId' => $insuredDatabaseId,
+                'documentName'      => $fieldLabel ? "{$fieldLabel} — {$fileName}" : $fileName,
+            ]);
+
+        Log::debug('NowCerts API response', [
+            'endpoint' => 'Document/Insert',
+            'status'   => $response->status(),
+            'body'     => $response->json() ?? $response->body(),
+        ]);
+
+        if (! $response->successful()) {
+            $message = $this->resolveErrorMessage($response->status(), $response->json(), 'Document/Insert');
+            throw new RuntimeException($message, $response->status());
+        }
+
+        return $response->json() ?? [];
     }
 
     /**
