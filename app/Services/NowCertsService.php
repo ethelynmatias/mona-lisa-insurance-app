@@ -66,7 +66,7 @@ class NowCertsService
     {
         $fields = array_map(fn ($f) => array_values($f), self::KNOWN_FIELDS);
         $fields[NowCertsEntity::Property->value]        = $this->getPropertyFields();
-        $fields['Additional']                           = $this->getPropertyAdditionalFields();
+
         $fields[NowCertsEntity::InsuredLocation->value] = $this->getInsuredLocationFields();
         return $fields;
     }
@@ -82,23 +82,68 @@ class NowCertsService
     public function getPropertyFields(): array
     {
         return [
-            'DatabaseId', 'PropertyUse', 'LocationNumber', 'BuildingNumber',
+            // Identification & Address
+            'Id', 'AddressLine1', 'AddressLine2', 'City', 'County', 'State', 'Zip',
+            'BuildingNumber', 'LocationNumber', 'PropertyUse',
             'Description', 'DescriptionOfOperations',
-            'AddressLine1', 'AddressLine2', 'City', 'County', 'State', 'Zip',
+
+            // Insured Details
             'InsuredDatabaseId', 'InsuredEmail',
             'InsuredFirstName', 'InsuredLastName', 'InsuredCommercialName',
-            'AttachToPolicyNumber', 'AnyAreaLeasedToOthers',
-            'Coverage', 'PoliciesDatabaseId',
+
+            // Coverage & Policies
+            'PolicyNumbers', 'Coverages', 'PolicyIds', 'LienHolders',
+
+            // Flood & Risk Info (top-level)
+            'FloodCommunityCurrentFloodZoneCode', 'FloodCommunityRateFloodZoneCode',
+            'FloodCoverageBuildingGrandfatheredCode',
+            'FloodCoverageContentsCoverageTypeResidentialIndicator',
+            'FloodCoverageContentsCoverageTypeNonResidentialIndicator',
+            'FloodCoverageContentsCoverageTypeOtherIndicator',
+            'FloodCoverageContentsCoverageTypeOtherDescription',
+            'FloodInformationSingleUnitCoverageYesIndicator',
+            'FloodInformationSingleUnitCoverageNoIndicator',
+
+            // Flood Information (nested — sent as FloodInformation[0].Field)
+            'FloodInformation.BuildYear',
+            'FloodInformation.Construction',
+            'FloodInformation.Occupancy',
+            'FloodInformation.PolicyType',
+            'FloodInformation.PersonalPropertyCostValueType',
+            'FloodInformation.BuildingOverWater',
+            'FloodInformation.HasBasement',
+            'FloodInformation.FoundationType',
+            'FloodInformation.HouseElevatedAfterPriorFloodLoss',
+            'FloodInformation.IsElevated',
+            'FloodInformation.CompletionStatus',
+            'FloodInformation.FloorArea',
+            'FloodInformation.DwellingTiv',
+            'FloodInformation.PersonalPropertyTiv',
+            'FloodInformation.BuildingsLimit',
+            'FloodInformation.ContentsLimit',
+            'FloodInformation.AddressLine1',
+            'FloodInformation.AddressLine2',
+            'FloodInformation.City',
+            'FloodInformation.ZipCode',
+            'FloodInformation.StateAbbreviation',
+            'FloodInformation.NoOfStories',
+
+            // Construction & Building Info
+            'ConstructionBuiltDate', 'ResidentialStructureReplacementCostAmount',
+            'BuildingOccupancyUnitCount',
+            'ResidenceOccupancyOneFamilyIndicator', 'ResidenceOccupancyTwoToFourFamiliesIndicator',
+            'BuildingOccupancyOtherIndicator', 'BuildingOccupancyOccupancyDescription',
+            'ResidenceOccupancyOtherResidentialIndicator', 'ResidenceOccupancyNonResidentialIndicator',
+
+            // Administrative
+            'LastChangeUserId', 'LastChangeUserName', 'ChangeDate', 'CreateDate',
+            'CityLimitsInsideIndicator', 'CityLimitsOutsideIndicator',
+            'CityLimitsOtherIndicator', 'CityLimitsOther',
+            'InterestOwnerIndicator', 'InterestTenantIndicator',
+            'InterestOtherIndicator', 'InterestOther',
         ];
     }
 
-    public function getPropertyAdditionalFields(): array
-    {
-        return [
-            'YearBuilt', 'Construction', 'NumberOfStories', 'SquareFootage',
-            'RoofType', 'RoofYear', 'ProtectionClass', 'NumberOfUnits',
-        ];
-    }
     /**
      * Fetch InsuredLocation entity fields from the NowCerts API.
      *
@@ -418,6 +463,16 @@ class NowCertsService
      * Additional fields (YearBuilt, Construction, etc.) are nested under 'Additional'
      * as the NowCerts API expects them as a sub-object on the property model.
      */
+    public function getProperties(array $params = []): array
+    {
+        return $this->send('GET', 'PropertyList', query: $params);
+    }
+
+    public function findProperties(array $params = []): array
+    {
+        return $this->send('GET', 'Property/FindProperties', query: $params);
+    }
+
     public function insertOrUpdateProperty(array $data): array
     {
         // Remove empty/zero DatabaseId — signals a new insert, not an update
@@ -428,24 +483,26 @@ class NowCertsService
             unset($data['DatabaseId']);
         }
 
-        // Fields that belong inside the 'Additional' sub-object on the NowCerts property model
-        $additionalKeys = array_flip(array_diff($this->getPropertyAdditionalFields(), ['Additional']));
-        $additional     = [];
-        $property       = [];
+        // Separate FloodInformation.* sub-fields from top-level fields
+        $floodSub  = [];
+        $topLevel  = [];
 
         foreach ($data as $key => $value) {
-            if ($value === null || $value === '') {
-                continue; // strip nulls — NowCerts validation rejects them
-            }
-            if (isset($additionalKeys[$key])) {
-                $additional[$key] = $value;
+            if (str_starts_with($key, 'FloodInformation.')) {
+                $subKey            = substr($key, strlen('FloodInformation.'));
+                $floodSub[$subKey] = $value;
             } else {
-                $property[$key] = $value;
+                $topLevel[$key] = $value;
             }
         }
 
-        if (! empty($additional)) {
-            $property['Additional'] = $additional;
+        $property = array_filter($topLevel, fn ($v) => $v !== null && $v !== '');
+
+        // Nest FloodInformation sub-fields as a single-item array
+        if (! empty($floodSub)) {
+            $property['FloodInformation'] = [
+                array_filter($floodSub, fn ($v) => $v !== null && $v !== ''),
+            ];
         }
 
         return $this->send('POST', 'Property/InsertOrUpdate', body: $property);

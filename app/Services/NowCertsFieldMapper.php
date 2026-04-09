@@ -77,8 +77,6 @@ class NowCertsFieldMapper
         $result           = [];
         $propertyEntities = [
             NowCertsEntity::Property->value,
-            NowCertsEntity::InsuredLocation->value,
-            'Additional',
         ];
 
         foreach ($this->saved as $cognitoField => $mapping) {
