@@ -10,9 +10,7 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     zip \
     unzip \
-    nodejs \
-    npm \
-    && apt-get clean \
+&& apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions
@@ -28,8 +26,8 @@ COPY . .
 # Install PHP dependencies (including dev — this is a dev container)
 RUN composer install --optimize-autoloader --no-interaction
 
-# Install Node dependencies and build assets
-RUN npm ci && npm run build
+# Assets are pre-built locally and committed to git (public/build)
+# No npm build needed on the server
 
 EXPOSE 8000
 

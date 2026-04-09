@@ -1,0 +1,88 @@
+{
+  "_AuthenticatedLayout-CgEvVTNA.js": {
+    "file": "assets/AuthenticatedLayout-CgEvVTNA.js",
+    "name": "AuthenticatedLayout",
+    "imports": [
+      "_jsx-runtime-DT_lPud-.js"
+    ]
+  },
+  "_WebhookHistoryPanel-CPIbpU_T.js": {
+    "file": "assets/WebhookHistoryPanel-CPIbpU_T.js",
+    "name": "WebhookHistoryPanel",
+    "imports": [
+      "_jsx-runtime-DT_lPud-.js"
+    ]
+  },
+  "_jsx-runtime-DT_lPud-.js": {
+    "file": "assets/jsx-runtime-DT_lPud-.js",
+    "name": "jsx-runtime"
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-DyEFNRNK.css",
+    "name": "app",
+    "names": [
+      "app.css"
+    ],
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/js/Pages/Auth/Login.jsx": {
+    "file": "assets/Login-C1Dprx4D.js",
+    "name": "Login",
+    "src": "resources/js/Pages/Auth/Login.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_jsx-runtime-DT_lPud-.js"
+    ]
+  },
+  "resources/js/Pages/Cognito/FormDetails.jsx": {
+    "file": "assets/FormDetails-CGlc1zcy.js",
+    "name": "FormDetails",
+    "src": "resources/js/Pages/Cognito/FormDetails.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_jsx-runtime-DT_lPud-.js",
+      "_WebhookHistoryPanel-CPIbpU_T.js",
+      "_AuthenticatedLayout-CgEvVTNA.js"
+    ]
+  },
+  "resources/js/Pages/Dashboard.jsx": {
+    "file": "assets/Dashboard-D_rrhAsF.js",
+    "name": "Dashboard",
+    "src": "resources/js/Pages/Dashboard.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_jsx-runtime-DT_lPud-.js",
+      "_WebhookHistoryPanel-CPIbpU_T.js",
+      "_AuthenticatedLayout-CgEvVTNA.js"
+    ]
+  },
+  "resources/js/Pages/Settings.jsx": {
+    "file": "assets/Settings-Cf-hFUhZ.js",
+    "name": "Settings",
+    "src": "resources/js/Pages/Settings.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_jsx-runtime-DT_lPud-.js",
+      "_AuthenticatedLayout-CgEvVTNA.js"
+    ]
+  },
+  "resources/js/app.jsx": {
+    "file": "assets/app-CKcxa-CX.js",
+    "name": "app",
+    "src": "resources/js/app.jsx",
+    "isEntry": true,
+    "imports": [
+      "_jsx-runtime-DT_lPud-.js"
+    ],
+    "dynamicImports": [
+      "resources/js/Pages/Auth/Login.jsx",
+      "resources/js/Pages/Cognito/FormDetails.jsx",
+      "resources/js/Pages/Dashboard.jsx",
+      "resources/js/Pages/Settings.jsx"
+    ],
+    "css": [
+      "assets/app-DyEFNRNK.css"
+    ]
+  }
+}
