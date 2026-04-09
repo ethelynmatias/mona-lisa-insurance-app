@@ -18,20 +18,45 @@ export default function FormDetails() {
     const [search, setSearch]     = useState('');
     const [currentPage, setPage]  = useState(1);
     const [perPage, setPerPage]   = useState(PER_PAGE_OPTIONS[0]);
-    const [mappings, setMappings]                 = useState(mappingLookup);
-    const [propertyMappings, setPropertyMappings] = useState(mappingLookup);
-    const [saving, setSaving]                     = useState(false);
+    // Split mappingLookup into primary (plain keys) and property (__property suffix)
+    const [mappings, setMappings] = useState(() =>
+        Object.fromEntries(
+            Object.entries(mappingLookup).filter(([k]) => !k.endsWith('__property'))
+        )
+    );
+    const [propertyMappings, setPropertyMappings] = useState(() =>
+        Object.fromEntries(
+            Object.entries(mappingLookup)
+                .filter(([k]) => k.endsWith('__property'))
+                .map(([k, v]) => [k.slice(0, -'__property'.length), v])
+        )
+    );
+    const [saving, setSaving] = useState(false);
 
     const filtered = useMemo(() => {
         if (!search.trim()) return fields;
         const q = search.toLowerCase();
-        return fields.filter(f =>
-            (f.Name         ?? f.name         ?? '').toLowerCase().includes(q) ||
-            (f.InternalName ?? f.internalName ?? '').toLowerCase().includes(q) ||
-            (f.Type         ?? f.type         ?? '').toLowerCase().includes(q) ||
-            (f.FieldType    ?? f.fieldType    ?? '').toLowerCase().includes(q) ||
-            (f.PropertyType ?? f.propertyType ?? '').toLowerCase().includes(q)
-        );
+
+        function matchesField(f) {
+            return (f.Name         ?? f.name         ?? '').toLowerCase().includes(q) ||
+                   (f.InternalName ?? f.internalName ?? '').toLowerCase().includes(q);
+        }
+
+        function filterField(f) {
+            const children = f.Children ?? f.children ?? f.Fields ?? f.fields ?? [];
+
+            if (children.length > 0) {
+                const matchedChildren = children.filter(matchesField);
+                if (matchedChildren.length > 0) {
+                    // Return group with only matching children, expanded
+                    return { ...f, Children: matchedChildren, _searchExpanded: true };
+                }
+            }
+
+            return matchesField(f) ? f : null;
+        }
+
+        return fields.map(filterField).filter(Boolean);
     }, [fields, search]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
@@ -62,22 +87,27 @@ export default function FormDetails() {
         // Collect all fields (including nested) with their current mappings.
         // Property mappings are stored with a '__property' suffix on the cognito key.
         const allFields = flattenFields(fields);
-        const payload   = allFields.flatMap(f => {
+        const payload   = [];
+
+        allFields.forEach(f => {
             const key             = f.InternalName ?? f.internalName ?? f.Name ?? f.name;
             const primaryMapping  = mappings[key]         ?? null;
             const propertyMapping = propertyMappings[key] ?? null;
-            return [
-                {
-                    cognito_field:   key,
-                    nowcerts_entity: primaryMapping?.entity ?? null,
-                    nowcerts_field:  primaryMapping?.field  ?? null,
-                },
-                {
+
+            payload.push({
+                cognito_field:   key,
+                nowcerts_entity: primaryMapping?.entity ?? null,
+                nowcerts_field:  primaryMapping?.field  ?? null,
+            });
+
+            // Only include property entry if a mapping is set
+            if (propertyMapping) {
+                payload.push({
                     cognito_field:   key + '__property',
-                    nowcerts_entity: propertyMapping?.entity ?? null,
-                    nowcerts_field:  propertyMapping?.field  ?? null,
-                },
-            ];
+                    nowcerts_entity: propertyMapping.entity ?? null,
+                    nowcerts_field:  propertyMapping.field  ?? null,
+                });
+            }
         });
 
         router.post(

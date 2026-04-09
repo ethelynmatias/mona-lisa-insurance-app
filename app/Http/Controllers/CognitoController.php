@@ -142,7 +142,7 @@ class CognitoController extends Controller
         if (! empty($standalone)) {
             $children    = array_map(fn (string $k) => $this->makeDiscoveredField($k, $k), $standalone);
             $fields[]    = array_merge(
-                $this->makeDiscoveredField('Others', '__group__others'),
+                $this->makeDiscoveredField('Properties', '__group__others'),
                 ['Type' => 'discovered-group', 'Children' => $children],
             );
             $schemaNames = array_merge($schemaNames, $standalone, ['__group__others']);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NOWCERTS_ENTITY_COLORS } from '@/constants/nowcerts';
 
 function MappingSelect({ internalName, current, availableFields, onChange }) {
@@ -49,6 +49,10 @@ export default function SchemaField({ field, depth = 0, mappings, propertyMappin
 
     const [expanded, setExpanded] = useState(false);
 
+    useEffect(() => {
+        if (field._searchExpanded) setExpanded(true);
+    }, [field._searchExpanded]);
+
     const current = mappings[internalName] ?? null;
 
     // Collapsible group — header + inline 2-column child grid
@@ -57,6 +61,9 @@ export default function SchemaField({ field, depth = 0, mappings, propertyMappin
             const k = c.InternalName ?? c.internalName ?? c.Name ?? c.name;
             return !!mappings[k];
         }).length;
+        if (name === 'Form') {
+            return null;
+        }
 
         return (
             <>
@@ -89,8 +96,8 @@ export default function SchemaField({ field, depth = 0, mappings, propertyMappin
                             <table className="w-full border border-gray-100 rounded-lg overflow-hidden mt-1">
                                 <tbody>
                                     {children.map((child) => {
-                                        const childName    = child.Name ?? child.name ?? '—';
-                                        const childKey     = child.InternalName ?? child.internalName ?? childName;
+                                        const childName            = child.Name ?? child.name ?? '—';
+                                        const childKey             = child.InternalName ?? child.internalName ?? childName;
                                         const childCurrent         = mappings[childKey]         ?? null;
                                         const childPropertyCurrent = propertyMappings[childKey] ?? null;
                                         return (
@@ -125,7 +132,6 @@ export default function SchemaField({ field, depth = 0, mappings, propertyMappin
             </>
         );
     }
-
     // Standard field row
     return (
         <>
