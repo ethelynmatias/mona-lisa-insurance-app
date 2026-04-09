@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { copyToClipboard } from '@/utils/clipboard';
 
 const EVENT_STYLES = {
     'entry.submitted': 'bg-blue-100 text-blue-700',
@@ -31,9 +32,10 @@ export default function WebhookPayloadModal({ webhook, onClose }) {
     const json = JSON.stringify(webhook.payload, null, 2);
 
     function handleCopy() {
-        navigator.clipboard.writeText(json);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        copyToClipboard(json).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
     }
 
     return (

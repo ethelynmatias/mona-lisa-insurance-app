@@ -5,6 +5,7 @@ import SchemaField from '@/Components/SchemaField';
 import SearchInput from '@/Components/SearchInput';
 import Pagination from '@/Components/Pagination';
 import WebhookHistoryPanel from '@/Components/WebhookHistoryPanel';
+import { copyToClipboard } from '@/utils/clipboard';
 
 const PER_PAGE_OPTIONS = [20, 50, 100];
 
@@ -352,7 +353,7 @@ function CopyField({ label, value }) {
     const [copied, setCopied] = useState(false);
 
     function copy() {
-        navigator.clipboard.writeText(value).then(() => {
+        copyToClipboard(value).then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         });
