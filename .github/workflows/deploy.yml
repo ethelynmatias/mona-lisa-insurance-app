@@ -43,14 +43,16 @@ jobs:
           script: |
             cd /var/www/mona-lisa-insurance
 
-            # Pull latest image
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/mona-lisa-insurance:latest
+            # Backup database before deploy
+            docker exec mona-lisa-mysql mysqldump -u root -prootpassword mona_lisa_insurance > /var/www/mona-lisa-insurance/backup_$(date +%Y%m%d_%H%M%S).sql
 
-            # Restart with new image
-            docker compose down
+            # Pull latest image
+            docker compose pull
+
+            # Recreate only changed containers (keeps DB volume intact)
             docker compose up -d
 
-            # Run migrations
+            # Run migrations safely
             docker compose exec -T app php artisan migrate --force
 
             # Clear caches
