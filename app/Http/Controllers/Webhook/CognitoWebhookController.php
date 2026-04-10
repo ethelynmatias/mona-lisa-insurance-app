@@ -66,10 +66,15 @@ class CognitoWebhookController extends Controller
     /**
      * Map the Cognito payload to NowCerts entities and call the API.
      * Updates the log record with the outcome.
+     *
+     * @param bool $isRerun  When true: inject stored NowCerts IDs (no lookup) and skip note.
      */
-    private function syncToNowCerts(WebhookLog $log, string $formId, array $entry): void
+    private function syncToNowCerts(WebhookLog $log, string $formId, array $entry, bool $isRerun = false): void
     {
         $context = ['webhook_log_id' => $log->id, 'form_id' => $formId, 'entry_id' => $log->entry_id];
+
+        // Stored IDs from a previous successful sync — used on rerun to avoid duplicate inserts
+        $storedIds = $isRerun ? ($log->synced_nowcerts_ids ?? []) : [];
 
         try {
             // Extract file uploads before flattening — list arrays are lost after flatten
@@ -81,6 +86,8 @@ class CognitoWebhookController extends Controller
             Log::info('NowCerts sync started', array_merge($context, [
                 'flattened_entry_keys' => array_keys($entry),
                 'file_upload_fields'   => array_column($fileUploads, 'field'),
+                'is_rerun'             => $isRerun,
+                'stored_ids'           => $storedIds,
             ]));
 
             $syncedEntities     = [];
@@ -91,6 +98,16 @@ class CognitoWebhookController extends Controller
             // Sync primary entities first (Insured, Policy, Driver, Vehicle)
             foreach ($this->primaryEntitySyncMap($mapper) as $entity => $callbacks) {
                 $data = $callbacks['map']($entry);
+
+                // On rerun: inject stored NowCerts IDs so API updates instead of inserting
+                if ($isRerun) {
+                    if ($entity === NowCertsEntity::Insured->value && ! empty($storedIds['insuredDatabaseId'])) {
+                        $data['DatabaseId'] = $storedIds['insuredDatabaseId'];
+                    }
+                    if ($entity === NowCertsEntity::Policy->value && ! empty($storedIds['policyDatabaseId'])) {
+                        $data['policyDatabaseId'] = $storedIds['policyDatabaseId'];
+                    }
+                }
 
                 Log::info("NowCerts mapped {$entity}", array_merge($context, ['data' => $data]));
 
@@ -109,14 +126,26 @@ class CognitoWebhookController extends Controller
                     if ($entity === NowCertsEntity::Insured->value && ! $insuredDatabaseId) {
                         $insuredDatabaseId = $response['_insuredDatabaseId'] ?? null;
                     }
+                    // On initial sync: capture policy ID for future reruns
+                    if ($entity === NowCertsEntity::Policy->value && ! $isRerun) {
+                        $storedIds['policyDatabaseId'] = $response['policyDatabaseId']
+                            ?? $response['DatabaseId']
+                            ?? $response['databaseId']
+                            ?? null;
+                    }
                 } catch (Throwable $e) {
                     Log::error("NowCerts {$entity} failed", array_merge($context, ['error' => $e->getMessage()]));
                     $errors[] = "{$entity}: " . $e->getMessage();
                 }
             }
 
+            // Resolve insuredDatabaseId from stored ID if sync didn't return it (rerun scenario)
+            if (! $insuredDatabaseId && ! empty($storedIds['insuredDatabaseId'])) {
+                $insuredDatabaseId = $storedIds['insuredDatabaseId'];
+            }
+
             // Sync Property — requires insuredDatabaseId resolved above
-            $propertyData = $this->buildPropertyData($mapper, $entry, $insuredDatabaseId);
+            $propertyData = $this->buildPropertyData($mapper, $entry, $insuredDatabaseId, $isRerun ? ($storedIds['propertyDatabaseId'] ?? null) : null);
             if (! empty($propertyData)) {
                 $entityLabel = NowCertsEntity::Property->value;
                 Log::info("NowCerts mapped {$entityLabel}", array_merge($context, ['data' => $propertyData]));
@@ -125,14 +154,21 @@ class CognitoWebhookController extends Controller
                     Log::info("NowCerts {$entityLabel} pushed", array_merge($context, ['response' => $response]));
                     $syncedEntities[]              = $entityLabel;
                     $allSyncedData[$entityLabel]   = $propertyData;
+                    // Capture property ID for future reruns
+                    if (! $isRerun) {
+                        $storedIds['propertyDatabaseId'] = $response['DatabaseId']
+                            ?? $response['databaseId']
+                            ?? $response['id']
+                            ?? null;
+                    }
                 } catch (Throwable $e) {
                     Log::error("NowCerts {$entityLabel} failed", array_merge($context, ['error' => $e->getMessage()]));
                     $errors[] = "{$entityLabel}: " . $e->getMessage();
                 }
             }
 
-            // Add note to insured with all synced field values
-            if ($insuredDatabaseId && ! empty($allSyncedData)) {
+            // Add note to insured — skipped on rerun to prevent duplicate notes
+            if (! $isRerun && $insuredDatabaseId && ! empty($allSyncedData)) {
                 try {
                     /*
                     $action = match ($log->event_type) {
@@ -211,12 +247,24 @@ class CognitoWebhookController extends Controller
                 'errors'          => $errors,
             ]));
 
-            $this->webhookLogs->update($log, [
+            // Store resolved NowCerts IDs on first successful sync for use in reruns
+            if (! $isRerun && $insuredDatabaseId) {
+                $storedIds['insuredDatabaseId'] = $insuredDatabaseId;
+            }
+
+            $updateData = [
                 'sync_status'     => empty($errors) ? SyncStatus::Synced : SyncStatus::Failed,
                 'sync_error'      => empty($errors) ? null : implode('; ', $errors),
                 'synced_entities' => $syncedEntities ?: null,
                 'synced_at'       => now(),
-            ]);
+            ];
+
+            // Persist NowCerts IDs after first sync; preserve on rerun
+            if (! empty($storedIds)) {
+                $updateData['synced_nowcerts_ids'] = $storedIds;
+            }
+
+            $this->webhookLogs->update($log, $updateData);
         } catch (Throwable $e) {
             Log::error('NowCerts sync exception', array_merge($context, ['error' => $e->getMessage()]));
             $this->webhookLogs->update($log, [
@@ -320,7 +368,7 @@ class CognitoWebhookController extends Controller
      * Map property fields, inject InsuredDatabaseId, and (on update) inject
      * the existing property's DatabaseId so NowCerts updates rather than inserts.
      */
-    private function buildPropertyData(NowCertsFieldMapper $mapper, array $entry, ?string $insuredDatabaseId): array
+    private function buildPropertyData(NowCertsFieldMapper $mapper, array $entry, ?string $insuredDatabaseId, ?string $storedPropertyId = null): array
     {
         $data = $mapper->mapProperty($entry);
 
@@ -330,7 +378,13 @@ class CognitoWebhookController extends Controller
 
         $data['InsuredDatabaseId'] = $insuredDatabaseId;
 
-        // Look up an existing property for this insured so we update instead of insert
+        // On rerun: use stored property ID directly — no API lookup needed
+        if ($storedPropertyId) {
+            $data['DatabaseId'] = $storedPropertyId;
+            return $data;
+        }
+
+        // On first sync: look up an existing property for this insured so we update instead of insert
         if (empty($data['DatabaseId'])) {
             try {
                 $existing = $this->nowcerts->findProperties(['InsuredId' => $insuredDatabaseId]);
@@ -400,7 +454,7 @@ class CognitoWebhookController extends Controller
             'synced_at'       => null,
         ]);
 
-        $this->syncToNowCerts($log, $log->form_id, $log->payload);
+        $this->syncToNowCerts($log, $log->form_id, $log->payload, isRerun: true);
 
         $log->refresh();
 

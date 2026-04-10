@@ -19,6 +19,7 @@ class WebhookLog extends Model
         'synced_entities',
         'synced_at',
         'uploaded_file_ids',
+        'synced_nowcerts_ids',
     ];
 
     protected function casts(): array
@@ -26,7 +27,8 @@ class WebhookLog extends Model
         return [
             'payload'           => 'array',
             'synced_entities'   => 'array',
-            'uploaded_file_ids' => 'array',
+            'uploaded_file_ids'    => 'array',
+            'synced_nowcerts_ids'  => 'array',
             'synced_at'         => 'datetime',
             'sync_status'       => SyncStatus::class,
         ];
