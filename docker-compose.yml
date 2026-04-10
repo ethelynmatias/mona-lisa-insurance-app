@@ -18,7 +18,7 @@ services:
       - DB_USERNAME=${DB_USERNAME:-sail}
       - DB_PASSWORD=${DB_PASSWORD:-password}
     volumes:
-      - /var/www/mona-lisa-insurance/.env:/var/www/.env:ro
+      - /var/www/mona-lisa-insurance-app/.env:/var/www/.env:ro
       - storage-data:/var/www/storage
     depends_on:
       mysql:
