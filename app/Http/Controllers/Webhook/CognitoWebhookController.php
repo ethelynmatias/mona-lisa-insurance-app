@@ -86,6 +86,7 @@ class CognitoWebhookController extends Controller
             $syncedEntities     = [];
             $errors             = [];
             $insuredDatabaseId  = null;
+            $allSyncedData      = [];
 
             // Sync primary entities first (Insured, Policy, Driver, Vehicle)
             foreach ($this->primaryEntitySyncMap($mapper) as $entity => $callbacks) {
@@ -101,7 +102,8 @@ class CognitoWebhookController extends Controller
                 try {
                     $response = $callbacks['push']($data);
                     Log::info("NowCerts {$entity} pushed", array_merge($context, ['response' => $response]));
-                    $syncedEntities[] = $entity;
+                    $syncedEntities[]        = $entity;
+                    $allSyncedData[$entity]  = $data;
 
                     // Capture insured database ID for property + document uploads
                     if ($entity === NowCertsEntity::Insured->value && ! $insuredDatabaseId) {
@@ -121,10 +123,73 @@ class CognitoWebhookController extends Controller
                 try {
                     $response = $this->nowcerts->insertOrUpdateProperty($propertyData);
                     Log::info("NowCerts {$entityLabel} pushed", array_merge($context, ['response' => $response]));
-                    $syncedEntities[] = $entityLabel;
+                    $syncedEntities[]              = $entityLabel;
+                    $allSyncedData[$entityLabel]   = $propertyData;
                 } catch (Throwable $e) {
                     Log::error("NowCerts {$entityLabel} failed", array_merge($context, ['error' => $e->getMessage()]));
                     $errors[] = "{$entityLabel}: " . $e->getMessage();
+                }
+            }
+
+            // Add note to insured with all synced field values
+            if ($insuredDatabaseId && ! empty($allSyncedData)) {
+                try {
+                    /*
+                    $action = match ($log->event_type) {
+                        'entry.submitted' => 'New form submission synced',
+                        'entry.updated'   => 'Form submission updated and re-synced',
+                        default           => 'Webhook synced',
+                    }; */
+
+                    $noteLines = [
+                        //$action,
+                        //"Entities: " . implode(', ', $syncedEntities),
+                        "Form: " . ($log->form_name ?? $formId),
+                        "Entry ID: " . ($log->entry_id ?? 'N/A'),
+                        "Synced at: " . now()->format('Y-m-d H:i:s'),
+                        //"---",
+                    ];
+
+                    $excluded = ['Origin', 'origin', 'Action', 'action', 'Order', 'order', 'Entry', 'entry', 'Event', 'event'];
+                    $excludedPrefixes = ['Entry.', 'Form.'];
+
+                    $isExcluded = function (string $key) use ($excluded, $excludedPrefixes): bool {
+                        if (in_array($key, $excluded, true)) return true;
+                        foreach ($excludedPrefixes as $prefix) {
+                            if (str_starts_with($key, $prefix)) return true;
+                        }
+                        return false;
+                    };
+
+                    // Webhook data — all non-null, non-empty scalar values except excluded keys/prefixes
+                    $noteLines[] = "[Webhook Data]";
+                    foreach ($entry as $key => $value) {
+                        if ($isExcluded($key)) continue;
+                        if (is_scalar($value) && $value !== '' && $value !== null) {
+                            $noteLines[] = "  {$key}: {$value}";
+                        }
+                    }
+
+                    // Synced entity data
+                    foreach ($allSyncedData as $entity => $fields) {
+                        $noteLines[] = "[{$entity}]";
+                        foreach ($fields as $key => $value) {
+                            if ($isExcluded($key)) continue;
+                            if (is_scalar($value) && $value !== '' && $value !== null) {
+                                $noteLines[] = "  {$key}: {$value}";
+                            }
+                        }
+                    }
+
+                    $this->nowcerts->insertNote([
+                        'insured_database_id' => $insuredDatabaseId,
+                        'subject'             => implode("\n", $noteLines),
+                        'creator_name'        => 'Cognito Webhook',
+                    ]);
+
+                    Log::info('NowCerts note added to insured', array_merge($context, ['insuredDatabaseId' => $insuredDatabaseId]));
+                } catch (Throwable $e) {
+                    Log::warning('NowCerts note failed — non-blocking', array_merge($context, ['error' => $e->getMessage()]));
                 }
             }
 

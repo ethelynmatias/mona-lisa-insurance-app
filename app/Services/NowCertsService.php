@@ -82,65 +82,42 @@ class NowCertsService
     public function getPropertyFields(): array
     {
         return [
-            // Identification & Address
-            'Id', 'AddressLine1', 'AddressLine2', 'City', 'County', 'State', 'Zip',
-            'BuildingNumber', 'LocationNumber', 'PropertyUse',
-            'Description', 'DescriptionOfOperations',
-
+            // Identification
+            'DatabaseId', 'PropertyUse', 'LocationNumber', 'BuildingNumber',
+            'Description', 'DescriptionOfOperations', 'AnyAreaLeasedToOthers',
+            'AttachToPolicyNumber',
+            // Address
+            'AddressLine1', 'AddressLine2', 'City', 'County', 'State', 'Zip',
             // Insured Details
             'InsuredDatabaseId', 'InsuredEmail',
             'InsuredFirstName', 'InsuredLastName', 'InsuredCommercialName',
-
-            // Coverage & Policies
-            'PolicyNumbers', 'Coverages', 'PolicyIds', 'LienHolders',
-
-            // Flood & Risk Info (top-level)
-            'FloodCommunityCurrentFloodZoneCode', 'FloodCommunityRateFloodZoneCode',
-            'FloodCoverageBuildingGrandfatheredCode',
-            'FloodCoverageContentsCoverageTypeResidentialIndicator',
-            'FloodCoverageContentsCoverageTypeNonResidentialIndicator',
-            'FloodCoverageContentsCoverageTypeOtherIndicator',
-            'FloodCoverageContentsCoverageTypeOtherDescription',
-            'FloodInformationSingleUnitCoverageYesIndicator',
-            'FloodInformationSingleUnitCoverageNoIndicator',
-
-            // Flood Information (nested — sent as FloodInformation[0].Field)
-            'FloodInformation.BuildYear',
-            'FloodInformation.Construction',
-            'FloodInformation.Occupancy',
-            'FloodInformation.PolicyType',
-            'FloodInformation.PersonalPropertyCostValueType',
-            'FloodInformation.BuildingOverWater',
-            'FloodInformation.HasBasement',
-            'FloodInformation.FoundationType',
-            'FloodInformation.HouseElevatedAfterPriorFloodLoss',
-            'FloodInformation.IsElevated',
-            'FloodInformation.CompletionStatus',
-            'FloodInformation.FloorArea',
-            'FloodInformation.DwellingTiv',
-            'FloodInformation.PersonalPropertyTiv',
-            'FloodInformation.BuildingsLimit',
-            'FloodInformation.ContentsLimit',
-            'FloodInformation.AddressLine1',
-            'FloodInformation.AddressLine2',
-            'FloodInformation.City',
-            'FloodInformation.ZipCode',
-            'FloodInformation.StateAbbreviation',
-            'FloodInformation.NoOfStories',
-
-            // Construction & Building Info
-            'ConstructionBuiltDate', 'ResidentialStructureReplacementCostAmount',
-            'BuildingOccupancyUnitCount',
-            'ResidenceOccupancyOneFamilyIndicator', 'ResidenceOccupancyTwoToFourFamiliesIndicator',
-            'BuildingOccupancyOtherIndicator', 'BuildingOccupancyOccupancyDescription',
-            'ResidenceOccupancyOtherResidentialIndicator', 'ResidenceOccupancyNonResidentialIndicator',
-
-            // Administrative
-            'LastChangeUserId', 'LastChangeUserName', 'ChangeDate', 'CreateDate',
-            'CityLimitsInsideIndicator', 'CityLimitsOutsideIndicator',
-            'CityLimitsOtherIndicator', 'CityLimitsOther',
-            'InterestOwnerIndicator', 'InterestTenantIndicator',
-            'InterestOtherIndicator', 'InterestOther',
+            // Additional — general
+            'Additional.numberOfFullTimeEmployees', 'Additional.numberOfPartTimeEmployees',
+            'Additional.annualRevenues', 'Additional.occupiedPct', 'Additional.occupiedArea',
+            'Additional.openToPublicArea', 'Additional.totalBuildingArea',
+            'Additional.anyAreaLeasedToOthers', 'Additional.occupancyDesc',
+            // Additional1 — construction & building
+            'Additional1.constructionCd', 'Additional1.yearBuilt', 'Additional1.numStories',
+            'Additional1.roofMaterialCd', 'Additional1.residenceTypeCd', 'Additional1.dwellUseCd',
+            'Additional1.fireProtectionClassCd', 'Additional1.distanceToHydrant',
+            'Additional1.airConditioningCd', 'Additional1.distanceToFireStation',
+            // Additional2 — dwelling details
+            'Additional2.dwellStyleCd', 'Additional2.estimatedReplCostAmt', 'Additional2.numberOfUnits',
+            'Additional2.heatSourcePrimaryCd', 'Additional2.numFamilies',
+            'Additional2.fireplaceInfoNumHearths', 'Additional2.numberOfPools',
+            'Additional2.fireplaceInfoNumChimneys', 'Additional2.garageTypeCd',
+            'Additional2.parkingArea', 'Additional2.garageNumVehs',
+            // Flood Information
+            'FloodInformation.addressLine1', 'FloodInformation.addressLine2',
+            'FloodInformation.city', 'FloodInformation.zipCode', 'FloodInformation.state',
+            'FloodInformation.buildYear', 'FloodInformation.floodArea',
+            'FloodInformation.elevationHeight', 'FloodInformation.houseElevatedAfterPriorFloodLoss',
+            'FloodInformation.dwellingTiv', 'FloodInformation.personalPropertyTiv',
+            'FloodInformation.buildingsLimit', 'FloodInformation.contentsLimit',
+            'FloodInformation.noOfStories', 'FloodInformation.buildingOverWater',
+            'FloodInformation.policyType', 'FloodInformation.personalPropertyCostValueType',
+            'FloodInformation.foundationType', 'FloodInformation.occupancy',
+            'FloodInformation.construction',
         ];
     }
 
@@ -483,26 +460,41 @@ class NowCertsService
             unset($data['DatabaseId']);
         }
 
-        // Separate FloodInformation.* sub-fields from top-level fields
-        $floodSub  = [];
-        $topLevel  = [];
+        // Separate dot-notation sub-fields into their nested objects
+        $nested   = [];
+        $topLevel = [];
+
+        $nestedPrefixes = ['FloodInformation', 'Additional', 'Additional1', 'Additional2'];
 
         foreach ($data as $key => $value) {
-            if (str_starts_with($key, 'FloodInformation.')) {
-                $subKey            = substr($key, strlen('FloodInformation.'));
-                $floodSub[$subKey] = $value;
-            } else {
+            $matched = false;
+            foreach ($nestedPrefixes as $prefix) {
+                if (str_starts_with($key, $prefix . '.')) {
+                    $subKey                      = substr($key, strlen($prefix) + 1);
+                    $nested[$prefix][$subKey]    = $value;
+                    $matched                     = true;
+                    break;
+                }
+            }
+            if (! $matched) {
                 $topLevel[$key] = $value;
             }
         }
 
         $property = array_filter($topLevel, fn ($v) => $v !== null && $v !== '');
 
-        // Nest FloodInformation sub-fields as a single-item array
-        if (! empty($floodSub)) {
+        // FloodInformation is sent as a single-item array (NowCerts API requirement)
+        if (! empty($nested['FloodInformation'])) {
             $property['FloodInformation'] = [
-                array_filter($floodSub, fn ($v) => $v !== null && $v !== ''),
+                array_filter($nested['FloodInformation'], fn ($v) => $v !== null && $v !== ''),
             ];
+        }
+
+        // Additional, Additional1, Additional2 are sent as plain objects
+        foreach (['Additional', 'Additional1', 'Additional2'] as $group) {
+            if (! empty($nested[$group])) {
+                $property[$group] = array_filter($nested[$group], fn ($v) => $v !== null && $v !== '');
+            }
         }
 
         return $this->send('POST', 'Property/InsertOrUpdate', body: $property);
