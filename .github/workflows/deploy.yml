@@ -18,20 +18,21 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
-
       - name: Build assets
-        run: npm run build
+        run: npm ci && npm run build
 
-      - name: Copy built assets to server
-        uses: appleboy/scp-action@v0.1.7
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          source: "public/build"
-          target: "/var/www/mona-lisa-insurance"
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/mona-lisa-insurance:latest
 
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
@@ -42,11 +43,11 @@ jobs:
           script: |
             cd /var/www/mona-lisa-insurance
 
-            # Pull latest code
-            git pull origin main
+            # Pull latest image
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/mona-lisa-insurance:latest
 
-            # Rebuild and restart app container (no npm build inside)
-            docker compose build --no-cache app
+            # Restart with new image
+            docker compose down
             docker compose up -d
 
             # Run migrations

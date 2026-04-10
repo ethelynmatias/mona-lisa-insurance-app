@@ -18,9 +18,7 @@ services:
       - DB_USERNAME=${DB_USERNAME:-sail}
       - DB_PASSWORD=${DB_PASSWORD:-password}
     volumes:
-      - .:/var/www
-      - /var/www/vendor
-      - /var/www/node_modules
+      - storage-data:/var/www/storage
     depends_on:
       mysql:
         condition: service_healthy
@@ -50,6 +48,8 @@ services:
 
 volumes:
   mysql-data:
+    driver: local
+  storage-data:
     driver: local
 
 networks:
