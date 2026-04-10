@@ -1,8 +1,6 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME}/mona-lisa-insurance:latest
     container_name: mona-lisa-app
     restart: unless-stopped
     ports:
