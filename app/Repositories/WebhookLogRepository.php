@@ -94,4 +94,16 @@ class WebhookLogRepository implements WebhookLogRepositoryInterface
             ->values()
             ->all();
     }
+
+    public function getPreviousSyncedIds(string $formId, string $entryId, int $excludeLogId): array
+    {
+        $log = WebhookLog::where('form_id', $formId)
+            ->where('entry_id', $entryId)
+            ->where('id', '!=', $excludeLogId)
+            ->whereNotNull('synced_nowcerts_ids')
+            ->orderByDesc('created_at')
+            ->first(['synced_nowcerts_ids']);
+
+        return $log?->synced_nowcerts_ids ?? [];
+    }
 }

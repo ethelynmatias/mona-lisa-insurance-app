@@ -73,8 +73,16 @@ class CognitoWebhookController extends Controller
     {
         $context = ['webhook_log_id' => $log->id, 'form_id' => $formId, 'entry_id' => $log->entry_id];
 
-        // Stored IDs from a previous successful sync — used on rerun to avoid duplicate inserts
-        $storedIds = $isRerun ? ($log->synced_nowcerts_ids ?? []) : [];
+        // Stored IDs from a previous successful sync — used on rerun to avoid duplicate inserts.
+        // For entry.updated events (new log), inherit IDs from the most recent prior sync of
+        // the same entry so contacts and records are updated rather than duplicated.
+        if ($isRerun) {
+            $storedIds = $log->synced_nowcerts_ids ?? [];
+        } elseif ($log->event_type === 'entry.updated' && $log->entry_id) {
+            $storedIds = $this->webhookLogs->getPreviousSyncedIds($formId, $log->entry_id, $log->id);
+        } else {
+            $storedIds = [];
+        }
 
         try {
             // Extract file uploads before flattening — list arrays are lost after flatten
@@ -142,6 +150,11 @@ class CognitoWebhookController extends Controller
             // Resolve insuredDatabaseId from stored ID if sync didn't return it (rerun scenario)
             if (! $insuredDatabaseId && ! empty($storedIds['insuredDatabaseId'])) {
                 $insuredDatabaseId = $storedIds['insuredDatabaseId'];
+            }
+
+            // Add or update occupant contact on the primary insured if present
+            if ($insuredDatabaseId) {
+                $this->syncOccupantContact($insuredDatabaseId, $entry, $context, $isRerun, $storedIds);
             }
 
             // Sync Property — requires insuredDatabaseId resolved above
@@ -335,6 +348,62 @@ class CognitoWebhookController extends Controller
                     array_merge($alreadyUploadedIds, $newlyUploadedIds)
                 )),
             ]);
+        }
+    }
+
+    /**
+     * If the webhook entry contains occupant name fields, insert or update
+     * the occupant as a contact on the primary insured record in NowCerts.
+     *
+     * - First sync: POST /clients/{id}/contacts — stores returned contact ID in $storedIds
+     * - Rerun: PUT /clients/{id}/contacts/{contactId} using the stored ID
+     *
+     * Looks for flattened keys: NameOfOccupant.First / NameOfOccupant.Last
+     * Also captures DateOfBirthOccupant if present.
+     */
+    private function syncOccupantContact(string $insuredDatabaseId, array $entry, array $context, bool $isRerun = false, array &$storedIds = []): void
+    {
+        $firstName = $entry['NameOfOccupant.First'] ?? null;
+        $lastName  = $entry['NameOfOccupant.Last']  ?? null;
+
+        if (empty($firstName) && empty($lastName)) {
+            return;
+        }
+
+        $contactData = array_filter([
+            'FirstName'   => $firstName,
+            'LastName'    => $lastName,
+            'DateOfBirth' => $entry['DateOfBirthOccupant'] ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        try {
+            $storedContactId = $storedIds['contactId'] ?? null;
+
+            if ($isRerun && $storedContactId) {
+                // Update existing contact
+                $this->nowcerts->updateContact($insuredDatabaseId, $storedContactId, $contactData);
+                Log::info('NowCerts occupant contact updated', array_merge($context, [
+                    'insuredDatabaseId' => $insuredDatabaseId,
+                    'contactId'         => $storedContactId,
+                    'occupant'          => trim("{$firstName} {$lastName}"),
+                ]));
+            } else {
+                // Insert new contact and capture returned ID
+                $response = $this->nowcerts->insertContact($insuredDatabaseId, $contactData);
+                $contactId = $response['id'] ?? $response['Id'] ?? $response['contactId'] ?? null;
+                if ($contactId) {
+                    $storedIds['contactId'] = $contactId;
+                }
+                Log::info('NowCerts occupant contact added', array_merge($context, [
+                    'insuredDatabaseId' => $insuredDatabaseId,
+                    'contactId'         => $contactId,
+                    'occupant'          => trim("{$firstName} {$lastName}"),
+                ]));
+            }
+        } catch (Throwable $e) {
+            Log::warning('NowCerts occupant contact failed — non-blocking', array_merge($context, [
+                'error' => $e->getMessage(),
+            ]));
         }
     }
 

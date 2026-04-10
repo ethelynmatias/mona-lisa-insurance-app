@@ -670,6 +670,24 @@ class NowCertsService
     {
         return $this->send('POST', 'Zapier/InsertNote', body: $data);
     }
+
+    /**
+     * Add a contact linked to an insured/client.
+     * POST /api/clients/{insuredDatabaseId}/contacts
+     */
+    public function insertContact(string $insuredDatabaseId, array $data): array
+    {
+        return $this->send('POST', "clients/{$insuredDatabaseId}/contacts", body: $data);
+    }
+
+    /**
+     * Update an existing contact linked to an insured/client.
+     * PUT /api/clients/{insuredDatabaseId}/contacts/{contactId}
+     */
+    public function updateContact(string $insuredDatabaseId, string $contactId, array $data): array
+    {
+        return $this->send('PUT', "clients/{$insuredDatabaseId}/contacts/{$contactId}", body: $data);
+    }
     /**
      * List tasks.
      *

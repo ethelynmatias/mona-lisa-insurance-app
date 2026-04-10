@@ -34,4 +34,10 @@ interface WebhookLogRepositoryInterface
      * Return all Cognito file IDs that have already been uploaded for a given entry.
      */
     public function getUploadedFileIds(string $formId, string $entryId): array;
+
+    /**
+     * Return the synced_nowcerts_ids from the most recent successful sync
+     * for the same form + entry, excluding the current log record.
+     */
+    public function getPreviousSyncedIds(string $formId, string $entryId, int $excludeLogId): array;
 }
