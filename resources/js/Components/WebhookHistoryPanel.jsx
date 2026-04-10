@@ -136,10 +136,6 @@ export default function WebhookHistoryPanel({ webhooks = [], showFormColumn = fa
                                 d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
                         <p className="text-sm">No webhook events yet</p>
-                        <p className="text-xs text-center max-w-xs">
-                            Configure your Cognito Forms webhook to post to{' '}
-                            <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-600">/webhook/cognito?form_id=YOUR_FORM_ID</code>
-                        </p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">

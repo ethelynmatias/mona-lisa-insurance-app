@@ -6,8 +6,8 @@
       "_jsx-runtime-DT_lPud-.js"
     ]
   },
-  "_WebhookHistoryPanel-CPIbpU_T.js": {
-    "file": "assets/WebhookHistoryPanel-CPIbpU_T.js",
+  "_WebhookHistoryPanel-CId-R74x.js": {
+    "file": "assets/WebhookHistoryPanel-CId-R74x.js",
     "name": "WebhookHistoryPanel",
     "imports": [
       "_jsx-runtime-DT_lPud-.js"
@@ -18,7 +18,7 @@
     "name": "jsx-runtime"
   },
   "resources/css/app.css": {
-    "file": "assets/app-DyEFNRNK.css",
+    "file": "assets/app-D62rmMX4.css",
     "name": "app",
     "names": [
       "app.css"
@@ -36,24 +36,24 @@
     ]
   },
   "resources/js/Pages/Cognito/FormDetails.jsx": {
-    "file": "assets/FormDetails-CGlc1zcy.js",
+    "file": "assets/FormDetails-BbCeXFEV.js",
     "name": "FormDetails",
     "src": "resources/js/Pages/Cognito/FormDetails.jsx",
     "isDynamicEntry": true,
     "imports": [
       "_jsx-runtime-DT_lPud-.js",
-      "_WebhookHistoryPanel-CPIbpU_T.js",
+      "_WebhookHistoryPanel-CId-R74x.js",
       "_AuthenticatedLayout-CgEvVTNA.js"
     ]
   },
   "resources/js/Pages/Dashboard.jsx": {
-    "file": "assets/Dashboard-D_rrhAsF.js",
+    "file": "assets/Dashboard-DZLJ52b7.js",
     "name": "Dashboard",
     "src": "resources/js/Pages/Dashboard.jsx",
     "isDynamicEntry": true,
     "imports": [
       "_jsx-runtime-DT_lPud-.js",
-      "_WebhookHistoryPanel-CPIbpU_T.js",
+      "_WebhookHistoryPanel-CId-R74x.js",
       "_AuthenticatedLayout-CgEvVTNA.js"
     ]
   },
@@ -68,7 +68,7 @@
     ]
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-CKcxa-CX.js",
+    "file": "assets/app-DJCmmxR6.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,
@@ -82,7 +82,7 @@
       "resources/js/Pages/Settings.jsx"
     ],
     "css": [
-      "assets/app-DyEFNRNK.css"
+      "assets/app-D62rmMX4.css"
     ]
   }
 }
