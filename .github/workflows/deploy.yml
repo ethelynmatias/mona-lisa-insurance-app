@@ -60,4 +60,7 @@ jobs:
             docker compose exec -T app php artisan cache:clear
             docker compose exec -T app php artisan view:clear
 
+            # Optimize for production
+            docker compose exec -T app php artisan optimize
+
             echo "Deploy complete"
