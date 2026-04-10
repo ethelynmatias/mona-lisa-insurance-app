@@ -649,6 +649,101 @@ Both panels have **Clear History** (deletes logs but not discovered fields) and 
 
 ---
 
+## Production Deployment (Digital Ocean)
+
+### First Time Server Setup
+
+**1. Clone the repo:**
+```bash
+cd /var/www
+git clone https://github.com/ethelynmatias/mona-lisa-insurance-app.git mona-lisa-insurance-app
+cd mona-lisa-insurance-app
+```
+
+**2. Create `.env` file:**
+```bash
+nano .env
+```
+
+Fill in all values including:
+```env
+APP_KEY=                        # generate after first docker compose up
+DOCKERHUB_USERNAME=ethelyn1hubstart
+```
+
+**3. Login to Docker Hub:**
+```bash
+docker login -u ethelyn1hubstart
+# Use your Personal Access Token as the password
+```
+
+**4. Pull image and start containers:**
+```bash
+docker compose pull
+docker compose up -d
+```
+
+**5. Generate APP_KEY:**
+```bash
+docker compose exec app php artisan key:generate
+```
+
+**6. Run migrations and seed:**
+```bash
+docker compose exec app php artisan migrate --force
+docker compose exec app php artisan db:seed
+```
+
+### Auto Deploy (GitHub Actions)
+
+Every push to `main` automatically:
+1. Builds frontend assets (`npm run build`)
+2. Builds and pushes Docker image to Docker Hub
+3. SSHs into server → `git pull` → `docker compose pull` → `docker compose up -d`
+4. Runs migrations, clears caches, and runs `php artisan optimize`
+
+### Required GitHub Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `DOCKERHUB_USERNAME` | Docker Hub username |
+| `DOCKERHUB_TOKEN` | Docker Hub Personal Access Token |
+| `SSH_HOST` | Server IP address |
+| `SSH_USER` | SSH username |
+| `SSH_KEY` | SSH private key |
+
+### Manual Deploy
+
+```bash
+cd /var/www/mona-lisa-insurance-app
+git pull origin main
+docker compose pull
+docker compose up -d
+docker compose exec app php artisan migrate --force
+docker compose exec app php artisan optimize
+```
+
+### Useful Server Commands
+
+```bash
+# View logs
+docker logs mona-lisa-app --tail 50
+
+# Enter container
+docker exec -it mona-lisa-app bash
+
+# Check running containers
+docker ps
+
+# Stop containers (keeps DB data)
+docker compose down
+
+# View database backups
+ls -lh /var/www/mona-lisa-insurance-app/backup_*.sql
+```
+
+---
+
 ## Stopping & Cleanup
 
 ```bash

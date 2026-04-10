@@ -43,6 +43,9 @@ jobs:
           script: |
             cd /var/www/mona-lisa-insurance-app
 
+            # Pull latest code (keeps docker-compose.yml and .env in sync)
+            git pull origin main
+
             # Backup database before deploy
             docker exec mona-lisa-mysql mysqldump -u root -prootpassword mona_lisa_insurance > /var/www/mona-lisa-insurance-app/backup_$(date +%Y%m%d_%H%M%S).sql
 

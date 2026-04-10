@@ -68,7 +68,7 @@ export default function Dashboard() {
 
                 {/* Header */}
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Cognito Forms Test</h2>
+                    <h2 className="text-lg font-semibold text-gray-900">Cognito Forms</h2>
                     <p className="text-sm text-gray-500 mt-0.5">All forms from your Cognito Forms organisation</p>
                 </div>
 
