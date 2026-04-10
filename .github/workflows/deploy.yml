@@ -49,6 +49,9 @@ jobs:
             # Backup database before deploy
             docker exec mona-lisa-mysql mysqldump -u root -prootpassword mona_lisa_insurance > /var/www/mona-lisa-insurance-app/backup_$(date +%Y%m%d_%H%M%S).sql
 
+            # Keep only the latest backup
+            ls -t /var/www/mona-lisa-insurance-app/backup_*.sql | tail -n +2 | xargs rm -f
+
             # Pull latest image
             docker compose pull
 
