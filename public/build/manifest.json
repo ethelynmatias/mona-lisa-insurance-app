@@ -18,7 +18,7 @@
     "name": "jsx-runtime"
   },
   "resources/css/app.css": {
-    "file": "assets/app-D62rmMX4.css",
+    "file": "assets/app-DTI3bQZj.css",
     "name": "app",
     "names": [
       "app.css"
@@ -47,7 +47,7 @@
     ]
   },
   "resources/js/Pages/Dashboard.jsx": {
-    "file": "assets/Dashboard-DZLJ52b7.js",
+    "file": "assets/Dashboard-CidYSQh3.js",
     "name": "Dashboard",
     "src": "resources/js/Pages/Dashboard.jsx",
     "isDynamicEntry": true,
@@ -68,7 +68,7 @@
     ]
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-DJCmmxR6.js",
+    "file": "assets/app-nuUUptN_.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,
@@ -82,7 +82,7 @@
       "resources/js/Pages/Settings.jsx"
     ],
     "css": [
-      "assets/app-D62rmMX4.css"
+      "assets/app-DTI3bQZj.css"
     ]
   }
 }
