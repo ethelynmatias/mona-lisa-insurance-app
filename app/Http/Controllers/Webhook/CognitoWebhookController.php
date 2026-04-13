@@ -230,9 +230,14 @@ class CognitoWebhookController extends Controller
                 $insuredDatabaseId = $storedIds['insuredDatabaseId'];
             }
 
-            // ── Step 2: Occupant contact ──────────────────────────────────────
+            // ── Step 2: Contacts ──────────────────────────────────────────────
             if ($insuredDatabaseId) {
                 $this->syncOccupantContact($insuredDatabaseId, $entry, $context, $isRerun, $storedIds);
+
+                // Form 17: also sync the co-applicant as a second contact
+                if ($formId === '17') {
+                    $this->syncForm17CoApplicant($insuredDatabaseId, $entry, $context, $isRerun, $storedIds);
+                }
             }
 
             // ── Step 3: Drivers & Vehicles (dynamic payload fields) ───────────
@@ -396,6 +401,63 @@ class CognitoWebhookController extends Controller
             }
         } catch (Throwable $e) {
             Log::warning('NowCerts occupant contact failed — non-blocking', array_merge($context, [
+                'error' => $e->getMessage(),
+            ]));
+        }
+    }
+
+    /**
+     * Form 17 — Personal Article Floaters Application.
+     * Syncs CoapplicantsName as a second principal contact on the insured.
+     *
+     * Stored under storedIds['coApplicantContactId'] to prevent duplicate inserts on rerun.
+     */
+    private function syncForm17CoApplicant(string $insuredDatabaseId, array $entry, array $context, bool $isRerun, array &$storedIds): void
+    {
+        $firstName = $entry['CoapplicantsName.First'] ?? null;
+        $lastName  = $entry['CoapplicantsName.Last']  ?? null;
+
+        if (empty($firstName) && empty($lastName)) {
+            return;
+        }
+
+        $contactData = array_filter([
+            'first_name'         => $firstName,
+            'last_name'          => $lastName,
+            'policy_database_id' => $storedIds['policyDatabaseId'] ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        try {
+            $storedContactId = $storedIds['coApplicantContactId'] ?? null;
+
+            if ($isRerun && $storedContactId) {
+                $this->nowcerts->updateContact($insuredDatabaseId, $storedContactId, $contactData);
+                Log::info('NowCerts co-applicant contact updated', array_merge($context, [
+                    'insuredDatabaseId' => $insuredDatabaseId,
+                    'contactId'         => $storedContactId,
+                    'coApplicant'       => trim("{$firstName} {$lastName}"),
+                ]));
+            } else {
+                $response  = $this->nowcerts->insertContact($insuredDatabaseId, $contactData);
+                $contactId = $response['data']['database_id']
+                    ?? $response['database_id']
+                    ?? $response['DatabaseId']
+                    ?? $response['id']
+                    ?? $response['Id']
+                    ?? null;
+
+                if ($contactId) {
+                    $storedIds['coApplicantContactId'] = $contactId;
+                }
+
+                Log::info('NowCerts co-applicant contact added', array_merge($context, [
+                    'insuredDatabaseId' => $insuredDatabaseId,
+                    'contactId'         => $contactId,
+                    'coApplicant'       => trim("{$firstName} {$lastName}"),
+                ]));
+            }
+        } catch (Throwable $e) {
+            Log::warning('NowCerts co-applicant contact failed — non-blocking', array_merge($context, [
                 'error' => $e->getMessage(),
             ]));
         }
