@@ -672,21 +672,29 @@ class NowCertsService
     }
 
     /**
-     * Add a contact linked to an insured/client.
-     * POST /api/clients/{insuredDatabaseId}/contacts
+     * Insert or update a principal (contact) linked to an insured.
+     * POST Zapier/InsertPrincipal
+     * insuredDatabaseId is merged into the body alongside contact fields.
+     * Passing a DatabaseId in $data will update the existing principal instead of inserting.
      */
     public function insertContact(string $insuredDatabaseId, array $data): array
     {
-        return $this->send('POST', "clients/{$insuredDatabaseId}/contacts", body: $data);
+        return $this->send('POST', 'Zapier/InsertPrincipal', body: array_merge(
+            ['insured_database_id' => $insuredDatabaseId],
+            $data,
+        ));
     }
 
     /**
-     * Update an existing contact linked to an insured/client.
-     * PUT /api/clients/{insuredDatabaseId}/contacts/{contactId}
+     * Update an existing principal (contact) linked to an insured.
+     * POST Zapier/InsertPrincipal with DatabaseId set to the existing principal's ID.
      */
     public function updateContact(string $insuredDatabaseId, string $contactId, array $data): array
     {
-        return $this->send('PUT', "clients/{$insuredDatabaseId}/contacts/{$contactId}", body: $data);
+        return $this->send('POST', 'Zapier/InsertPrincipal', body: array_merge(
+            ['insured_database_id' => $insuredDatabaseId, 'database_id' => $contactId],
+            $data,
+        ));
     }
     /**
      * List tasks.

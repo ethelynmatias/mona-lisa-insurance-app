@@ -371,9 +371,10 @@ class CognitoWebhookController extends Controller
         }
 
         $contactData = array_filter([
-            'FirstName'   => $firstName,
-            'LastName'    => $lastName,
-            'DateOfBirth' => $entry['DateOfBirthOccupant'] ?? null,
+            'first_name'         => $firstName,
+            'last_name'          => $lastName,
+            'birthday'           => $this->formatDate($entry['DateOfBirthOccupant'] ?? null),
+            'policy_database_id' => $storedIds['policyDatabaseId'] ?? null,
         ], fn ($v) => $v !== null && $v !== '');
 
         try {
@@ -390,7 +391,12 @@ class CognitoWebhookController extends Controller
             } else {
                 // Insert new contact and capture returned ID
                 $response = $this->nowcerts->insertContact($insuredDatabaseId, $contactData);
-                $contactId = $response['id'] ?? $response['Id'] ?? $response['contactId'] ?? null;
+                $contactId = $response['data']['database_id']
+                    ?? $response['DatabaseId']
+                    ?? $response['database_id']
+                    ?? $response['id']
+                    ?? $response['Id']
+                    ?? null;
                 if ($contactId) {
                     $storedIds['contactId'] = $contactId;
                 }
@@ -468,6 +474,39 @@ class CognitoWebhookController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * Normalize any recognizable date string to MM/DD/YYYY format expected by NowCerts.
+     *
+     * Tries explicit formats in priority order before falling back to generic parsing:
+     *   - m/d/Y   → MM/DD/YYYY  (already correct, e.g. 04/28/1993 or 4/8/1993)
+     *   - Y-m-d   → ISO 8601    (e.g. 1993-04-28)
+     *   - m-d-Y   → MM-DD-YYYY  (e.g. 04-28-1993)
+     *
+     * Returns null when $value is null, empty, or unparseable.
+     */
+    private function formatDate(?string $value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        $formats = ['m/d/Y', 'n/j/Y', 'Y-m-d', 'm-d-Y', 'n-j-Y'];
+
+        foreach ($formats as $format) {
+            $date = \DateTime::createFromFormat($format, $value);
+            if ($date && $date->format($format) === $value) {
+                return $date->format('m/d/Y');
+            }
+        }
+
+        // Last resort — let PHP try to parse it
+        try {
+            return (new \DateTime($value))->format('m/d/Y');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
