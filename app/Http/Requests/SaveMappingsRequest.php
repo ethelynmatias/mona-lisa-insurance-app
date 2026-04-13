@@ -18,6 +18,8 @@ class SaveMappingsRequest extends FormRequest
             'mappings.*.cognito_field'   => ['required', 'string'],
             'mappings.*.nowcerts_entity' => ['nullable', 'string'],
             'mappings.*.nowcerts_field'  => ['nullable', 'string'],
+            'upload_fields'              => ['nullable', 'array'],
+            'upload_fields.*'            => ['string'],
         ];
     }
 }

@@ -56,9 +56,13 @@ class NowCertsService
             'Gender', 'MaritalStatus', 'Relation',
         ],
         NowCertsEntity::Vehicle->value => [
-            'Year', 'Make', 'Model', 'VIN', 'BodyStyle',
-            'GrossWeight', 'CostNew', 'PurchaseDate',
-            'GarageState', 'GarageZip',
+            'year', 'make', 'model', 'vin',
+            'type', 'type_of_use', 'description', 'value',
+            'estimated_annual_distance',
+            'deductible_comprehensive', 'deductible_collision',
+            'insured_database_id', 'insured_email',
+            'insured_first_name', 'insured_last_name', 'insured_commercial_name',
+            'policy_database_id',
         ],
     ];
 
@@ -83,41 +87,26 @@ class NowCertsService
     {
         return [
             // Identification
-            'DatabaseId', 'PropertyUse', 'LocationNumber', 'BuildingNumber',
-            'Description', 'DescriptionOfOperations', 'AnyAreaLeasedToOthers',
-            'AttachToPolicyNumber',
+            'database_id',
+            'property_use',
+            'location_number',
+            'building_number',
+            // Description
+            'description',
+            'description_of_Operations',
             // Address
-            'AddressLine1', 'AddressLine2', 'City', 'County', 'State', 'Zip',
-            // Insured Details
-            'InsuredDatabaseId', 'InsuredEmail',
-            'InsuredFirstName', 'InsuredLastName', 'InsuredCommercialName',
-            // Additional — general
-            'Additional.numberOfFullTimeEmployees', 'Additional.numberOfPartTimeEmployees',
-            'Additional.annualRevenues', 'Additional.occupiedPct', 'Additional.occupiedArea',
-            'Additional.openToPublicArea', 'Additional.totalBuildingArea',
-            'Additional.anyAreaLeasedToOthers', 'Additional.occupancyDesc',
-            // Additional1 — construction & building
-            'Additional1.constructionCd', 'Additional1.yearBuilt', 'Additional1.numStories',
-            'Additional1.roofMaterialCd', 'Additional1.residenceTypeCd', 'Additional1.dwellUseCd',
-            'Additional1.fireProtectionClassCd', 'Additional1.distanceToHydrant',
-            'Additional1.airConditioningCd', 'Additional1.distanceToFireStation',
-            // Additional2 — dwelling details
-            'Additional2.dwellStyleCd', 'Additional2.estimatedReplCostAmt', 'Additional2.numberOfUnits',
-            'Additional2.heatSourcePrimaryCd', 'Additional2.numFamilies',
-            'Additional2.fireplaceInfoNumHearths', 'Additional2.numberOfPools',
-            'Additional2.fireplaceInfoNumChimneys', 'Additional2.garageTypeCd',
-            'Additional2.parkingArea', 'Additional2.garageNumVehs',
-            // Flood Information
-            'FloodInformation.addressLine1', 'FloodInformation.addressLine2',
-            'FloodInformation.city', 'FloodInformation.zipCode', 'FloodInformation.state',
-            'FloodInformation.buildYear', 'FloodInformation.floodArea',
-            'FloodInformation.elevationHeight', 'FloodInformation.houseElevatedAfterPriorFloodLoss',
-            'FloodInformation.dwellingTiv', 'FloodInformation.personalPropertyTiv',
-            'FloodInformation.buildingsLimit', 'FloodInformation.contentsLimit',
-            'FloodInformation.noOfStories', 'FloodInformation.buildingOverWater',
-            'FloodInformation.policyType', 'FloodInformation.personalPropertyCostValueType',
-            'FloodInformation.foundationType', 'FloodInformation.occupancy',
-            'FloodInformation.construction',
+            'address_line_1',
+            'address_line_2',
+            'city',
+            'county',
+            'state',
+            'zip',
+            // Insured / policy linkage
+            'insured_database_id',
+            'insured_email',
+            'insured_first_name',
+            'insured_last_name',
+            'insured_commercial_name',
         ];
     }
 
@@ -501,6 +490,36 @@ class NowCertsService
     }
 
     /**
+     * Insert or update a property via the Zapier endpoint (snake_case fields).
+     * Pass database_id to update an existing property; omit to insert a new one.
+     *
+     * @param  array{
+     *   database_id?:string, property_use?:string, location_number?:string,
+     *   building_number?:string, address_line_1?:string, address_line_2?:string,
+     *   city?:string, county?:string, state?:string, zip?:string,
+     *   description?:string, description_of_Operations?:string,
+     *   insured_database_id?:string, insured_email?:string,
+     *   insured_first_name?:string, insured_last_name?:string,
+     *   insured_commercial_name?:string,
+     * }  $data
+     */
+    public function zapierInsertProperty(array $data): array
+    {
+        // Remove empty/null database_id so NowCerts inserts instead of updating
+        if (isset($data['database_id']) && (
+            empty($data['database_id']) ||
+            $data['database_id'] === '00000000-0000-0000-0000-000000000000'
+        )) {
+            unset($data['database_id']);
+        }
+
+        return $this->send('POST', 'Zapier/InsertProperty', body: array_filter(
+            $data,
+            fn ($v) => $v !== null && $v !== '',
+        ));
+    }
+
+    /**
      * Insert insured + policies in one call.
      */
     public function upsertInsuredWithPolicies(array $data): array
@@ -604,6 +623,15 @@ class NowCertsService
     }
 
     /**
+     * Insert or update a driver via the Zapier endpoint (snake_case fields).
+     * Requires policy_database_id and at least one driver field.
+     */
+    public function zapierInsertDriver(array $data): array
+    {
+        return $this->send('POST', 'Zapier/InsertDriver', body: $data);
+    }
+
+    /**
      * Bulk insert drivers.
      */
     public function bulkInsertDrivers(array $drivers): array
@@ -627,6 +655,15 @@ class NowCertsService
     {
         unset($data['InsuredDatabaseId']);
         return $this->send('POST', 'Vehicle/InsertVehicle', body: $data);
+    }
+
+    /**
+     * Insert or update a vehicle via the Zapier endpoint (snake_case fields).
+     * Requires policy_database_id and at least one vehicle field.
+     */
+    public function zapierInsertVehicle(array $data): array
+    {
+        return $this->send('POST', 'Zapier/InsertVehicle', body: $data);
     }
 
     /**

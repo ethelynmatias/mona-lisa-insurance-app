@@ -74,12 +74,23 @@ class CognitoController extends Controller
         $availableFieldsError = null;
         $lookup               = [];
 
+        $uploadFieldOptions = []; // field names discovered from payloads as file-upload fields
+        $uploadFields       = []; // currently saved upload field selection
+
         try {
             $availableFields = $this->nowcerts->getAvailableFields();
 
-            // Merge fields discovered from real webhook payloads into the schema field list
+            // Split discovered fields into scalar fields and upload fields (__upload suffix)
+            $allDiscovered    = $this->webhookLogs->getDiscoveredFields($formId);
+            $scalarDiscovered = array_values(array_filter($allDiscovered, fn ($k) => ! str_ends_with($k, '__upload')));
+            $uploadFieldOptions = array_values(array_map(
+                fn ($k) => substr($k, 0, -strlen('__upload')),
+                array_filter($allDiscovered, fn ($k) => str_ends_with($k, '__upload')),
+            ));
+
+            // Merge scalar discovered fields into the schema field list
             $schemaNames = array_column($fields, 'InternalName');
-            $this->addDiscoveredFields($fields, $schemaNames, $this->webhookLogs->getDiscoveredFields($formId));
+            $this->addDiscoveredFields($fields, $schemaNames, $scalarDiscovered);
 
             $mapper      = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
             $lookup      = $mapper->getLookup();
@@ -88,6 +99,8 @@ class CognitoController extends Controller
             foreach ($suggestions as $cognitoField => $mapping) {
                 $lookup[$cognitoField] ??= $mapping;
             }
+
+            $uploadFields = $this->mappings->getUploadFieldsForForm($formId);
         } catch (\Throwable $e) {
             $availableFieldsError = $e->getMessage();
         }
@@ -98,6 +111,8 @@ class CognitoController extends Controller
             'mappingLookup'        => $lookup,
             'availableFields'      => $availableFields,
             'availableFieldsError' => $availableFieldsError,
+            'uploadFieldOptions'   => $uploadFieldOptions,
+            'uploadFields'         => $uploadFields,
             'webhooks'             => $this->webhookLogs->latestForForm($formId),
             'error'                => $error,
         ]);
@@ -105,7 +120,10 @@ class CognitoController extends Controller
 
     public function saveMappings(SaveMappingsRequest $request, string $formId): RedirectResponse
     {
-        $this->mappings->upsertMappings($formId, $request->validated()['mappings']);
+        $validated = $request->validated();
+
+        $this->mappings->upsertMappings($formId, $validated['mappings']);
+        $this->mappings->saveUploadFields($formId, $validated['upload_fields'] ?? []);
 
         return back()->with('success', 'Mappings saved successfully.');
     }

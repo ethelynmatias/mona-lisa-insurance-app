@@ -10,7 +10,9 @@ import { copyToClipboard } from '@/utils/clipboard';
 const PER_PAGE_OPTIONS = [20, 50, 100];
 
 export default function FormDetails() {
-    const { form, fields = [], mappingLookup = {}, availableFields = {}, availableFieldsError = null, webhooks = [], error } = usePage().props;
+    const { form, fields = [], mappingLookup = {}, availableFields = {}, availableFieldsError = null,
+            uploadFieldOptions = [], uploadFields: savedUploadFields = [],
+            webhooks = [], error } = usePage().props;
     const flash = usePage().props.flash ?? {};
 
     const formName = form?.Name ?? form?.name ?? 'Form Details';
@@ -32,6 +34,7 @@ export default function FormDetails() {
                 .map(([k, v]) => [k.slice(0, -'__property'.length), v])
         )
     );
+    const [uploadFields, setUploadFields] = useState(savedUploadFields);
     const [saving, setSaving] = useState(false);
 
     const filtered = useMemo(() => {
@@ -113,7 +116,7 @@ export default function FormDetails() {
 
         router.post(
             route('forms.mappings.save', { formId }),
-            { mappings: payload },
+            { mappings: payload, upload_fields: uploadFields },
             {
                 preserveScroll: true,
                 preserveState:  true,
@@ -232,6 +235,15 @@ export default function FormDetails() {
                             webhooks={webhooks}
                             clearRoute={route('webhook.history.clear-form', { formId })}
                         />
+
+                        {/* File Uploads */}
+                        {uploadFieldOptions.length > 0 && (
+                            <UploadFieldsCard
+                                options={uploadFieldOptions}
+                                selected={uploadFields}
+                                onChange={setUploadFields}
+                            />
+                        )}
 
                         {/* Schema */}
                         <div className="bg-white rounded-xl border border-gray-200">
@@ -415,6 +427,52 @@ function WebhookInstructions({ formId }) {
                     <span>Save and submit a test entry — it will appear in <strong>Webhook History</strong> below and sync to NowCerts automatically.</span>
                 </li>
             </ol>
+        </div>
+    );
+}
+
+/**
+ * Card that lets the user pick which discovered Cognito fields contain file uploads.
+ * Selected fields are sent to NowCerts as document attachments during sync.
+ */
+function UploadFieldsCard({ options, selected, onChange }) {
+    function toggle(field) {
+        onChange(prev =>
+            prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]
+        );
+    }
+
+    return (
+        <div className="bg-white rounded-xl border border-gray-200">
+            <div className="px-5 py-4 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-900">File Upload Fields</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                    Select which Cognito fields contain file attachments to send to NowCerts.
+                    {selected.length > 0 && (
+                        <span className="ml-1 text-blue-600 font-medium">{selected.length} selected</span>
+                    )}
+                </p>
+            </div>
+
+            <div className="px-5 py-3 divide-y divide-gray-50">
+                {options.map(field => (
+                    <label
+                        key={field}
+                        className="flex items-center gap-3 py-2.5 cursor-pointer group"
+                    >
+                        <input
+                            type="checkbox"
+                            checked={selected.includes(field)}
+                            onChange={() => toggle(field)}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600
+                                focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                        />
+                        <span className="text-sm text-gray-700 group-hover:text-gray-900 font-mono break-all">
+                            {field}
+                        </span>
+                    </label>
+                ))}
+            </div>
         </div>
     );
 }

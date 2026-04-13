@@ -47,4 +47,28 @@ class FormFieldMappingRepository implements FormFieldMappingRepositoryInterface
             );
         }
     }
+
+    public function getUploadFieldsForForm(string $formId): array
+    {
+        return FormFieldMapping::where('form_id', $formId)
+            ->where('nowcerts_entity', 'Upload')
+            ->pluck('cognito_field')
+            ->all();
+    }
+
+    public function saveUploadFields(string $formId, array $cognitoFields): void
+    {
+        // Remove all existing Upload mappings for this form
+        FormFieldMapping::where('form_id', $formId)
+            ->where('nowcerts_entity', 'Upload')
+            ->delete();
+
+        // Insert the new selection
+        foreach (array_unique(array_filter($cognitoFields)) as $field) {
+            FormFieldMapping::updateOrCreate(
+                ['form_id' => $formId, 'cognito_field' => $field],
+                ['nowcerts_entity' => 'Upload', 'nowcerts_field' => null],
+            );
+        }
+    }
 }
