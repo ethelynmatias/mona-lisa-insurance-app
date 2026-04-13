@@ -240,8 +240,8 @@ class CognitoWebhookController extends Controller
             // Both Zapier/InsertDriver and Zapier/InsertVehicle accept either identifier.
             $policyDatabaseId = $storedIds['policyDatabaseId'] ?? null;
             if ($policyDatabaseId || $insuredDatabaseId) {
-                $this->syncDrivers($policyDatabaseId, $insuredDatabaseId, $entry, $context);
-                $this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $context);
+                $this->syncDrivers($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $context);
+                $this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $context);
             }
 
             // ── Step 4: Property ─────────────────────────────────────────────
@@ -402,22 +402,31 @@ class CognitoWebhookController extends Controller
     }
 
     /**
-     * Sync all occupant operators as drivers via Zapier/InsertDriver.
-     *
-     * Reads NameOfOccupantOperator(.First/.Last), DateOfBirthOccupant,
-     * and DriversLicenseOccupant from the flattened entry, including
-     * numbered variants (suffix 2–20).
+     * Sync drivers via Zapier/InsertDriver.
+     * Dispatches to a form-specific extractor when one exists,
+     * otherwise falls back to the generic occupant-operator pattern.
      */
-    private function syncDrivers(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, array $context): void
+    private function syncDrivers(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, array $context): void
     {
-        foreach ($this->extractOccupantDrivers($entry) as $driver) {
+        $drivers = match ($formId) {
+            '13'    => $this->extractForm13Drivers($entry),
+            default => $this->extractOccupantDrivers($entry),
+        };
+
+        foreach ($drivers as $driver) {
             $data = array_filter([
                 'policy_database_id'  => $policyDatabaseId,
                 'insured_database_id' => $insuredDatabaseId,
-                'first_name'          => $driver['first_name'],
-                'last_name'           => $driver['last_name'],
-                'date_of_birth'       => $this->formatDate($driver['date_of_birth']),
-                'license_number'      => $driver['license_number'],
+                'first_name'          => $driver['first_name']     ?? null,
+                'last_name'           => $driver['last_name']      ?? null,
+                'middle_name'         => $driver['middle_name']    ?? null,
+                'date_of_birth'       => $this->formatDate($driver['date_of_birth'] ?? null),
+                'gender'              => $driver['gender']         ?? null,
+                'marital_status'      => $driver['marital_status'] ?? null,
+                'license_number'      => $driver['license_number'] ?? null,
+                'license_state'       => $driver['license_state']  ?? null,
+                'email'               => $driver['email']          ?? null,
+                'phone'               => $driver['phone']          ?? null,
             ], fn ($v) => $v !== null && $v !== '');
 
             $label = trim(($driver['first_name'] ?? '') . ' ' . ($driver['last_name'] ?? ''));
@@ -432,32 +441,36 @@ class CognitoWebhookController extends Controller
     }
 
     /**
-     * Sync all non-empty Vehicle dynamic fields via Zapier/InsertVehicle.
-     *
-     * Reads Vehicle1, Vehicle2, … sub-objects from the flattened entry.
-     * Skips vehicles where no identifying fields (year/make/model/vin) are present.
+     * Sync vehicles via Zapier/InsertVehicle.
+     * Dispatches to a form-specific extractor when one exists,
+     * otherwise falls back to the generic Vehicle\d+ sub-object pattern.
      */
-    private function syncVehicles(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, array $context): void
+    private function syncVehicles(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, array $context): void
     {
-        foreach ($this->extractVehiclesFromEntry($entry) as $vehicle) {
+        $vehicles = match ($formId) {
+            '13'    => $this->extractForm13Vehicles($entry),
+            default => $this->extractVehiclesFromEntry($entry),
+        };
+
+        foreach ($vehicles as $vehicle) {
             $get = fn (string ...$keys) => collect($keys)
                 ->map(fn ($k) => $vehicle[$k] ?? null)
                 ->first(fn ($v) => $v !== null && $v !== '');
 
-            $year = $get('Year', 'year');
+            $year = $get('year', 'Year');
 
             $data = array_filter([
                 'policy_database_id'        => $policyDatabaseId,
                 'insured_database_id'       => $insuredDatabaseId,
                 'year'                      => $year !== null ? (int) $year : null,
-                'make'                      => $get('Make', 'make'),
-                'model'                     => $get('Model', 'model'),
-                'vin'                       => $get('VIN', 'Vin', 'vin'),
-                'type'                      => $get('Type', 'type', 'VehicleType', 'vehicle_type'),
-                'type_of_use'               => $get('TypeOfUse', 'type_of_use', 'VehicleUse', 'Use'),
-                'description'               => $get('Description', 'description'),
-                'value'                     => $get('Value', 'value', 'CostNew', 'cost_new'),
-                'estimated_annual_distance' => $get('EstimatedAnnualDistance', 'estimated_annual_distance', 'AnnualMileage'),
+                'make'                      => $get('make', 'Make'),
+                'model'                     => $get('model', 'Model'),
+                'vin'                       => $get('vin', 'VIN', 'Vin'),
+                'type'                      => $get('type', 'Type', 'VehicleType', 'vehicle_type'),
+                'type_of_use'               => $get('type_of_use', 'TypeOfUse', 'VehicleUse', 'Use'),
+                'description'               => $get('description', 'Description'),
+                'value'                     => $get('value', 'Value', 'CostNew', 'cost_new'),
+                'estimated_annual_distance' => $get('estimated_annual_distance', 'EstimatedAnnualDistance', 'AnnualMileage'),
             ], fn ($v) => $v !== null && $v !== '');
 
             if (empty($data['year']) && empty($data['make']) && empty($data['model']) && empty($data['vin'])) {
@@ -626,6 +639,102 @@ class CognitoWebhookController extends Controller
         }
 
         return array_values($grouped);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Form 13 — Multi-Car Quote Form extractors
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Extract drivers from Form 13 (Multi-Car Quote Form).
+     *
+     * Driver fields use a numbered suffix pattern:
+     *   Name.First / Name.Last        + DateOfBirth, Gender, LicenseNumber, MaritalStatus
+     *   Name2.First / Name2.Last      + DateOfBirth2, Gender2, LicenseNumber2, MaritalStatus2
+     *   Name3 (plain string)          + DateOfBirth3, Gender3, LicenseNumber3
+     *   … up to suffix 10
+     */
+    private function extractForm13Drivers(array $entry): array
+    {
+        $drivers  = [];
+        $suffixes = array_merge([''], array_map('strval', range(2, 10)));
+
+        foreach ($suffixes as $suffix) {
+            // Name can be an object (flattened to Name[N].First / .Last) or a plain string
+            $firstName = $entry["Name{$suffix}.First"] ?? null;
+            $lastName  = $entry["Name{$suffix}.Last"]  ?? null;
+
+            if (empty($firstName) && empty($lastName)) {
+                // Fall back to plain string: "John Smith"
+                $plain = $entry["Name{$suffix}"] ?? null;
+                if (empty($plain) || ! is_string($plain)) {
+                    continue;
+                }
+                $parts     = explode(' ', trim($plain), 2);
+                $firstName = $parts[0] ?? null;
+                $lastName  = $parts[1] ?? null;
+            }
+
+            if (empty($firstName) && empty($lastName)) {
+                continue;
+            }
+
+            $drivers[] = [
+                'first_name'     => $firstName,
+                'last_name'      => $lastName,
+                'date_of_birth'  => $entry["DateOfBirth{$suffix}"]  ?? null,
+                'gender'         => $entry["Gender{$suffix}"]        ?? null,
+                'license_number' => $entry["LicenseNumber{$suffix}"] ?? null,
+                'marital_status' => $entry["MaritalStatus{$suffix}"] ?? null,
+            ];
+        }
+
+        return $drivers;
+    }
+
+    /**
+     * Extract vehicles from Form 13 (Multi-Car Quote Form).
+     *
+     * Vehicle fields use flat numbered-suffix keys:
+     *   YearOfVehicle / YearOfVehicle2  …
+     *   MakeAndModel  / MakeAndModel2   … (combined "Make Model" string)
+     *   VehicleIDNumberVINForRatingAccuracy / VehicleIDNumberVINForRatingAccuracy2 …
+     *   AnnualMileage / AnnualMileage2  …
+     */
+    private function extractForm13Vehicles(array $entry): array
+    {
+        $vehicles = [];
+        $suffixes = array_merge([''], array_map('strval', range(2, 10)));
+
+        foreach ($suffixes as $suffix) {
+            $year      = $entry["YearOfVehicle{$suffix}"]                          ?? null;
+            $makeModel = $entry["MakeAndModel{$suffix}"]                            ?? null;
+            $vin       = $entry["VehicleIDNumberVINForRatingAccuracy{$suffix}"]     ?? null;
+            $mileage   = $entry["AnnualMileage{$suffix}"]                           ?? null;
+
+            if (empty($year) && empty($makeModel) && empty($vin)) {
+                continue;
+            }
+
+            // MakeAndModel is a combined "Make Model" string — split on first space
+            $make  = null;
+            $model = null;
+            if (! empty($makeModel)) {
+                $parts = explode(' ', trim($makeModel), 2);
+                $make  = $parts[0] ?? null;
+                $model = $parts[1] ?? null;
+            }
+
+            $vehicles[] = array_filter([
+                'year'                      => $year !== null ? (int) $year : null,
+                'make'                      => $make,
+                'model'                     => $model,
+                'vin'                       => $vin,
+                'estimated_annual_distance' => $mileage,
+            ], fn ($v) => $v !== null && $v !== '');
+        }
+
+        return $vehicles;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
