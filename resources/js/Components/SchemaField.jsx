@@ -34,7 +34,7 @@ function MappingSelect({ internalName, current, availableFields, onChange }) {
     );
 }
 
-const CONTACT_ENTITIES  = ['Insured', 'Policy'/*, 'Driver', 'Vehicle'*/];
+const CONTACT_ENTITIES  = ['Insured'/*, 'Policy', 'Driver', 'Vehicle'*/];
 const PROPERTY_ENTITIES = ['Property'];
 
 export default function SchemaField({ field, depth = 0, mappings, propertyMappings = {}, availableFields, onChange, onPropertyChange }) {

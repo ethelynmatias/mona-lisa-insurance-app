@@ -36,12 +36,27 @@ class NowCertsService
      */
     private const KNOWN_FIELDS = [
         NowCertsEntity::Insured->value => [
+            // Identity
             'FirstName', 'LastName', 'MiddleName', 'CommercialName', 'Dba',
-            'Type', 'EMail', 'EMail2', 'EMail3', 'Phone', 'CellPhone',
-            'SmsPhone', 'Fax', 'BusinessPhoneNumber',
-            'AddressLine1', 'AddressLine2', 'City', 'State', 'ZipCode', 'County',
-            'Website', 'FEIN', 'Description', 'Active',
-            'CustomerId', 'InsuredId', 'TagName', 'ReferralSourceCompanyName',
+            'Type', 'InsuredType',
+            // Contact
+            'EMail', 'EMail2', 'EMail3',
+            'Phone', 'CellPhone', 'SmsPhone', 'Fax',
+            // Address
+            'AddressLine1', 'AddressLine2', 'City', 'State', 'ZipCode',
+            // Profile
+            'DateOfBirth', 'Description', 'Active', 'Website', 'FEIN',
+            'GreetingName', 'PreferredLanguage', 'Naic',
+            'TypeOfBusiness', 'SicCode', 'YearBusinessStarted',
+            'ProspectType',
+            // Co-insured
+            'CoInsured_FirstName', 'CoInsured_LastName', 'CoInsured_MiddleName',
+            'CoInsured_DateOfBirth',
+            // Agency / CRM
+            'CustomerId', 'InsuredId',
+            'TagName', 'TagDescription',
+            'ReferralSourceCompanyName',
+            'PrimaryAgencyOfficeLocationName',
         ],
         NowCertsEntity::Policy->value => [
             'Number', 'EffectiveDate', 'ExpirationDate', 'BindDate',
