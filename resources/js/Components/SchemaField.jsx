@@ -1,49 +1,157 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NOWCERTS_ENTITY_COLORS } from '@/constants/nowcerts';
 
 function MappingSelect({ internalName, current, availableFields, onChange }) {
-    const selectValue = current ? `${current.entity}.${current.field}` : '';
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const dropdownRef = useRef(null);
+    const searchInputRef = useRef(null);
 
-    function handleChange(e) {
-        const val = e.target.value;
-        if (!val) {
+    const selectValue = current ? `${current.entity}.${current.field}` : '';
+    const displayValue = current ? `${current.entity}.${current.field}` : '— unmapped —';
+
+    // Flatten all options for searching
+    const allOptions = Object.entries(availableFields).flatMap(([entity, fieldList]) =>
+        fieldList.map(field => ({
+            entity,
+            field,
+            value: `${entity}.${field}`,
+            label: `${entity}.${field}`
+        }))
+    );
+
+    // Filter options based on search term
+    const filteredOptions = searchTerm
+        ? allOptions.filter(option =>
+            option.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            option.entity.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            option.field.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        : allOptions;
+
+    function handleSelect(value) {
+        if (!value) {
             onChange(internalName, null);
         } else {
-            const [entity, ...rest] = val.split('.');
+            const [entity, ...rest] = value.split('.');
             onChange(internalName, { entity, field: rest.join('.') });
+        }
+        setIsOpen(false);
+        setSearchTerm('');
+    }
+
+    function handleKeyDown(e) {
+        if (e.key === 'Escape') {
+            setIsOpen(false);
+            setSearchTerm('');
         }
     }
 
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+                setSearchTerm('');
+            }
+        }
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    // Focus search input when dropdown opens
+    useEffect(() => {
+        if (isOpen && searchInputRef.current) {
+            searchInputRef.current.focus();
+        }
+    }, [isOpen]);
+
     return (
-        <select
-            value={selectValue}
-            onChange={handleChange}
-            className={`w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white
-                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                ${current ? NOWCERTS_ENTITY_COLORS[current.entity] ?? 'text-gray-700' : 'text-gray-400'}`}
-        >
-            <option value="">— unmapped —</option>
-            {Object.entries(availableFields).map(([entity, fieldList]) => (
-                <optgroup key={entity} label={entity}>
-                    {fieldList.map(f => (
-                        <option key={f} value={`${entity}.${f}`}>{f}</option>
-                    ))}
-                </optgroup>
-            ))}
-        </select>
+        <div ref={dropdownRef} className="relative">
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className={`w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-left
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                    ${current ? NOWCERTS_ENTITY_COLORS[current.entity] ?? 'text-gray-700' : 'text-gray-400'}`}
+            >
+                <div className="flex items-center justify-between">
+                    <span className="truncate">{displayValue}</span>
+                    <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </div>
+            </button>
+
+            {isOpen && (
+                <>
+                    {/* Backdrop to prevent interaction with other elements */}
+                    <div 
+                        className="fixed inset-0 z-[9998]"
+                        onClick={() => {
+                            setIsOpen(false);
+                            setSearchTerm('');
+                        }}
+                    />
+                    
+                    {/* Dropdown with very high z-index */}
+                    <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-hidden">
+                        {/* Search input */}
+                        <div className="p-2 border-b border-gray-100">
+                            <input
+                                ref={searchInputRef}
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Search fields..."
+                                className="w-full text-xs px-2 py-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                        </div>
+
+                        {/* Options list */}
+                        <div className="max-h-48 overflow-y-auto">
+                            <button
+                                type="button"
+                                onClick={() => handleSelect('')}
+                                className="w-full text-left px-2.5 py-1.5 text-xs text-gray-400 hover:bg-gray-50 border-b border-gray-50"
+                            >
+                                — unmapped —
+                            </button>
+                            
+                            {filteredOptions.length === 0 ? (
+                                <div className="px-2.5 py-1.5 text-xs text-gray-400">No fields found</div>
+                            ) : (
+                                filteredOptions.map(option => (
+                                    <button
+                                        key={option.value}
+                                        type="button"
+                                        onClick={() => handleSelect(option.value)}
+                                        className={`w-full text-left px-2.5 py-1.5 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-b-0
+                                            ${NOWCERTS_ENTITY_COLORS[option.entity] ?? 'text-gray-700'}`}
+                                    >
+                                        <span className="font-medium">{option.entity}</span>
+                                        <span className="text-gray-500"> • </span>
+                                        <span>{option.field}</span>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
     );
 }
 
-const CONTACT_ENTITIES  = ['Insured'/*, 'Policy', 'Driver', 'Vehicle'*/];
-const PROPERTY_ENTITIES = ['Property'];
 
-export default function SchemaField({ field, depth = 0, mappings, propertyMappings = {}, availableFields, onChange, onPropertyChange }) {
-    const contactAvailableFields  = Object.fromEntries(
-        Object.entries(availableFields).filter(([entity]) => CONTACT_ENTITIES.includes(entity))
-    );
-    const propertyAvailableFields = Object.fromEntries(
-        Object.entries(availableFields).filter(([entity]) => PROPERTY_ENTITIES.includes(entity))
-    );
+export default function SchemaField({ field, depth = 0, mappings, availableFields, onChange }) {
+    // Merge all available fields (contacts + properties)
+    const allAvailableFields = availableFields;
     const name         = field.Name         ?? field.name         ?? '—';
     const internalName = field.InternalName ?? field.internalName ?? name;
     const type         = field.Type         ?? field.type         ?? '—';
@@ -76,7 +184,7 @@ export default function SchemaField({ field, depth = 0, mappings, propertyMappin
                     className="border-b border-gray-100 cursor-pointer select-none hover:bg-gray-50/60 transition-colors"
                     onClick={() => setExpanded(v => !v)}
                 >
-                    <td colSpan={3} className="px-5 py-3">
+                    <td colSpan={2} className="px-5 py-3">
                         <div className="flex items-center gap-2">
                             <svg
                                 className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-150
@@ -96,40 +204,33 @@ export default function SchemaField({ field, depth = 0, mappings, propertyMappin
                 {/* Child rows — label + dropdown only */}
                 {expanded && (
                     <tr>
-                        <td colSpan={3} className="px-5 pb-4 pt-0">
-                            <table className="w-full border border-gray-100 rounded-lg overflow-hidden mt-1">
-                                <tbody>
+                        <td colSpan={2} className="px-5 pb-4 pt-0">
+                            <div className="overflow-visible">
+                                <table className="w-full border border-gray-100 rounded-lg overflow-visible mt-1">
+                                    <tbody>
                                     {children.map((child) => {
-                                        const childName            = child.Name ?? child.name ?? '—';
-                                        const childKey             = child.InternalName ?? child.internalName ?? childName;
-                                        const childCurrent         = mappings[childKey]         ?? null;
-                                        const childPropertyCurrent = propertyMappings[childKey] ?? null;
+                                        const childName    = child.Name ?? child.name ?? '—';
+                                        const childKey     = child.InternalName ?? child.internalName ?? childName;
+                                        const childCurrent = mappings[childKey] ?? null;
                                         return (
                                             <tr key={childKey} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/40">
                                                 <td className="pl-4 pr-3 py-2.5 w-56 max-w-56">
                                                     <span className="text-sm text-gray-700 break-words">{childName}</span>
                                                 </td>
-                                                <td className="pr-3 py-2">
-                                                    <MappingSelect
-                                                        internalName={childKey}
-                                                        current={childCurrent}
-                                                        availableFields={contactAvailableFields}
-                                                        onChange={onChange}
-                                                    />
-                                                </td>
                                                 <td className="pr-4 py-2">
                                                     <MappingSelect
                                                         internalName={childKey}
-                                                        current={childPropertyCurrent}
-                                                        availableFields={propertyAvailableFields}
-                                                        onChange={onPropertyChange}
+                                                        current={childCurrent}
+                                                        availableFields={allAvailableFields}
+                                                        onChange={onChange}
                                                     />
                                                 </td>
                                             </tr>
                                         );
                                     })}
-                                </tbody>
-                            </table>
+                                    </tbody>
+                                </table>
+                            </div>
                         </td>
                     </tr>
                 )}
@@ -160,23 +261,13 @@ export default function SchemaField({ field, depth = 0, mappings, propertyMappin
                     </div>
                 </td>
 
-                {/* Primary contact mapping */}
-                <td className="py-2 pr-3">
-                    <MappingSelect
-                        internalName={internalName}
-                        current={current}
-                        availableFields={contactAvailableFields}
-                        onChange={onChange}
-                    />
-                </td>
-
-                {/* Property mapping */}
+                {/* NowCerts mapping */}
                 <td className="py-2 pr-5">
                     <MappingSelect
                         internalName={internalName}
-                        current={propertyMappings[internalName] ?? null}
-                        availableFields={propertyAvailableFields}
-                        onChange={onPropertyChange}
+                        current={current}
+                        availableFields={allAvailableFields}
+                        onChange={onChange}
                     />
                 </td>
 
@@ -188,10 +279,8 @@ export default function SchemaField({ field, depth = 0, mappings, propertyMappin
                     field={child}
                     depth={depth + 1}
                     mappings={mappings}
-                    propertyMappings={propertyMappings}
                     availableFields={availableFields}
                     onChange={onChange}
-                    onPropertyChange={onPropertyChange}
                 />
             ))}
         </>

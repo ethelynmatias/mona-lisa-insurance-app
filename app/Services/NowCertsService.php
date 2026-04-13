@@ -66,9 +66,22 @@ class NowCertsService
             'InsuredDatabaseId', 'InsuredEmail', 'InsuredFirstName', 'InsuredLastName',
         ],
         NowCertsEntity::Driver->value => [
-            'FirstName', 'LastName', 'MiddleName',
-            'DateOfBirth', 'LicenseNumber', 'LicenseState',
-            'Gender', 'MaritalStatus', 'Relation',
+            // Identity
+            'first_name', 'last_name', 'middle_name',
+            // Personal
+            'date_of_birth', 'gender', 'marital_status',
+            'email', 'phone',
+            // License
+            'license_number', 'license_state', 'license_year',
+            'driver_license_class', 'driver_license_status_code',
+            // Address
+            'address_line_1', 'address_line_2', 'city', 'driver_address_state', 'zip_code',
+            // Status
+            'active', 'excluded',
+            // Linkage
+            'insured_database_id', 'insured_email',
+            'insured_first_name', 'insured_last_name', 'insured_commercial_name',
+            'policy_database_id',
         ],
         NowCertsEntity::Vehicle->value => [
             'year', 'make', 'model', 'vin',
@@ -84,9 +97,8 @@ class NowCertsService
     public function getAvailableFields(): array
     {
         $fields = array_map(fn ($f) => array_values($f), self::KNOWN_FIELDS);
-        $fields[NowCertsEntity::Property->value]        = $this->getPropertyFields();
-
-        $fields[NowCertsEntity::InsuredLocation->value] = $this->getInsuredLocationFields();
+        $fields[NowCertsEntity::Property->value] = $this->getPropertyFields();
+        
         return $fields;
     }
 
@@ -125,34 +137,6 @@ class NowCertsService
         ];
     }
 
-    /**
-     * Fetch InsuredLocation entity fields from the NowCerts API.
-     *
-     * Calls InsuredLocationList to pull a live record and extracts its scalar keys.
-     * Falls back to the documented InsuredLocation fields if the API returns nothing.
-     *
-     * Cached for 24 hours.
-     */
-    public function getInsuredLocationFields(): array
-    {
-        return Cache::remember('nowcerts_insured_location_fields', 86400, function () {
-            try {
-                $response = $this->send('GET', 'InsuredLocationList', query: ['key' => '']);
-                $sample   = $this->firstFromResponse($response);
-
-                if (is_array($sample) && ! empty($sample)) {
-                    return array_keys(array_filter(
-                        $sample,
-                        fn ($v) => ! is_array($v),
-                    ));
-                }
-            } catch (\Throwable) {
-                // return empty — no records exist yet to infer fields from
-            }
-
-            return [];
-        });
-    }
 
     /**
      * Authenticate with NowCerts and return a cached Bearer token.

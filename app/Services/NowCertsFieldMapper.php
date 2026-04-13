@@ -69,8 +69,8 @@ class NowCertsFieldMapper
     }
 
     /**
-     * Map property fields from the entry using __property-suffixed cognito keys.
-     * Covers Property, Additional, and InsuredLocation entity mappings.
+     * Map property fields from the entry using unified mapping approach.
+     * Covers Property entity mappings from the main saved mappings.
      */
     public function mapProperty(array $entry): array
     {
@@ -84,18 +84,13 @@ class NowCertsFieldMapper
                 continue;
             }
 
-            // Strip __property suffix to resolve the actual entry key
-            $entryKey = str_ends_with($cognitoField, '__property')
-                ? substr($cognitoField, 0, -strlen('__property'))
-                : $cognitoField;
-
-            if (! array_key_exists($entryKey, $entry)
-                || $entry[$entryKey] === null
-                || $entry[$entryKey] === '') {
+            if (! array_key_exists($cognitoField, $entry)
+                || $entry[$cognitoField] === null
+                || $entry[$cognitoField] === '') {
                 continue;
             }
 
-            $result[$mapping['field']] = $entry[$entryKey];
+            $result[$mapping['field']] = $entry[$cognitoField];
         }
 
         return $result;

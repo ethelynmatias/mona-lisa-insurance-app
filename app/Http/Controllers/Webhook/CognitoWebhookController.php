@@ -245,8 +245,8 @@ class CognitoWebhookController extends Controller
             // Both Zapier/InsertDriver and Zapier/InsertVehicle accept either identifier.
             $policyDatabaseId = $storedIds['policyDatabaseId'] ?? null;
             if ($policyDatabaseId || $insuredDatabaseId) {
-                $this->syncDrivers($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $context);
-                $this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $context);
+                $this->syncDrivers($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
+                $this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
             }
 
             // ── Step 4: Property ─────────────────────────────────────────────
@@ -465,15 +465,39 @@ class CognitoWebhookController extends Controller
 
     /**
      * Sync drivers via Zapier/InsertDriver.
-     * Dispatches to a form-specific extractor when one exists,
-     * otherwise falls back to the generic occupant-operator pattern.
+     * If the user has configured Driver field mappings in the UI, those are used as the
+     * primary driver record. Auto-extracted numbered variants (Name2, NameOfOccupantOperator2…)
+     * are appended and deduplicated by normalised first+last name.
+     * Form-specific extractors override the generic pattern for the numbered variants.
      */
-    private function syncDrivers(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, array $context): void
+    private function syncDrivers(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, NowCertsFieldMapper $mapper, array $context): void
     {
-        $drivers = match ($formId) {
+        $drivers    = [];
+        $seenNames  = [];
+
+        $addDriver = function (array $driver) use (&$drivers, &$seenNames): void {
+            $key = strtolower(trim(($driver['first_name'] ?? '') . ' ' . ($driver['last_name'] ?? '')));
+            if ($key === '' || isset($seenNames[$key])) {
+                return;
+            }
+            $seenNames[$key] = true;
+            $drivers[] = $driver;
+        };
+
+        // Primary driver from UI-configured mappings (Driver entity)
+        $mapped = $mapper->mapDriver($entry);
+        if (! empty($mapped['first_name']) || ! empty($mapped['last_name'])) {
+            $addDriver($mapped);
+        }
+
+        // Numbered / form-specific drivers (auto-extracted)
+        $extracted = match ($formId) {
             '13'    => $this->extractForm13Drivers($entry),
             default => $this->extractOccupantDrivers($entry),
         };
+        foreach ($extracted as $driver) {
+            $addDriver($driver);
+        }
 
         foreach ($drivers as $driver) {
             $data = array_filter([
@@ -504,15 +528,42 @@ class CognitoWebhookController extends Controller
 
     /**
      * Sync vehicles via Zapier/InsertVehicle.
-     * Dispatches to a form-specific extractor when one exists,
-     * otherwise falls back to the generic Vehicle\d+ sub-object pattern.
+     * If the user has configured Vehicle field mappings in the UI, those are used as the
+     * primary vehicle record. Auto-extracted numbered variants are appended and deduplicated
+     * by VIN (or by normalised year+make+model when VIN is absent).
+     * Form-specific extractors override the generic pattern for the numbered variants.
      */
-    private function syncVehicles(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, array $context): void
+    private function syncVehicles(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, NowCertsFieldMapper $mapper, array $context): void
     {
-        $vehicles = match ($formId) {
+        $vehicles   = [];
+        $seenVins   = [];
+
+        $addVehicle = function (array $vehicle) use (&$vehicles, &$seenVins): void {
+            $vin = strtolower(trim($vehicle['vin'] ?? $vehicle['VIN'] ?? $vehicle['Vin'] ?? ''));
+            $key = $vin !== ''
+                ? $vin
+                : strtolower(trim(($vehicle['year'] ?? '') . ' ' . ($vehicle['make'] ?? '') . ' ' . ($vehicle['model'] ?? '')));
+            if ($key === '' || isset($seenVins[$key])) {
+                return;
+            }
+            $seenVins[$key] = true;
+            $vehicles[] = $vehicle;
+        };
+
+        // Primary vehicle from UI-configured mappings (Vehicle entity)
+        $mapped = $mapper->mapVehicle($entry);
+        if (! empty($mapped['year']) || ! empty($mapped['make']) || ! empty($mapped['vin'])) {
+            $addVehicle($mapped);
+        }
+
+        // Numbered / form-specific vehicles (auto-extracted)
+        $extracted = match ($formId) {
             '13'    => $this->extractForm13Vehicles($entry),
             default => $this->extractVehiclesFromEntry($entry),
         };
+        foreach ($extracted as $vehicle) {
+            $addVehicle($vehicle);
+        }
 
         foreach ($vehicles as $vehicle) {
             $get = fn (string ...$keys) => collect($keys)
