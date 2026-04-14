@@ -80,7 +80,7 @@ function MappingSelect({ internalName, current, availableFields, onChange }) {
             >
                 <div className="flex items-center justify-between">
                     <span className="truncate">{displayValue}</span>
-                    <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+                    <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                          fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
@@ -90,14 +90,14 @@ function MappingSelect({ internalName, current, availableFields, onChange }) {
             {isOpen && (
                 <>
                     {/* Backdrop to prevent interaction with other elements */}
-                    <div 
+                    <div
                         className="fixed inset-0 z-[9998]"
                         onClick={() => {
                             setIsOpen(false);
                             setSearchTerm('');
                         }}
                     />
-                    
+
                     {/* Dropdown with very high z-index */}
                     <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-hidden">
                         {/* Search input */}
@@ -109,30 +109,31 @@ function MappingSelect({ internalName, current, availableFields, onChange }) {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 placeholder="Search fields..."
-                                className="w-full text-xs px-2 py-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="w-full text-xs px-2 py-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
                             />
                         </div>
 
                         {/* Options list */}
-                        <div className="max-h-48 overflow-y-auto">
+                        <div className="max-h-48 overflow-y-auto overflow-x-hidden">
                             <button
                                 type="button"
                                 onClick={() => handleSelect('')}
-                                className="w-full text-left px-2.5 py-1.5 text-xs text-gray-400 hover:bg-gray-50 border-b border-gray-50"
+                                className="w-full text-left px-2.5 py-1.5 text-xs text-gray-400 hover:bg-gray-50 border-b border-gray-50 truncate"
                             >
                                 — unmapped —
                             </button>
-                            
+
                             {filteredOptions.length === 0 ? (
-                                <div className="px-2.5 py-1.5 text-xs text-gray-400">No fields found</div>
+                                <div className="px-2.5 py-1.5 text-xs text-gray-400 truncate">No fields found</div>
                             ) : (
                                 filteredOptions.map(option => (
                                     <button
                                         key={option.value}
                                         type="button"
                                         onClick={() => handleSelect(option.value)}
-                                        className={`w-full text-left px-2.5 py-1.5 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-b-0
+                                        className={`w-full text-left px-2.5 py-1.5 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-b-0 truncate
                                             ${NOWCERTS_ENTITY_COLORS[option.entity] ?? 'text-gray-700'}`}
+                                        title={`${option.entity}.${option.field}`}
                                     >
                                         <span className="font-medium">{option.entity}</span>
                                         <span className="text-gray-500"> • </span>
@@ -149,7 +150,7 @@ function MappingSelect({ internalName, current, availableFields, onChange }) {
 }
 
 
-export default function SchemaField({ field, depth = 0, mappings, availableFields, onChange }) {
+export default function SchemaField({ field, formId, depth = 0, mappings, availableFields, onChange }) {
     // Merge all available fields (contacts + properties)
     const allAvailableFields = availableFields;
     const name         = field.Name         ?? field.name         ?? '—';
@@ -158,6 +159,16 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
     const required     = field.Required     ?? field.required     ?? false;
     const children     = field.Children     ?? field.children     ?? field.Fields ?? field.fields ?? [];
     const isGroup      = type === 'discovered-group';
+
+    // Form 13 specific: Hide Name2 and Entry collapsible groups
+    if (formId === '13' && (name === 'Name2' || name === 'Entry')) {
+        return null;
+    }
+
+    // Hide Form collapsible for all forms
+    if (name === 'Form') {
+        return null;
+    }
 
     const [expanded, setExpanded] = useState(false);
 
@@ -277,6 +288,7 @@ export default function SchemaField({ field, depth = 0, mappings, availableField
                 <SchemaField
                     key={child.InternalName ?? child.internalName ?? i}
                     field={child}
+                    formId={formId}
                     depth={depth + 1}
                     mappings={mappings}
                     availableFields={availableFields}

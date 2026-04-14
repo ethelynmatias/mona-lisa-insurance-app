@@ -20,6 +20,13 @@ class NowCertsFieldMapper
     ) {
         $this->saved = $mappingRepository->getMappingsForForm($formId);
 
+        // Log loaded mappings for verification
+        \Log::info("NowCerts Field Mapper initialized", [
+            'form_id' => $formId,
+            'loaded_mappings_count' => count($this->saved),
+            'loaded_mappings' => $this->saved,
+        ]);
+
         try {
             $this->available = $nowcerts->getAvailableFields();
         } catch (\Throwable) {
@@ -68,6 +75,11 @@ class NowCertsFieldMapper
         return $this->mapEntity(NowCertsEntity::Vehicle, $entry);
     }
 
+    public function mapContact(array $entry): array
+    {
+        return $this->mapEntity(NowCertsEntity::Contact, $entry);
+    }
+
     /**
      * Map property fields from the entry using unified mapping approach.
      * Covers Property entity mappings from the main saved mappings.
@@ -75,6 +87,7 @@ class NowCertsFieldMapper
     public function mapProperty(array $entry): array
     {
         $result           = [];
+        $propertyMappings = [];
         $propertyEntities = [
             NowCertsEntity::Property->value,
         ];
@@ -84,6 +97,8 @@ class NowCertsFieldMapper
                 continue;
             }
 
+            $propertyMappings[$cognitoField] = $mapping;
+
             if (! array_key_exists($cognitoField, $entry)
                 || $entry[$cognitoField] === null
                 || $entry[$cognitoField] === '') {
@@ -91,6 +106,15 @@ class NowCertsFieldMapper
             }
 
             $result[$mapping['field']] = $entry[$cognitoField];
+        }
+
+        // Log property mapping activity for debugging
+        if (!empty($propertyMappings)) {
+            \Log::info("NowCerts Property mapping", [
+                'configured_property_mappings' => $propertyMappings,
+                'mapped_property_data' => $result,
+                'available_entry_keys' => array_keys($entry),
+            ]);
         }
 
         return $result;
@@ -123,11 +147,14 @@ class NowCertsFieldMapper
     private function mapEntity(NowCertsEntity $entity, array $entry): array
     {
         $result = [];
+        $entityMappings = [];
 
         foreach ($this->saved as $cognitoField => $mapping) {
             if ($mapping['entity'] !== $entity->value) {
                 continue;
             }
+
+            $entityMappings[$cognitoField] = $mapping;
 
             if (! array_key_exists($cognitoField, $entry)
                 || $entry[$cognitoField] === null
@@ -136,6 +163,15 @@ class NowCertsFieldMapper
             }
 
             $result[$mapping['field']] = $entry[$cognitoField];
+        }
+
+        // Log mapping activity for debugging
+        if (!empty($entityMappings)) {
+            \Log::info("NowCerts mapping for {$entity->value}", [
+                'configured_mappings' => $entityMappings,
+                'mapped_data' => $result,
+                'available_entry_keys' => array_keys($entry),
+            ]);
         }
 
         return $result;

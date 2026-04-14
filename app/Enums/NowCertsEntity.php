@@ -8,6 +8,7 @@ enum NowCertsEntity: string
     case Policy   = 'Policy';
     case Driver   = 'Driver';
     case Vehicle  = 'Vehicle';
-    case Property         = 'Property';
+    case Property = 'Property';
+    case Contact  = 'Contact';
     case InsuredLocation  = 'InsuredLocation';
 }

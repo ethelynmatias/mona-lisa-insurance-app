@@ -92,6 +92,23 @@ class NowCertsService
             'insured_first_name', 'insured_last_name', 'insured_commercial_name',
             'policy_database_id',
         ],
+        NowCertsEntity::Contact->value => [
+            // Identity
+            'database_id', 'first_name', 'middle_name', 'last_name', 'description', 'type',
+            // Contact Information
+            'personal_email', 'business_email',
+            'home_phone', 'office_phone', 'cell_phone',
+            'personal_fax', 'business_fax',
+            // Personal Details
+            'ssn', 'birthday', 'marital_status', 'gender',
+            // Driver Information
+            'is_driver', 'dl_number', 'dl_state',
+            // Linkage
+            'insured_database_id', 'insured_email',
+            'insured_first_name', 'insured_last_name', 'insured_commercial_name',
+            // Flags
+            'match_record_base_on_name', 'is_primary',
+        ],
     ];
 
     public function getAvailableFields(): array
