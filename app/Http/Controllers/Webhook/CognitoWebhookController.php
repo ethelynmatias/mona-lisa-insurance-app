@@ -232,6 +232,11 @@ class CognitoWebhookController extends Controller
 
             // ── Step 2: Contacts ──────────────────────────────────────────────
             if ($insuredDatabaseId) {
+                // Form 13: sync mapped Contact entity fields via InsertPrincipal
+                if ($formId === '13') {
+                    $this->syncMappedContact($insuredDatabaseId, $entry, $mapper, $context, $isRerun, $storedIds);
+                }
+
                 $this->syncOccupantContact($insuredDatabaseId, $entry, $context, $isRerun, $storedIds);
 
                 // Form 17: also sync the co-applicant as a second contact
@@ -245,8 +250,8 @@ class CognitoWebhookController extends Controller
             // Both Zapier/InsertDriver and Zapier/InsertVehicle accept either identifier.
             $policyDatabaseId = $storedIds['policyDatabaseId'] ?? null;
             if ($policyDatabaseId || $insuredDatabaseId) {
-                $this->syncDrivers($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $context);
-                $this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $context);
+                $this->syncDrivers($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
+                $this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
             }
 
             // ── Step 4: Property ─────────────────────────────────────────────
@@ -407,6 +412,102 @@ class CognitoWebhookController extends Controller
     }
 
     /**
+     * Form 13 — Multi-Car Quote Form.
+     * Syncs Contact entity mapped fields as a principal contact on the insured.
+     * Uses the Contact entity mappings configured in the UI.
+     *
+     * Stored under storedIds['mappedContactId'] to prevent duplicate inserts on rerun.
+     */
+    private function syncMappedContact(string $insuredDatabaseId, array $entry, NowCertsFieldMapper $mapper, array $context, bool $isRerun, array &$storedIds): void
+    {
+        $contactData = $mapper->mapContact($entry);
+
+        if (empty($contactData)) {
+            return; // No Contact entity mappings configured
+        }
+
+        // Convert Contact entity field names to InsertPrincipal API format if needed
+        $principalData = $this->formatContactDataForPrincipal($contactData);
+
+        try {
+            $storedContactId = $storedIds['mappedContactId'] ?? null;
+
+            if ($isRerun && $storedContactId) {
+                $this->nowcerts->updateContact($insuredDatabaseId, $storedContactId, $principalData);
+                Log::info('NowCerts mapped contact updated', array_merge($context, [
+                    'insuredDatabaseId' => $insuredDatabaseId,
+                    'contactId'         => $storedContactId,
+                    'contact_data'      => $principalData,
+                ]));
+            } else {
+                $response  = $this->nowcerts->insertContact($insuredDatabaseId, $principalData);
+                $contactId = $response['data']['database_id']
+                    ?? $response['database_id']
+                    ?? $response['DatabaseId']
+                    ?? $response['id']
+                    ?? $response['Id']
+                    ?? null;
+
+                if ($contactId) {
+                    $storedIds['mappedContactId'] = $contactId;
+                }
+
+                Log::info('NowCerts mapped contact added', array_merge($context, [
+                    'insuredDatabaseId' => $insuredDatabaseId,
+                    'contactId'         => $contactId,
+                    'contact_data'      => $principalData,
+                ]));
+            }
+        } catch (Throwable $e) {
+            Log::warning('NowCerts mapped contact failed — non-blocking', array_merge($context, [
+                'error' => $e->getMessage(),
+                'contact_data' => $principalData,
+            ]));
+        }
+    }
+
+    /**
+     * Format Contact entity data for InsertPrincipal API.
+     * Maps Contact field names to the expected Principal field names.
+     */
+    private function formatContactDataForPrincipal(array $contactData): array
+    {
+        // Map Contact fields to Principal API field names
+        $fieldMap = [
+            'database_id' => 'database_id',
+            'first_name' => 'first_name',
+            'middle_name' => 'middle_name', 
+            'last_name' => 'last_name',
+            'description' => 'description',
+            'type' => 'type',
+            'personal_email' => 'personal_email',
+            'business_email' => 'business_email',
+            'home_phone' => 'home_phone',
+            'office_phone' => 'office_phone',
+            'cell_phone' => 'cell_phone',
+            'personal_fax' => 'personal_fax',
+            'business_fax' => 'business_fax',
+            'ssn' => 'ssn',
+            'birthday' => 'birthday',
+            'marital_status' => 'marital_status',
+            'gender' => 'gender',
+            'is_driver' => 'is_driver',
+            'dl_number' => 'dl_number',
+            'dl_state' => 'dl_state',
+            'match_record_base_on_name' => 'match_record_base_on_name',
+            'is_primary' => 'is_primary',
+        ];
+
+        $result = [];
+        foreach ($contactData as $contactField => $value) {
+            $principalField = $fieldMap[$contactField] ?? $contactField;
+            $result[$principalField] = $value;
+        }
+
+        return array_filter($result, fn ($v) => $v !== null && $v !== '');
+    }
+
+    /**
      * Form 17 — Personal Article Floaters Application.
      * Syncs CoapplicantsName as a second principal contact on the insured.
      *
@@ -465,15 +566,40 @@ class CognitoWebhookController extends Controller
 
     /**
      * Sync drivers via Zapier/InsertDriver.
-     * Dispatches to a form-specific extractor when one exists,
-     * otherwise falls back to the generic occupant-operator pattern.
+     * If the user has configured Driver field mappings in the UI, those are used as the
+     * primary driver record. Auto-extracted numbered variants (Name2, NameOfOccupantOperator2…)
+     * are appended and deduplicated by normalised first+last name.
+     * Form-specific extractors override the generic pattern for the numbered variants.
      */
-    private function syncDrivers(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, array $context): void
+    private function syncDrivers(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, NowCertsFieldMapper $mapper, array $context): void
     {
-        $drivers = match ($formId) {
+        $drivers    = [];
+        $seenNames  = [];
+
+        $addDriver = function (array $driver) use (&$drivers, &$seenNames): void {
+            $key = strtolower(trim(($driver['first_name'] ?? '') . ' ' . ($driver['last_name'] ?? '')));
+            if ($key === '' || isset($seenNames[$key])) {
+                return;
+            }
+            $seenNames[$key] = true;
+            $drivers[] = $driver;
+        };
+
+        // Primary driver from UI-configured mappings (Driver entity)
+        $mapped = $mapper->mapDriver($entry);
+        if (! empty($mapped['first_name']) || ! empty($mapped['last_name'])) {
+            Log::info('NowCerts driver from UI mappings', array_merge($context, ['mapped_driver_data' => $mapped]));
+            $addDriver($mapped);
+        }
+
+        // Numbered / form-specific drivers (auto-extracted)
+        $extracted = match ($formId) {
             '13'    => $this->extractForm13Drivers($entry),
             default => $this->extractOccupantDrivers($entry),
         };
+        foreach ($extracted as $driver) {
+            $addDriver($driver);
+        }
 
         foreach ($drivers as $driver) {
             $data = array_filter([
@@ -504,15 +630,42 @@ class CognitoWebhookController extends Controller
 
     /**
      * Sync vehicles via Zapier/InsertVehicle.
-     * Dispatches to a form-specific extractor when one exists,
-     * otherwise falls back to the generic Vehicle\d+ sub-object pattern.
+     * If the user has configured Vehicle field mappings in the UI, those are used as the
+     * primary vehicle record. Auto-extracted numbered variants are appended and deduplicated
+     * by VIN (or by normalised year+make+model when VIN is absent).
+     * Form-specific extractors override the generic pattern for the numbered variants.
      */
-    private function syncVehicles(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, array $context): void
+    private function syncVehicles(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, NowCertsFieldMapper $mapper, array $context): void
     {
-        $vehicles = match ($formId) {
+        $vehicles   = [];
+        $seenVins   = [];
+
+        $addVehicle = function (array $vehicle) use (&$vehicles, &$seenVins): void {
+            $vin = strtolower(trim($vehicle['vin'] ?? $vehicle['VIN'] ?? $vehicle['Vin'] ?? ''));
+            $key = $vin !== ''
+                ? $vin
+                : strtolower(trim(($vehicle['year'] ?? '') . ' ' . ($vehicle['make'] ?? '') . ' ' . ($vehicle['model'] ?? '')));
+            if ($key === '' || isset($seenVins[$key])) {
+                return;
+            }
+            $seenVins[$key] = true;
+            $vehicles[] = $vehicle;
+        };
+
+        // Primary vehicle from UI-configured mappings (Vehicle entity)
+        $mapped = $mapper->mapVehicle($entry);
+        if (! empty($mapped['year']) || ! empty($mapped['make']) || ! empty($mapped['vin'])) {
+            $addVehicle($mapped);
+        }
+
+        // Numbered / form-specific vehicles (auto-extracted)
+        $extracted = match ($formId) {
             '13'    => $this->extractForm13Vehicles($entry),
             default => $this->extractVehiclesFromEntry($entry),
         };
+        foreach ($extracted as $vehicle) {
+            $addVehicle($vehicle);
+        }
 
         foreach ($vehicles as $vehicle) {
             $get = fn (string ...$keys) => collect($keys)
@@ -719,7 +872,7 @@ class CognitoWebhookController extends Controller
     private function extractForm13Drivers(array $entry): array
     {
         $drivers  = [];
-        $suffixes = array_merge([''], array_map('strval', range(2, 10)));
+        $suffixes = array_map('strval', range(2, 10)); // Start from Name2, not Name
 
         foreach ($suffixes as $suffix) {
             // Name can be an object (flattened to Name[N].First / .Last) or a plain string

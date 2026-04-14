@@ -21,17 +21,10 @@ export default function FormDetails() {
     const [search, setSearch]     = useState('');
     const [currentPage, setPage]  = useState(1);
     const [perPage, setPerPage]   = useState(PER_PAGE_OPTIONS[0]);
-    // Split mappingLookup into primary (plain keys) and property (__property suffix)
+    // Use unified mapping state (all entities in one dropdown)
     const [mappings, setMappings] = useState(() =>
         Object.fromEntries(
             Object.entries(mappingLookup).filter(([k]) => !k.endsWith('__property'))
-        )
-    );
-    const [propertyMappings, setPropertyMappings] = useState(() =>
-        Object.fromEntries(
-            Object.entries(mappingLookup)
-                .filter(([k]) => k.endsWith('__property'))
-                .map(([k, v]) => [k.slice(0, -'__property'.length), v])
         )
     );
     const [uploadFields, setUploadFields] = useState(savedUploadFields);
@@ -81,37 +74,22 @@ export default function FormDetails() {
         setMappings(prev => ({ ...prev, [cognitoField]: mapping }));
     }
 
-    function handlePropertyMappingChange(cognitoField, mapping) {
-        setPropertyMappings(prev => ({ ...prev, [cognitoField]: mapping }));
-    }
-
     function handleSave() {
         setSaving(true);
 
         // Collect all fields (including nested) with their current mappings.
-        // Property mappings are stored with a '__property' suffix on the cognito key.
         const allFields = flattenFields(fields);
         const payload   = [];
 
         allFields.forEach(f => {
-            const key             = f.InternalName ?? f.internalName ?? f.Name ?? f.name;
-            const primaryMapping  = mappings[key]         ?? null;
-            const propertyMapping = propertyMappings[key] ?? null;
+            const key = f.InternalName ?? f.internalName ?? f.Name ?? f.name;
+            const mapping = mappings[key] ?? null;
 
             payload.push({
                 cognito_field:   key,
-                nowcerts_entity: primaryMapping?.entity ?? null,
-                nowcerts_field:  primaryMapping?.field  ?? null,
+                nowcerts_entity: mapping?.entity ?? null,
+                nowcerts_field:  mapping?.field  ?? null,
             });
-
-            // Only include property entry if a mapping is set
-            if (propertyMapping) {
-                payload.push({
-                    cognito_field:   key + '__property',
-                    nowcerts_entity: propertyMapping.entity ?? null,
-                    nowcerts_field:  propertyMapping.field  ?? null,
-                });
-            }
         });
 
         router.post(
@@ -236,6 +214,62 @@ export default function FormDetails() {
                             clearRoute={route('webhook.history.clear-form', { formId })}
                         />
 
+                        {/* Auto-Fill Information Note */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                            <div className="flex items-start gap-3">
+                                <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <div>
+                                    <p className="text-sm font-medium text-blue-900">Auto-Fill Information</p>
+                                    <p className="text-sm text-blue-700 mt-1">
+                                        Vehicle information and driver details will be automatically filled on the backend based on form data patterns.
+                                        You only need to map specific fields if you want to override the auto-detection. If there are missing fields,
+                                        you can find them on <b>NowCerts Notes</b>.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Save Mappings Section */}
+                        <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-900">Field Mappings</h3>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        Configure how form fields map to NowCerts entities
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={handleSave}
+                                    disabled={saving || !!availableFieldsError || Object.keys(availableFields).length === 0}
+                                    className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white
+                                        text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60
+                                        disabled:cursor-not-allowed transition-colors"
+                                >
+                                    {saving ? (
+                                        <>
+                                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor"
+                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                            Saving…
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                            </svg>
+                                            Save Mappings
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
                         {/* File Uploads */}
                         {uploadFieldOptions.length > 0 && (
                             <UploadFieldsCard
@@ -277,32 +311,6 @@ export default function FormDetails() {
                                             placeholder="Search fields…"
                                         />
                                     </div>
-                                    <button
-                                        onClick={handleSave}
-                                        disabled={saving || !!availableFieldsError || Object.keys(availableFields).length === 0}
-                                        className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white
-                                            text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60
-                                            disabled:cursor-not-allowed transition-colors"
-                                    >
-                                        {saving ? (
-                                            <>
-                                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                    <path className="opacity-75" fill="currentColor"
-                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                </svg>
-                                                Saving…
-                                            </>
-                                        ) : (
-                                            <>
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                                                </svg>
-                                                Save Mappings
-                                            </>
-                                        )}
-                                    </button>
                                 </div>
                             </div>
 
@@ -318,11 +326,9 @@ export default function FormDetails() {
                                                     Field Name
                                                 </th>
                                                 <th className="py-3 pr-3 text-xs font-semibold text-gray-500 uppercase tracking-wide w-72">
-                                                    Set NowCerts Primary Contact
+                                                    Set NowCerts Fields
                                                 </th>
-                                                <th className="py-3 pr-5 text-xs font-semibold text-gray-500 uppercase tracking-wide w-72">
-                                                    NowCerts Set Property
-                                                </th>
+
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -330,11 +336,10 @@ export default function FormDetails() {
                                                 <SchemaField
                                                     key={i}
                                                     field={field}
+                                                    formId={formId}
                                                     mappings={mappings}
-                                                    propertyMappings={propertyMappings}
                                                     availableFields={availableFields}
                                                     onChange={handleMappingChange}
-                                                    onPropertyChange={handlePropertyMappingChange}
                                                 />
                                             ))}
                                         </tbody>
