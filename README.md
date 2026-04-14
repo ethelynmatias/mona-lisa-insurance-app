@@ -1,6 +1,6 @@
 # Mona Lisa Insurance
 
-A web application built with **Laravel 13**, **Inertia.js**, **React**, and **Tailwind CSS**, backed by **MySQL** and containerised with **Docker**.
+A web application built with **Laravel 11**, **Inertia.js**, **React**, and **Tailwind CSS**, backed by **MySQL** and containerised with **Docker**.
 
 ---
 
@@ -8,7 +8,7 @@ A web application built with **Laravel 13**, **Inertia.js**, **React**, and **Ta
 
 | Layer      | Technology               |
 |------------|--------------------------|
-| Backend    | Laravel 13 (PHP 8.4)     |
+| Backend    | Laravel 11 (PHP 8.3)     |
 | Frontend   | React 19 + Inertia.js v3 |
 | Styling    | Tailwind CSS v4          |
 | Build tool | Vite                     |
@@ -32,8 +32,8 @@ A web application built with **Laravel 13**, **Inertia.js**, **React**, and **Ta
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/ethelynmatias/mona-lisa-insurance.git
-cd mona-lisa-insurance
+git clone https://github.com/ethelynmatias/mona-lisa-insurance-app.git
+cd mona-lisa-insurance-app
 ```
 
 ### 2. Configure environment variables
@@ -357,10 +357,12 @@ mona-lisa-insurance/
 │   │   │   └── WebhookLogRepositoryInterface.php
 │   │   ├── FormFieldMappingRepository.php
 │   │   └── WebhookLogRepository.php
+│   ├── Enums/
+│   │   └── NowCertsEntity.php          # NowCerts entity enum (Insured, Policy, Driver, Vehicle, Property, Contact)
 │   └── Services/
 │       ├── CognitoFormsService.php     # Cognito Forms REST API client
-│       ├── NowCertsService.php         # NowCerts REST API client + file upload
-│       └── NowCertsFieldMapper.php     # DB-driven field mapper with flatten/extract helpers
+│       ├── NowCertsService.php         # NowCerts REST API client + file upload + Contact entity support
+│       └── NowCertsFieldMapper.php     # DB-driven field mapper with Contact mapping + flatten/extract helpers
 ├── bootstrap/
 │   └── providers.php                   # Registers ZiggyServiceProvider
 ├── config/
@@ -379,7 +381,7 @@ mona-lisa-insurance/
 │   │   │   └── AuthenticatedLayout.jsx # Sidebar + header layout
 │   │   ├── Components/
 │   │   │   ├── Pagination.jsx          # Reusable pagination component
-│   │   │   ├── SchemaField.jsx         # Schema field row with dual NowCerts dropdowns
+│   │   │   ├── SchemaField.jsx         # Schema field row with unified searchable NowCerts dropdown
 │   │   │   ├── SearchInput.jsx         # Reusable search input with icon
 │   │   │   ├── SortableHeader.jsx      # Sortable table header with direction arrows
 │   │   │   ├── StatusBadge.jsx         # Active/Inactive status badge
@@ -494,16 +496,13 @@ $nowcerts->getPropertyAdditionalFields();
 
 #### Field Mapping UI
 
-On the **Form Details** page each discovered Cognito field has two dropdowns:
+On the **Form Details** page each discovered Cognito field has a unified searchable dropdown:
 
-| Column                       | Entities available                        |
-|------------------------------|-------------------------------------------|
-| Set NowCerts Primary Contact | Insured, Policy                           |
-| NowCerts Set Property        | Property, Additional, InsuredLocation     |
+| Column                    | Entities available                                    |
+|---------------------------|-------------------------------------------------------|
+| Set NowCerts Fields       | Insured, Policy, Driver, Vehicle, Property, Contact  |
 
-A field can be mapped to both columns simultaneously (e.g. an address field can map to `Insured.AddressLine1` AND `Property.AddressLine1`).
-
-Property mappings are stored with a `__property` suffix on the `cognito_field` key to differentiate them from primary contact mappings in the same `form_field_mappings` table.
+The dropdown includes search functionality to quickly find specific fields across all NowCerts entities. Vehicle and driver information is automatically extracted on the backend, so manual mapping is only needed to override auto-detection.
 
 Mappings are stored in the `form_field_mappings` table (`form_id`, `cognito_field`, `nowcerts_entity`, `nowcerts_field`).
 
@@ -576,6 +575,8 @@ Supported `event` values:
    - Flattens Cognito payload to dot-notation keys
    - **Insured** synced first — `findExistingInsured()` looks up by email then name; passes `DatabaseId` in body to update if found
    - **Policy** synced — looks up by `Number` to inject `policyDatabaseId` for update
+   - **Contact** synced for Form 13 — mapped Contact entity fields sent to InsertPrincipal API
+   - **Drivers** & **Vehicles** — auto-extracted from numbered fields (Name2+, Vehicle2+) plus UI-mapped Driver/Vehicle entity fields
    - **Property** synced after Insured — `InsuredDatabaseId` injected from Insured response
    - **File uploads** — Cognito file attachments uploaded to `Insured/UploadInsuredFile` (visible in NowCerts Files tab); Cognito file IDs tracked in `uploaded_file_ids` to prevent re-uploading unchanged files on updates
    - Each entity is attempted independently — one failure does not block others
