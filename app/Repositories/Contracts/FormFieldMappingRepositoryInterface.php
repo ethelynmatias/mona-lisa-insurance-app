@@ -34,4 +34,5 @@ interface FormFieldMappingRepositoryInterface
      * Replace all upload-field mappings for this form with the given set of Cognito field names.
      */
     public function saveUploadFields(string $formId, array $cognitoFields): void;
+
 }

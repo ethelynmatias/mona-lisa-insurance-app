@@ -94,7 +94,10 @@ export default function FormDetails() {
 
         router.post(
             route('forms.mappings.save', { formId }),
-            { mappings: payload, upload_fields: uploadFields },
+            { 
+                mappings: payload, 
+                upload_fields: uploadFields
+            },
             {
                 preserveScroll: true,
                 preserveState:  true,
