@@ -11,4 +11,5 @@ enum NowCertsEntity: string
     case Property = 'Property';
     case Contact  = 'Contact';
     case InsuredLocation  = 'InsuredLocation';
+    case GeneralLiabilityNotice = 'GeneralLiabilityNotice';
 }

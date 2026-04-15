@@ -232,17 +232,7 @@ class CognitoWebhookController extends Controller
 
             // ── Step 2: Contacts ──────────────────────────────────────────────
             if ($insuredDatabaseId) {
-                // Form 13: sync mapped Contact entity fields via InsertPrincipal
-                if ($formId === '13') {
-                    $this->syncMappedContact($insuredDatabaseId, $entry, $mapper, $context, $isRerun, $storedIds);
-                }
-
-                $this->syncOccupantContact($insuredDatabaseId, $entry, $context, $isRerun, $storedIds);
-
-                // Form 17: also sync the co-applicant as a second contact
-                if ($formId === '17') {
-                    $this->syncForm17CoApplicant($insuredDatabaseId, $entry, $context, $isRerun, $storedIds);
-                }
+                $this->syncContacts($entry, $mapper, $insuredDatabaseId, $context, $formId, $isRerun, $storedIds);
             }
 
             // ── Step 3: Drivers & Vehicles (dynamic payload fields) ───────────
@@ -254,40 +244,22 @@ class CognitoWebhookController extends Controller
                 $this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
             }
 
-            // ── Step 4: Property ─────────────────────────────────────────────
-            $propertyData = $this->buildPropertyData(
-                $mapper,
-                $entry,
-                $insuredDatabaseId,
-                $isRerun ? ($storedIds['propertyDatabaseId'] ?? null) : null,
-            );
-            if (! empty($propertyData)) {
-                $entityLabel = NowCertsEntity::Property->value;
-                Log::info("NowCerts mapped {$entityLabel}", array_merge($context, ['data' => $propertyData]));
-                try {
-                    $response = $this->nowcerts->zapierInsertProperty($propertyData);
-                    Log::info("NowCerts {$entityLabel} pushed", array_merge($context, ['response' => $response]));
-                    $syncedEntities[]             = $entityLabel;
-                    $allSyncedData[$entityLabel]  = $propertyData;
-                    if (! $isRerun) {
-                        $storedIds['propertyDatabaseId'] = $response['databaseId']
-                            ?? $response['database_id']
-                            ?? $response['DatabaseId']
-                            ?? $response['id']
-                            ?? null;
-                    }
-                } catch (Throwable $e) {
-                    Log::error("NowCerts {$entityLabel} failed", array_merge($context, ['error' => $e->getMessage()]));
-                    $errors[] = "{$entityLabel}: " . $e->getMessage();
-                }
+            // ── Step 4: Properties ────────────────────────────────────────────
+            if ($insuredDatabaseId) {
+                $this->syncProperties($entry, $mapper, $insuredDatabaseId, $context, $isRerun, $storedIds, $syncedEntities, $allSyncedData, $errors);
             }
 
-            // ── Step 5: Note (first sync only) ────────────────────────────────
+            // ── Step 5: General Liability Notices ─────────────────────────────
+            if ($insuredDatabaseId) {
+                $this->syncGeneralLiabilityNotices($entry, $mapper, $insuredDatabaseId, $context);
+            }
+
+            // ── Step 6: Note (first sync only) ────────────────────────────────
             if (! $isRerun && $insuredDatabaseId && ! empty($allSyncedData)) {
                 $this->insertSyncNote($insuredDatabaseId, $log, $formId, $entry, $allSyncedData, $context);
             }
 
-            // ── Step 6: File uploads ──────────────────────────────────────────
+            // ── Step 7: File uploads ──────────────────────────────────────────
             if ($insuredDatabaseId && ! empty($fileUploads)) {
                 $uploadedIds = $this->webhookLogs->getUploadedFileIds($formId, $log->entry_id ?? '');
                 $this->syncFileUploads($insuredDatabaseId, $fileUploads, $context, $log, $uploadedIds);
@@ -353,11 +325,152 @@ class CognitoWebhookController extends Controller
     }
 
     /**
+     * Sync contacts via InsertContact/UpdateContact.
+     * Uses dynamic mapping to extract multiple contacts from field mappings,
+     * then appends form-specific auto-extracted contacts for backward compatibility.
+     * Contacts are deduplicated by normalized first+last name combination.
+     */
+    private function syncContacts(array $entry, NowCertsFieldMapper $mapper, string $insuredDatabaseId, array $context, string $formId, bool $isRerun, array &$storedIds): void
+    {
+        $contacts = [];
+        $seenContacts = [];
+
+        $addContact = function (array $contact, string $source) use (&$contacts, &$seenContacts): void {
+            $key = strtolower(trim(($contact['first_name'] ?? '') . ' ' . ($contact['last_name'] ?? '')));
+            if ($key === '' || isset($seenContacts[$key])) {
+                return;
+            }
+            $seenContacts[$key] = true;
+            $contact['_source'] = $source; // Track source for logging
+            $contacts[] = $contact;
+        };
+
+        // Multiple contacts from UI-configured mappings (Contact entity) - NEW DYNAMIC APPROACH
+        $mappedContacts = $mapper->mapContacts($entry);
+        foreach ($mappedContacts as $mapped) {
+            if (!empty($mapped['first_name']) || !empty($mapped['last_name'])) {
+                Log::info('NowCerts contact from UI mappings', array_merge($context, ['mapped_contact_data' => $mapped]));
+                $addContact($mapped, 'UI Mappings');
+            }
+        }
+
+        // Fallback to legacy contact mappings for backward compatibility
+        if (empty($mappedContacts)) {
+            // Form 13: sync mapped Contact entity fields via InsertPrincipal
+            if ($formId === '13') {
+                $legacyMapped = $mapper->mapContact($entry);
+                if (!empty($legacyMapped)) {
+                    Log::info('NowCerts contact from legacy Form 13 mapping', array_merge($context, ['legacy_contact_data' => $legacyMapped]));
+                    $addContact($legacyMapped, 'Legacy Form 13');
+                }
+            }
+        }
+
+        // Form-specific auto-extracted contacts for backward compatibility
+        $this->addAutoExtractedContacts($entry, $formId, $addContact, $context);
+
+        // Sync each contact
+        foreach ($contacts as $index => $contact) {
+            $source = $contact['_source'] ?? 'Unknown';
+            unset($contact['_source']);
+
+            // Convert Contact entity field names to InsertPrincipal API format if needed
+            $principalData = $this->formatContactDataForPrincipal($contact);
+            $principalData['policy_database_id'] = $storedIds['policyDatabaseId'] ?? null;
+
+            $label = trim(($contact['first_name'] ?? '') . ' ' . ($contact['last_name'] ?? ''));
+            $label = $label ?: 'Contact #' . ($index + 1);
+
+            try {
+                $storedContactKey = "contactId_{$index}";
+                $storedContactId = $storedIds[$storedContactKey] ?? null;
+
+                if ($isRerun && $storedContactId) {
+                    $this->nowcerts->updateContact($insuredDatabaseId, $storedContactId, $principalData);
+                    Log::info('NowCerts contact updated', array_merge($context, [
+                        'insuredDatabaseId' => $insuredDatabaseId,
+                        'contactId' => $storedContactId,
+                        'contact_name' => $label,
+                        'source' => $source
+                    ]));
+                } else {
+                    $response = $this->nowcerts->insertContact($insuredDatabaseId, $principalData);
+                    $contactId = $response['data']['database_id']
+                        ?? $response['database_id']
+                        ?? $response['DatabaseId']
+                        ?? $response['id']
+                        ?? $response['Id']
+                        ?? null;
+
+                    if ($contactId) {
+                        $storedIds[$storedContactKey] = $contactId;
+                    }
+
+                    Log::info('NowCerts contact added', array_merge($context, [
+                        'insuredDatabaseId' => $insuredDatabaseId,
+                        'contactId' => $contactId,
+                        'contact_name' => $label,
+                        'source' => $source
+                    ]));
+                }
+            } catch (Throwable $e) {
+                Log::warning('NowCerts contact sync failed — non-blocking', array_merge($context, [
+                    'contact_name' => $label,
+                    'source' => $source,
+                    'contact_data' => $principalData,
+                    'error' => $e->getMessage()
+                ]));
+            }
+        }
+    }
+
+    /**
+     * Add auto-extracted contacts for form-specific backward compatibility.
+     */
+    private function addAutoExtractedContacts(array $entry, string $formId, callable $addContact, array $context): void
+    {
+        // Legacy occupant contact extraction
+        $firstName = $entry['NameOfOccupant.First'] ?? null;
+        $lastName  = $entry['NameOfOccupant.Last']  ?? null;
+
+        if (!empty($firstName) || !empty($lastName)) {
+            $occupantContact = array_filter([
+                'first_name' => $firstName,
+                'last_name'  => $lastName,
+                'birthday'   => $this->formatDate($entry['DateOfBirthOccupant'] ?? null),
+            ], fn ($v) => $v !== null && $v !== '');
+
+            if (!empty($occupantContact)) {
+                $addContact($occupantContact, 'Auto-extracted Occupant');
+            }
+        }
+
+        // Form 17: co-applicant extraction
+        if ($formId === '17') {
+            $coFirstName = $entry['CoapplicantsName.First'] ?? null;
+            $coLastName  = $entry['CoapplicantsName.Last']  ?? null;
+
+            if (!empty($coFirstName) || !empty($coLastName)) {
+                $coApplicantContact = array_filter([
+                    'first_name' => $coFirstName,
+                    'last_name'  => $coLastName,
+                ], fn ($v) => $v !== null && $v !== '');
+
+                if (!empty($coApplicantContact)) {
+                    $addContact($coApplicantContact, 'Auto-extracted Co-applicant');
+                }
+            }
+        }
+    }
+
+    /**
      * Insert or update the occupant contact on the primary insured record.
      *
      * Reads NameOfOccupant.First / .Last from the flattened entry.
      * On first sync → inserts and stores the returned contactId.
      * On rerun with stored contactId → updates instead of inserting.
+     * 
+     * @deprecated Use syncContacts() for dynamic multi-contact support
      */
     private function syncOccupantContact(string $insuredDatabaseId, array $entry, array $context, bool $isRerun, array &$storedIds): void
     {
@@ -417,6 +530,8 @@ class CognitoWebhookController extends Controller
      * Uses the Contact entity mappings configured in the UI.
      *
      * Stored under storedIds['mappedContactId'] to prevent duplicate inserts on rerun.
+     * 
+     * @deprecated Use syncContacts() for dynamic multi-contact support
      */
     private function syncMappedContact(string $insuredDatabaseId, array $entry, NowCertsFieldMapper $mapper, array $context, bool $isRerun, array &$storedIds): void
     {
@@ -512,6 +627,8 @@ class CognitoWebhookController extends Controller
      * Syncs CoapplicantsName as a second principal contact on the insured.
      *
      * Stored under storedIds['coApplicantContactId'] to prevent duplicate inserts on rerun.
+     * 
+     * @deprecated Use syncContacts() for dynamic multi-contact support
      */
     private function syncForm17CoApplicant(string $insuredDatabaseId, array $entry, array $context, bool $isRerun, array &$storedIds): void
     {
@@ -566,10 +683,9 @@ class CognitoWebhookController extends Controller
 
     /**
      * Sync drivers via Zapier/InsertDriver.
-     * If the user has configured Driver field mappings in the UI, those are used as the
-     * primary driver record. Auto-extracted numbered variants (Name2, NameOfOccupantOperator2…)
-     * are appended and deduplicated by normalised first+last name.
-     * Form-specific extractors override the generic pattern for the numbered variants.
+     * Uses dynamic mapping to extract multiple drivers from field mappings,
+     * then appends auto-extracted numbered variants for backward compatibility.
+     * Drivers are deduplicated by normalized first+last name combination.
      */
     private function syncDrivers(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, NowCertsFieldMapper $mapper, array $context): void
     {
@@ -585,14 +701,25 @@ class CognitoWebhookController extends Controller
             $drivers[] = $driver;
         };
 
-        // Primary driver from UI-configured mappings (Driver entity)
-        $mapped = $mapper->mapDriver($entry);
-        if (! empty($mapped['first_name']) || ! empty($mapped['last_name'])) {
-            Log::info('NowCerts driver from UI mappings', array_merge($context, ['mapped_driver_data' => $mapped]));
-            $addDriver($mapped);
+        // Multiple drivers from UI-configured mappings (Driver entity) - NEW DYNAMIC APPROACH
+        $mappedDrivers = $mapper->mapDrivers($entry);
+        foreach ($mappedDrivers as $mapped) {
+            if (!empty($mapped['first_name']) || !empty($mapped['last_name'])) {
+                Log::info('NowCerts driver from UI mappings', array_merge($context, ['mapped_driver_data' => $mapped]));
+                $addDriver($mapped);
+            }
         }
 
-        // Numbered / form-specific drivers (auto-extracted)
+        // Fallback to legacy single driver mapping for backward compatibility
+        if (empty($mappedDrivers)) {
+            $legacyMapped = $mapper->mapDriver($entry);
+            if (!empty($legacyMapped['first_name']) || !empty($legacyMapped['last_name'])) {
+                Log::info('NowCerts driver from legacy mapping', array_merge($context, ['legacy_driver_data' => $legacyMapped]));
+                $addDriver($legacyMapped);
+            }
+        }
+
+        // Numbered / form-specific drivers (auto-extracted for backward compatibility)
         $extracted = match ($formId) {
             '13'    => $this->extractForm13Drivers($entry),
             default => $this->extractOccupantDrivers($entry),
@@ -630,10 +757,9 @@ class CognitoWebhookController extends Controller
 
     /**
      * Sync vehicles via Zapier/InsertVehicle.
-     * If the user has configured Vehicle field mappings in the UI, those are used as the
-     * primary vehicle record. Auto-extracted numbered variants are appended and deduplicated
-     * by VIN (or by normalised year+make+model when VIN is absent).
-     * Form-specific extractors override the generic pattern for the numbered variants.
+     * Uses dynamic mapping to extract multiple vehicles from field mappings,
+     * then appends auto-extracted numbered variants for backward compatibility.
+     * Vehicles are deduplicated by VIN or year+make+model combination.
      */
     private function syncVehicles(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, NowCertsFieldMapper $mapper, array $context): void
     {
@@ -652,13 +778,25 @@ class CognitoWebhookController extends Controller
             $vehicles[] = $vehicle;
         };
 
-        // Primary vehicle from UI-configured mappings (Vehicle entity)
-        $mapped = $mapper->mapVehicle($entry);
-        if (! empty($mapped['year']) || ! empty($mapped['make']) || ! empty($mapped['vin'])) {
-            $addVehicle($mapped);
+        // Multiple vehicles from UI-configured mappings (Vehicle entity) - NEW DYNAMIC APPROACH
+        $mappedVehicles = $mapper->mapVehicles($entry);
+        foreach ($mappedVehicles as $mapped) {
+            if (!empty($mapped['year']) || !empty($mapped['make']) || !empty($mapped['vin'])) {
+                Log::info('NowCerts vehicle from UI mappings', array_merge($context, ['mapped_vehicle_data' => $mapped]));
+                $addVehicle($mapped);
+            }
         }
 
-        // Numbered / form-specific vehicles (auto-extracted)
+        // Fallback to legacy single vehicle mapping for backward compatibility
+        if (empty($mappedVehicles)) {
+            $legacyMapped = $mapper->mapVehicle($entry);
+            if (!empty($legacyMapped['year']) || !empty($legacyMapped['make']) || !empty($legacyMapped['vin'])) {
+                Log::info('NowCerts vehicle from legacy mapping', array_merge($context, ['legacy_vehicle_data' => $legacyMapped]));
+                $addVehicle($legacyMapped);
+            }
+        }
+
+        // Numbered / form-specific vehicles (auto-extracted for backward compatibility)
         $extracted = match ($formId) {
             '13'    => $this->extractForm13Vehicles($entry),
             default => $this->extractVehiclesFromEntry($entry),
@@ -759,13 +897,194 @@ class CognitoWebhookController extends Controller
         }
     }
 
+    /**
+     * Sync General Liability Notices using field mappings.
+     * Uses dynamic mapping to extract multiple notices from field mappings,
+     * with fallback to legacy single notice mapping for backward compatibility.
+     * Notices are deduplicated by claim number or description combination.
+     */
+    private function syncGeneralLiabilityNotices(array $entry, NowCertsFieldMapper $mapper, string $insuredDatabaseId, array $context): void
+    {
+        try {
+            $notices = [];
+            $seenNotices = [];
+
+            $addNotice = function (array $notice, string $source) use (&$notices, &$seenNotices): void {
+                // Create a unique key based on claim_number or description for deduplication
+                $key = strtolower(trim(
+                    ($notice['claim_number'] ?? '') . ' ' . 
+                    ($notice['description_of_occurrence'] ?? '') . ' ' .
+                    ($notice['description_of_loss'] ?? '')
+                ));
+                
+                if ($key === '' || isset($seenNotices[$key])) {
+                    return;
+                }
+                $seenNotices[$key] = true;
+                $notice['_source'] = $source; // Track source for logging
+                $notices[] = $notice;
+            };
+
+            // Multiple notices from UI-configured mappings (GeneralLiabilityNotice entity) - NEW DYNAMIC APPROACH
+            $mappedNotices = $mapper->mapGeneralLiabilityNotices($entry);
+            foreach ($mappedNotices as $mapped) {
+                if (!empty($mapped)) {
+                    Log::info('NowCerts GeneralLiabilityNotice from UI mappings', array_merge($context, ['mapped_notice_data' => $mapped]));
+                    $addNotice($mapped, 'UI Mappings');
+                }
+            }
+
+            // Fallback to legacy single notice mapping for backward compatibility
+            if (empty($mappedNotices)) {
+                $legacyNotice = $mapper->mapGeneralLiabilityNotice($entry);
+                if (!empty($legacyNotice)) {
+                    Log::info('NowCerts GeneralLiabilityNotice from legacy mapping', array_merge($context, ['legacy_notice_data' => $legacyNotice]));
+                    $addNotice($legacyNotice, 'Legacy Mapping');
+                }
+            }
+
+            foreach ($notices as $index => $notice) {
+                // Ensure insured_database_id is set
+                $notice['insured_database_id'] = $insuredDatabaseId;
+                
+                // Remove the source tracking field before sending to API
+                $source = $notice['_source'] ?? 'Unknown';
+                unset($notice['_source']);
+
+                $noticeLabel = trim(($notice['claim_number'] ?? '') . ' ' . ($notice['description_of_occurrence'] ?? ''));
+                $noticeLabel = $noticeLabel ?: 'Notice #' . ($index + 1);
+
+                Log::info("NowCerts mapped GeneralLiabilityNotice ({$source})", array_merge($context, [
+                    'data' => $notice,
+                    'notice_label' => $noticeLabel
+                ]));
+
+                try {
+                    $response = $this->nowcerts->insertGeneralLiabilityNotice($notice);
+                    Log::info('NowCerts GeneralLiabilityNotice synced', array_merge($context, [
+                        'notice_data' => $notice,
+                        'notice_label' => $noticeLabel,
+                        'source' => $source,
+                        'response' => $response
+                    ]));
+                } catch (Throwable $e) {
+                    Log::warning('NowCerts GeneralLiabilityNotice sync failed — non-blocking', array_merge($context, [
+                        'notice_data' => $notice,
+                        'notice_label' => $noticeLabel,
+                        'source' => $source,
+                        'error' => $e->getMessage()
+                    ]));
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('NowCerts GeneralLiabilityNotices processing failed — non-blocking', array_merge($context, [
+                'error' => $e->getMessage()
+            ]));
+        }
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Property helpers
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
+     * Sync properties via Zapier/InsertProperty.
+     * Uses dynamic mapping to extract multiple properties from field mappings,
+     * with fallback to legacy single property mapping for backward compatibility.
+     * Properties are deduplicated by address or other key identifiers.
+     */
+    private function syncProperties(array $entry, NowCertsFieldMapper $mapper, string $insuredDatabaseId, array $context, bool $isRerun, array &$storedIds, array &$syncedEntities, array &$allSyncedData, array &$errors): void
+    {
+        $properties = [];
+        $seenProperties = [];
+
+        $addProperty = function (array $property, string $source) use (&$properties, &$seenProperties, $context): void {
+            // Create a unique key based on address or description for deduplication
+            $key = strtolower(trim(
+                ($property['street'] ?? '') . ' ' . 
+                ($property['city'] ?? '') . ' ' . 
+                ($property['state'] ?? '') . ' ' .
+                ($property['zip'] ?? '') . ' ' .
+                ($property['description'] ?? '')
+            ));
+            
+            if ($key === '' || isset($seenProperties[$key])) {
+                return;
+            }
+            $seenProperties[$key] = true;
+            $property['_source'] = $source; // Track source for logging
+            $properties[] = $property;
+        };
+
+        // Multiple properties from UI-configured mappings (Property entity) - NEW DYNAMIC APPROACH
+        $mappedProperties = $mapper->mapProperties($entry);
+        foreach ($mappedProperties as $mapped) {
+            if (!empty($mapped)) {
+                Log::info('NowCerts property from UI mappings', array_merge($context, ['mapped_property_data' => $mapped]));
+                $addProperty($mapped, 'UI Mappings');
+            }
+        }
+
+        // Fallback to legacy single property mapping for backward compatibility
+        if (empty($mappedProperties)) {
+            $legacyPropertyData = $this->buildPropertyData($mapper, $entry, $insuredDatabaseId, $isRerun ? ($storedIds['propertyDatabaseId'] ?? null) : null);
+            if (!empty($legacyPropertyData)) {
+                Log::info('NowCerts property from legacy mapping', array_merge($context, ['legacy_property_data' => $legacyPropertyData]));
+                $addProperty($legacyPropertyData, 'Legacy Mapping');
+            }
+        }
+
+        foreach ($properties as $index => $property) {
+            // Ensure insured_database_id is set
+            $property['insured_database_id'] = $insuredDatabaseId;
+            
+            // Remove the source tracking field before sending to API
+            $source = $property['_source'] ?? 'Unknown';
+            unset($property['_source']);
+
+            $entityLabel = NowCertsEntity::Property->value;
+            $propertyLabel = trim(($property['street'] ?? '') . ' ' . ($property['city'] ?? '') . ' ' . ($property['state'] ?? ''));
+            $propertyLabel = $propertyLabel ?: 'Property #' . ($index + 1);
+
+            Log::info("NowCerts mapped {$entityLabel} ({$source})", array_merge($context, [
+                'data' => $property,
+                'property_label' => $propertyLabel
+            ]));
+
+            try {
+                $response = $this->nowcerts->zapierInsertProperty($property);
+                Log::info("NowCerts {$entityLabel} pushed", array_merge($context, [
+                    'response' => $response,
+                    'property_label' => $propertyLabel
+                ]));
+                
+                $syncedEntities[] = $entityLabel;
+                $allSyncedData[$entityLabel . '_' . $index] = $property;
+                
+                // Store the first property's database ID for legacy compatibility
+                if ($index === 0 && !$isRerun) {
+                    $storedIds['propertyDatabaseId'] = $response['databaseId']
+                        ?? $response['database_id']
+                        ?? $response['DatabaseId']
+                        ?? $response['id']
+                        ?? null;
+                }
+            } catch (Throwable $e) {
+                Log::error("NowCerts {$entityLabel} failed", array_merge($context, [
+                    'error' => $e->getMessage(),
+                    'property_label' => $propertyLabel,
+                    'property_data' => $property
+                ]));
+                $errors[] = "{$entityLabel} ({$propertyLabel}): " . $e->getMessage();
+            }
+        }
+    }
+
+    /**
      * Map property fields, inject insured_database_id, and (on update) inject
      * the existing property's database_id so NowCerts updates rather than inserts.
+     * 
+     * @deprecated Use syncProperties() for dynamic multi-property support
      */
     private function buildPropertyData(NowCertsFieldMapper $mapper, array $entry, ?string $insuredDatabaseId, ?string $storedPropertyId = null): array
     {

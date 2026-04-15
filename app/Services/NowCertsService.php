@@ -109,6 +109,22 @@ class NowCertsService
             // Flags
             'match_record_base_on_name', 'is_primary',
         ],
+        NowCertsEntity::GeneralLiabilityNotice->value => [
+            // Occurrence Details
+            'description_of_occurrence', 'date_of_loss', 'describe_location',
+            'description_of_loss', 'additional_comments',
+            // Claim Information
+            'database_id', 'claim_number', 'status',
+            // Location
+            'street', 'city', 'state', 'zip', 'county',
+            // Reporting
+            'police_or_fire', 'report_number',
+            // Insured Information
+            'insured_database_id', 'insured_email', 'insured_first_name',
+            'insured_last_name', 'insured_commercial_name',
+            // Policy
+            'policy_number',
+        ],
     ];
 
     public function getAvailableFields(): array
@@ -782,6 +798,27 @@ class NowCertsService
     public function upsertOpportunity(array $data): array
     {
         return $this->send('POST', 'Zapier/InsertOpportunity', body: $data);
+    }
+
+    /**
+     * Insert a General Liability Notice.
+     * 
+     * @param array{
+     *   description_of_occurrence?:string, database_id?:string, claim_number?:string,
+     *   status?:string, street?:string, city?:string, state?:string, zip?:string,
+     *   county?:string, date_of_loss?:string, describe_location?:string,
+     *   police_or_fire?:string, report_number?:string, additional_comments?:string,
+     *   description_of_loss?:string, insured_database_id?:string, insured_email?:string,
+     *   insured_first_name?:string, insured_last_name?:string, insured_commercial_name?:string,
+     *   policy_number?:string
+     * } $data
+     */
+    public function insertGeneralLiabilityNotice(array $data): array
+    {
+        return $this->send('POST', 'Zapier/InsertGeneralLiabilityNotice', body: array_filter(
+            $data,
+            fn ($v) => $v !== null && $v !== '',
+        ));
     }
     public function getAgents(array $params = []): array
     {

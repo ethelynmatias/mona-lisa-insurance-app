@@ -70,14 +70,389 @@ class NowCertsFieldMapper
         return $this->mapEntity(NowCertsEntity::Driver, $entry);
     }
 
+    /**
+     * Extract multiple drivers from field mappings.
+     * Groups Driver entity mappings by common prefixes (e.g., Driver1, Driver2) 
+     * and creates separate driver records for each group.
+     */
+    public function mapDrivers(array $entry): array
+    {
+        $drivers = [];
+        $driverGroups = [];
+
+        // Get all Driver entity mappings
+        foreach ($this->saved as $cognitoField => $mapping) {
+            if ($mapping['entity'] !== NowCertsEntity::Driver->value) {
+                continue;
+            }
+
+            if (!array_key_exists($cognitoField, $entry) 
+                || $entry[$cognitoField] === null 
+                || $entry[$cognitoField] === '') {
+                continue;
+            }
+
+            // Extract driver group identifier from field name
+            // Examples: Driver1.FirstName -> Driver1, DriverInfo2.LastName -> DriverInfo2, FirstName -> default
+            $groupKey = $this->extractDriverGroupKey($cognitoField);
+            
+            if (!isset($driverGroups[$groupKey])) {
+                $driverGroups[$groupKey] = [];
+            }
+
+            $driverGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
+        }
+
+        // Convert each group to a driver record
+        foreach ($driverGroups as $groupKey => $driverData) {
+            if (!empty($driverData)) {
+                $drivers[] = $driverData;
+            }
+        }
+
+        return $drivers;
+    }
+
+    /**
+     * Extract driver group key from a Cognito field name.
+     * Groups fields by common prefixes to identify separate drivers.
+     */
+    private function extractDriverGroupKey(string $cognitoField): string
+    {
+        // Pattern 1: Driver1.FirstName, Driver2.LastName, etc.
+        if (preg_match('/^(Driver\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 2: Name1.First, Name2.Last, etc. (common in forms)
+        if (preg_match('/^(Name\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 3: DriverInfo1, DriverData2, etc. (without dots)
+        if (preg_match('/^(Driver\w*\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 4: Driver_1_FirstName, Driver_2_LastName, etc.
+        if (preg_match('/^(Driver_\d+)_/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 5: FirstDriver_FirstName, SecondDriver_LastName, etc.
+        if (preg_match('/(\w*Driver\w*)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 6: NameOfOccupantOperator2, NameOfOccupantOperator3 (form-specific)
+        if (preg_match('/^(NameOfOccupantOperator\d*)/', $cognitoField, $matches)) {
+            return $matches[1] ?: 'NameOfOccupantOperator';
+        }
+
+        // Pattern 7: Occupant2, Operator3, etc.
+        if (preg_match('/^((?:Occupant|Operator)\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Default: treat as single driver group
+        return 'default';
+    }
+
     public function mapVehicle(array $entry): array
     {
         return $this->mapEntity(NowCertsEntity::Vehicle, $entry);
     }
 
+    /**
+     * Extract multiple vehicles from field mappings.
+     * Groups Vehicle entity mappings by common prefixes (e.g., Vehicle1, Vehicle2) 
+     * and creates separate vehicle records for each group.
+     */
+    public function mapVehicles(array $entry): array
+    {
+        $vehicles = [];
+        $vehicleGroups = [];
+
+        // Get all Vehicle entity mappings
+        foreach ($this->saved as $cognitoField => $mapping) {
+            if ($mapping['entity'] !== NowCertsEntity::Vehicle->value) {
+                continue;
+            }
+
+            if (!array_key_exists($cognitoField, $entry) 
+                || $entry[$cognitoField] === null 
+                || $entry[$cognitoField] === '') {
+                continue;
+            }
+
+            // Extract vehicle group identifier from field name
+            // Examples: Vehicle1.Year -> Vehicle1, VehicleInfo2.Make -> VehicleInfo2, Year -> default
+            $groupKey = $this->extractVehicleGroupKey($cognitoField);
+            
+            if (!isset($vehicleGroups[$groupKey])) {
+                $vehicleGroups[$groupKey] = [];
+            }
+
+            $vehicleGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
+        }
+
+        // Convert each group to a vehicle record
+        foreach ($vehicleGroups as $groupKey => $vehicleData) {
+            if (!empty($vehicleData)) {
+                $vehicles[] = $vehicleData;
+            }
+        }
+
+        return $vehicles;
+    }
+
+    /**
+     * Extract vehicle group key from a Cognito field name.
+     * Groups fields by common prefixes to identify separate vehicles.
+     */
+    private function extractVehicleGroupKey(string $cognitoField): string
+    {
+        // Pattern 1: Vehicle1.Year, Vehicle2.Make, etc.
+        if (preg_match('/^(Vehicle\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 2: VehicleInfo1, VehicleData2, etc. (without dots)
+        if (preg_match('/^(Vehicle\w*\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 3: Vehicle_1_Year, Vehicle_2_Make, etc.
+        if (preg_match('/^(Vehicle_\d+)_/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 4: First_Vehicle_Year, Second_Vehicle_Make, etc.
+        if (preg_match('/(\w*Vehicle\w*)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Default: treat as single vehicle group
+        return 'default';
+    }
+
     public function mapContact(array $entry): array
     {
         return $this->mapEntity(NowCertsEntity::Contact, $entry);
+    }
+
+    /**
+     * Extract multiple contacts from field mappings.
+     * Groups Contact entity mappings by common prefixes (e.g., Contact1, Principal1) 
+     * and creates separate contact records for each group.
+     */
+    public function mapContacts(array $entry): array
+    {
+        $contacts = [];
+        $contactGroups = [];
+
+        // Get all Contact entity mappings
+        foreach ($this->saved as $cognitoField => $mapping) {
+            if ($mapping['entity'] !== NowCertsEntity::Contact->value) {
+                continue;
+            }
+
+            if (!array_key_exists($cognitoField, $entry) 
+                || $entry[$cognitoField] === null 
+                || $entry[$cognitoField] === '') {
+                continue;
+            }
+
+            // Extract contact group identifier from field name
+            // Examples: Contact1.first_name -> Contact1, Principal2.last_name -> Principal2, first_name -> default
+            $groupKey = $this->extractContactGroupKey($cognitoField);
+            
+            if (!isset($contactGroups[$groupKey])) {
+                $contactGroups[$groupKey] = [];
+            }
+
+            $contactGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
+        }
+
+        // Convert each group to a contact record
+        foreach ($contactGroups as $groupKey => $contactData) {
+            if (!empty($contactData)) {
+                $contacts[] = $contactData;
+            }
+        }
+
+        // Log contact mapping activity for debugging
+        if (!empty($contactGroups)) {
+            \Log::info("NowCerts Contacts mapping", [
+                'contact_groups' => array_keys($contactGroups),
+                'mapped_contacts_count' => count($contacts),
+                'mapped_contacts_data' => $contacts,
+            ]);
+        }
+
+        return $contacts;
+    }
+
+    /**
+     * Extract contact group key from a Cognito field name.
+     * Groups fields by common prefixes to identify separate contacts.
+     */
+    private function extractContactGroupKey(string $cognitoField): string
+    {
+        // Pattern 1: Contact1.first_name, Contact2.last_name, etc.
+        if (preg_match('/^(Contact\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 2: Principal1.first_name, Principal2.last_name, etc.
+        if (preg_match('/^(Principal\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 3: Name1.First, Name2.Last, etc. (when used for contacts)
+        if (preg_match('/^(Name\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 4: ContactInfo1, ContactData2, etc. (without dots)
+        if (preg_match('/^(Contact\w*\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 5: Contact_1_FirstName, Contact_2_LastName, etc.
+        if (preg_match('/^(Contact_\d+)_/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 6: FirstContact_FirstName, SecondContact_LastName, etc.
+        if (preg_match('/(\w*Contact\w*)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 7: CoapplicantsName, AdditionalApplicant, etc. (form-specific)
+        if (preg_match('/^(CoapplicantsName|AdditionalApplicant\d*|Applicant\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 8: Spouse, Partner, etc. (relationship-based)
+        if (preg_match('/^(Spouse|Partner|Beneficiary\d*)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Default: treat as single contact group
+        return 'default';
+    }
+
+    public function mapGeneralLiabilityNotice(array $entry): array
+    {
+        return $this->mapEntity(NowCertsEntity::GeneralLiabilityNotice, $entry);
+    }
+
+    /**
+     * Extract multiple general liability notices from field mappings.
+     * Groups GeneralLiabilityNotice entity mappings by common prefixes (e.g., Claim1, Notice1) 
+     * and creates separate notice records for each group.
+     */
+    public function mapGeneralLiabilityNotices(array $entry): array
+    {
+        $notices = [];
+        $noticeGroups = [];
+
+        // Get all GeneralLiabilityNotice entity mappings
+        foreach ($this->saved as $cognitoField => $mapping) {
+            if ($mapping['entity'] !== NowCertsEntity::GeneralLiabilityNotice->value) {
+                continue;
+            }
+
+            if (!array_key_exists($cognitoField, $entry) 
+                || $entry[$cognitoField] === null 
+                || $entry[$cognitoField] === '') {
+                continue;
+            }
+
+            // Extract notice group identifier from field name
+            // Examples: Claim1.description -> Claim1, Notice2.status -> Notice2, description_of_occurrence -> default
+            $groupKey = $this->extractGeneralLiabilityNoticeGroupKey($cognitoField);
+            
+            if (!isset($noticeGroups[$groupKey])) {
+                $noticeGroups[$groupKey] = [];
+            }
+
+            $noticeGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
+        }
+
+        // Convert each group to a notice record
+        foreach ($noticeGroups as $groupKey => $noticeData) {
+            if (!empty($noticeData)) {
+                $notices[] = $noticeData;
+            }
+        }
+
+        // Log notice mapping activity for debugging
+        if (!empty($noticeGroups)) {
+            \Log::info("NowCerts GeneralLiabilityNotices mapping", [
+                'notice_groups' => array_keys($noticeGroups),
+                'mapped_notices_count' => count($notices),
+                'mapped_notices_data' => $notices,
+            ]);
+        }
+
+        return $notices;
+    }
+
+    /**
+     * Extract general liability notice group key from a Cognito field name.
+     * Groups fields by common prefixes to identify separate notices.
+     */
+    private function extractGeneralLiabilityNoticeGroupKey(string $cognitoField): string
+    {
+        // Pattern 1: Claim1.description, Claim2.status, etc.
+        if (preg_match('/^(Claim\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 2: Notice1.description, Notice2.claim_number, etc.
+        if (preg_match('/^(Notice\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 3: Incident1.description, Incident2.date_of_loss, etc.
+        if (preg_match('/^(Incident\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 4: GLNotice1, GLNotice2, etc.
+        if (preg_match('/^(GLNotice\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 5: LiabilityNotice1, LiabilityNotice2, etc. (without dots)
+        if (preg_match('/^(LiabilityNotice\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 6: Claim_1_Description, Claim_2_Status, etc.
+        if (preg_match('/^(Claim_\d+)_/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 7: FirstClaim_Description, SecondClaim_Status, etc.
+        if (preg_match('/(\w*Claim\w*|\w*Notice\w*|\w*Incident\w*)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 8: Loss1.description, Loss2.date, etc. (loss-specific)
+        if (preg_match('/^(Loss\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 9: Occurrence1, Occurrence2, etc.
+        if (preg_match('/^(Occurrence\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Default: treat as single notice group
+        return 'default';
     }
 
     /**
@@ -118,6 +493,108 @@ class NowCertsFieldMapper
         }
 
         return $result;
+    }
+
+    /**
+     * Extract multiple properties from field mappings.
+     * Groups Property entity mappings by common prefixes (e.g., Property1, Property2) 
+     * and creates separate property records for each group.
+     */
+    public function mapProperties(array $entry): array
+    {
+        $properties = [];
+        $propertyGroups = [];
+
+        // Get all Property entity mappings
+        foreach ($this->saved as $cognitoField => $mapping) {
+            if ($mapping['entity'] !== NowCertsEntity::Property->value) {
+                continue;
+            }
+
+            if (!array_key_exists($cognitoField, $entry) 
+                || $entry[$cognitoField] === null 
+                || $entry[$cognitoField] === '') {
+                continue;
+            }
+
+            // Extract property group identifier from field name
+            // Examples: Property1.Address -> Property1, PropertyInfo2.City -> PropertyInfo2, Address -> default
+            $groupKey = $this->extractPropertyGroupKey($cognitoField);
+            
+            if (!isset($propertyGroups[$groupKey])) {
+                $propertyGroups[$groupKey] = [];
+            }
+
+            $propertyGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
+        }
+
+        // Convert each group to a property record
+        foreach ($propertyGroups as $groupKey => $propertyData) {
+            if (!empty($propertyData)) {
+                $properties[] = $propertyData;
+            }
+        }
+
+        // Log property mapping activity for debugging
+        if (!empty($propertyGroups)) {
+            \Log::info("NowCerts Properties mapping", [
+                'property_groups' => array_keys($propertyGroups),
+                'mapped_properties_count' => count($properties),
+                'mapped_properties_data' => $properties,
+            ]);
+        }
+
+        return $properties;
+    }
+
+    /**
+     * Extract property group key from a Cognito field name.
+     * Groups fields by common prefixes to identify separate properties.
+     */
+    private function extractPropertyGroupKey(string $cognitoField): string
+    {
+        // Pattern 1: Property1.Address, Property2.City, etc.
+        if (preg_match('/^(Property\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 2: Location1.Street, Location2.City, etc. (common in property forms)
+        if (preg_match('/^(Location\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 3: RealEstate1, RealEstate2, etc. (form 16 specific)
+        if (preg_match('/^(RealEstate\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 4: PropertyInfo1, PropertyData2, etc. (without dots)
+        if (preg_match('/^(Property\w*\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 5: Property_1_Address, Property_2_City, etc.
+        if (preg_match('/^(Property_\d+)_/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 6: FirstProperty_Address, SecondProperty_City, etc.
+        if (preg_match('/(\w*Property\w*)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 7: Address1, Address2 (when used for different properties)
+        if (preg_match('/^(Address\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 8: PropertyAddress, PropertyAddress2, etc.
+        if (preg_match('/^(PropertyAddress\d*)/', $cognitoField, $matches)) {
+            return $matches[1] ?: 'PropertyAddress';
+        }
+
+        // Default: treat as single property group
+        return 'default';
     }
 
     /**

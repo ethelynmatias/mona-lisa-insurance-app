@@ -36,7 +36,7 @@
     ]
   },
   "resources/js/Pages/Cognito/FormDetails.jsx": {
-    "file": "assets/FormDetails-CXu0Wi05.js",
+    "file": "assets/FormDetails-T1y3TAJ8.js",
     "name": "FormDetails",
     "src": "resources/js/Pages/Cognito/FormDetails.jsx",
     "isDynamicEntry": true,
@@ -68,7 +68,7 @@
     ]
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-pj3p6TRb.js",
+    "file": "assets/app-Ce19ctOp.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,
