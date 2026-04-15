@@ -455,6 +455,108 @@ class NowCertsFieldMapper
         return 'default';
     }
 
+    public function mapPolicyCoverage(array $entry): array
+    {
+        return $this->mapEntity(NowCertsEntity::PolicyCoverage, $entry);
+    }
+
+    /**
+     * Extract multiple policy coverages from field mappings.
+     * Groups PolicyCoverage entity mappings by common prefixes (e.g., Coverage1, Policy1) 
+     * and creates separate coverage records for each group.
+     */
+    public function mapPolicyCoverages(array $entry): array
+    {
+        $coverages = [];
+        $coverageGroups = [];
+
+        // Get all PolicyCoverage entity mappings
+        foreach ($this->saved as $cognitoField => $mapping) {
+            if ($mapping['entity'] !== NowCertsEntity::PolicyCoverage->value) {
+                continue;
+            }
+
+            if (!array_key_exists($cognitoField, $entry) 
+                || $entry[$cognitoField] === null 
+                || $entry[$cognitoField] === '') {
+                continue;
+            }
+
+            // Extract coverage group identifier from field name
+            // Examples: Coverage1.cargo_deductible -> Coverage1, Policy2.generalLiability_occur -> Policy2, cargo_deductible -> default
+            $groupKey = $this->extractPolicyCoverageGroupKey($cognitoField);
+            
+            if (!isset($coverageGroups[$groupKey])) {
+                $coverageGroups[$groupKey] = [];
+            }
+
+            $coverageGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
+        }
+
+        // Convert each group to a coverage record
+        foreach ($coverageGroups as $groupKey => $coverageData) {
+            if (!empty($coverageData)) {
+                $coverages[] = $coverageData;
+            }
+        }
+
+        // Log coverage mapping activity for debugging
+        if (!empty($coverageGroups)) {
+            \Log::info("NowCerts PolicyCoverages mapping", [
+                'coverage_groups' => array_keys($coverageGroups),
+                'mapped_coverages_count' => count($coverages),
+                'mapped_coverages_data' => $coverages,
+            ]);
+        }
+
+        return $coverages;
+    }
+
+    /**
+     * Extract policy coverage group key from a Cognito field name.
+     * Groups fields by common prefixes to identify separate coverage records.
+     */
+    private function extractPolicyCoverageGroupKey(string $cognitoField): string
+    {
+        // Pattern 1: Coverage1.cargo_deductible, Coverage2.generalLiability_occur, etc.
+        if (preg_match('/^(Coverage\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 2: Policy1.cargo_limit, Policy2.autoMobileLiability_anyAuto, etc.
+        if (preg_match('/^(Policy\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 3: Liability1.generalLiability_occur, Liability2.autoMobileLiability_limitCombinedSingle, etc.
+        if (preg_match('/^(Liability\d+)\./', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 4: Cargo1, Physical1, General1, etc. (without dots)
+        if (preg_match('/^((?:Cargo|Physical|General|Auto|Flood|Worker|Home|Other)\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 5: Coverage_1_cargo_deductible, Coverage_2_generalLiability_occur, etc.
+        if (preg_match('/^(Coverage_\d+)_/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 6: FirstCoverage_cargo_limit, SecondPolicy_generalLiability_occur, etc.
+        if (preg_match('/(\w*(?:Coverage|Policy|Liability)\w*)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 7: Commercial1, Personal1, Business1, etc. (coverage type based)
+        if (preg_match('/^((?:Commercial|Personal|Business|Residential)\d+)/', $cognitoField, $matches)) {
+            return $matches[1];
+        }
+
+        // Default: treat as single coverage group
+        return 'default';
+    }
+
     /**
      * Map property fields from the entry using unified mapping approach.
      * Covers Property entity mappings from the main saved mappings.

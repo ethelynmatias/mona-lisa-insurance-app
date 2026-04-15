@@ -125,6 +125,54 @@ class NowCertsService
             // Policy
             'policy_number',
         ],
+        NowCertsEntity::PolicyCoverage->value => [
+            // Policy Identifiers
+            'policyDatabaseId', 'lineOfBusinessDatabaseId',
+            // Cargo Coverage
+            'cargo_deductible', 'cargo_limit', 'cargo_commodities',
+            // Physical Damage
+            'physicalDamage_comprehensiveType', 'physicalDamage_comprehensiveCoverage', 'physicalDamage_collisionLimit', 'physicalDamage_doNotPrefillCertificate',
+            // General Liability
+            'generalLiability_commercialGeneralLiability', 'generalLiability_claimsMade', 'generalLiability_occur', 'generalLiability_otherCheckbox', 'generalLiability_otherText',
+            'generalLiability_policy', 'generalLiability_project', 'generalLiability_loc', 'generalLiability_limitEachOccurrence', 'generalLiability_limitDamageToRentedPremises',
+            'generalLiability_limitMedExp', 'generalLiability_limitPersonalAndAdvInjury', 'generalLiability_limitGeneralAggregate', 'generalLiability_limitProductsCompOpAggregate',
+            'generalLiability_limitOtherText', 'generalLiability_limitOtherLimit', 'generalLiability_generalAggrLimitApplOther', 'generalLiability_generalAggrLimitApplOtherText',
+            'generalLiability_other2Checkbox', 'generalLiability_other2Text',
+            // Auto Mobile Liability
+            'autoMobileLiability_anyAuto', 'autoMobileLiability_allOwnedAutos', 'autoMobileLiability_scheduledAutos', 'autoMobileLiability_hiredAutos', 'autoMobileLiability_nonOwnedAutos',
+            'autoMobileLiability_otherText1', 'autoMobileLiability_otherCheckbox1', 'autoMobileLiability_otherText2', 'autoMobileLiability_otherCheckbox2',
+            'autoMobileLiability_limitCombinedSingle', 'autoMobileLiability_limitBodilyInjuryPerPerson', 'autoMobileLiability_limitBodilyInjuryPerAccident',
+            'autoMobileLiability_limitPropertyDamage', 'autoMobileLiability_limitOtherText', 'autoMobileLiability_limitOtherLimit',
+            // Flood Coverage Primary
+            'floodCoveragePrimary_buildingDeductibleAmount', 'floodCoveragePrimary_buildingBasicLimitAmount', 'floodCoveragePrimary_contentsDeductibleAmount', 'floodCoveragePrimary_contentsBasicLimitAmount',
+            'floodCoveragePrimary_nfipwyoIndicator', 'floodCoveragePrimary_privateMarketIndicator', 'floodCoveragePrimary_policyBroadLineOfBusinessDwellingIndicator',
+            'floodCoveragePrimary_policyBroadLineOfBusinessGeneralPropertyFormIndicator', 'floodCoveragePrimary_policyBroadLineOfBusinessResidentialCondominiumAssociationPolicyIndicator',
+            'floodCoveragePrimary_policyTypeStandardIndicator', 'floodCoveragePrimary_policyTypePreferredRiskIndicator', 'floodCoveragePrimary_policyBroadLineOfBusinessOtherIndicator',
+            'floodCoveragePrimary_policyBroadLineOfBusinessOtherDescription', 'floodCoveragePrimary_policyTypePreferredRiskEligibilityExtensionIndicator', 'floodCoveragePrimary_policyTypeGroupFloodIndicator',
+            'floodCoveragePrimary_policyBroadLineOfBusinessMortgagePortfolioProtectionProgramIndicator',
+            // Flood Coverage Excess (same fields as primary but with Excess prefix)
+            'floodCoverageExcess_buildingDeductibleAmount', 'floodCoverageExcess_buildingBasicLimitAmount', 'floodCoverageExcess_contentsDeductibleAmount', 'floodCoverageExcess_contentsBasicLimitAmount',
+            'floodCoverageExcess_nfipwyoIndicator', 'floodCoverageExcess_privateMarketIndicator', 'floodCoverageExcess_businessIncomeIndicator', 'floodCoverageExcess_extraExpenseIndicator',
+            'floodCoverageExcess_additionalLivingExpenseIndicator', 'floodCoverageExcess_additionalLivingExpenseLimitAmount', 'floodCoverageExcess_lossSustainedIndicator',
+            'floodCoverageExcess_lossSustainedNumberOfMonthsCount', 'floodCoverageExcess_policyTypeExcessFollowingFormIndicator',
+            // Worker Compensation
+            'workerCompensation_memberExcluded', 'workerCompensation_limitWCStatLimits', 'workerCompensation_limitOtherCheckbox', 'workerCompensation_limitOtherValue',
+            'workerCompensation_limitEachAccident', 'workerCompensation_limitEAEmployee', 'workerCompensation_limitPolicy',
+            // Other coverages
+            'other_description', 'other_limit', 'other2_description', 'other2_limit', 'other3_description', 'other3_limit', 'other4_description', 'other4_limit',
+            // Home Owner Coverage
+            'homeOwnerCoverage_formType', 'homeOwnerCoverage_dwellingLimit', 'homeOwnerCoverage_dwellingPremiumAmount', 'homeOwnerCoverage_otherStructureLimit',
+            'homeOwnerCoverage_otherStructurePremiumAmount', 'homeOwnerCoverage_personalPropertyLimit', 'homeOwnerCoverage_personalPropertyPremiumAmount',
+            'homeOwnerCoverage_lossOfUseLimit', 'homeOwnerCoverage_lossOfUsePremiumAmount', 'homeOwnerCoverage_personalLiabilityLimit', 'homeOwnerCoverage_personalLiabilityPremiumAmount',
+            'homeOwnerCoverage_medicalPaymentsLimit', 'homeOwnerCoverage_medicalPaymentsPremiumAmount', 'homeOwnerCoverage_hurricaneDeductible', 'homeOwnerCoverage_hurricanePremiumAmount',
+            'homeOwnerCoverage_windHailDeductible', 'homeOwnerCoverage_ordinanceOrLaw', 'homeOwnerCoverage_allOtherPerilsDeductible',
+            // ACORD 27 fields
+            'acord27_priorEvidenceDate', 'acord27_propertyDescription', 'acord27_coverageDescriptionFirst', 'acord27_limitAmountFirst', 'acord27_deductibleAmountFirst',
+            'acord27_coverageDescriptionSecond', 'acord27_limitAmountSecond', 'acord27_deductibleAmountSecond', 'acord27_coverageDescriptionThird', 'acord27_limitAmountThird',
+            'acord27_deductibleAmountThird', 'acord27_coverageDescriptionFourth', 'acord27_limitAmountFourth', 'acord27_deductibleAmountFourth',
+            // Custom Coverages (dynamic)
+            'customCoverages_description', 'customCoverages_benefit', 'customCoverages_deductible',
+        ],
     ];
 
     public function getAvailableFields(): array
@@ -816,6 +864,22 @@ class NowCertsService
     public function insertGeneralLiabilityNotice(array $data): array
     {
         return $this->send('POST', 'Zapier/InsertGeneralLiabilityNotice', body: array_filter(
+            $data,
+            fn ($v) => $v !== null && $v !== '',
+        ));
+    }
+
+    /**
+     * Insert Policy Coverage.
+     * 
+     * @param array{
+     *   policyDatabaseId:string,
+     *   policyCoverages:array
+     * } $data
+     */
+    public function insertPolicyCoverage(array $data): array
+    {
+        return $this->send('POST', 'PolicyCoverage/Insert', body: array_filter(
             $data,
             fn ($v) => $v !== null && $v !== '',
         ));

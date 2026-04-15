@@ -254,12 +254,18 @@ class CognitoWebhookController extends Controller
                 $this->syncGeneralLiabilityNotices($entry, $mapper, $insuredDatabaseId, $context);
             }
 
-            // ── Step 6: Note (first sync only) ────────────────────────────────
+            // ── Step 6: Policy Coverages ──────────────────────────────────────
+            $policyDatabaseId = $storedIds['policyDatabaseId'] ?? null;
+            if ($policyDatabaseId) {
+                $this->syncPolicyCoverages($entry, $mapper, $policyDatabaseId, $context);
+            }
+
+            // ── Step 7: Note (first sync only) ────────────────────────────────
             if (! $isRerun && $insuredDatabaseId && ! empty($allSyncedData)) {
                 $this->insertSyncNote($insuredDatabaseId, $log, $formId, $entry, $allSyncedData, $context);
             }
 
-            // ── Step 7: File uploads ──────────────────────────────────────────
+            // ── Step 8: File uploads ──────────────────────────────────────────
             if ($insuredDatabaseId && ! empty($fileUploads)) {
                 $uploadedIds = $this->webhookLogs->getUploadedFileIds($formId, $log->entry_id ?? '');
                 $this->syncFileUploads($insuredDatabaseId, $fileUploads, $context, $log, $uploadedIds);
@@ -715,7 +721,7 @@ class CognitoWebhookController extends Controller
             $legacyMapped = $mapper->mapDriver($entry);
             if (!empty($legacyMapped['first_name']) || !empty($legacyMapped['last_name'])) {
                 Log::info('NowCerts driver from legacy mapping', array_merge($context, ['legacy_driver_data' => $legacyMapped]));
-                $addDriver($legacyMapped);
+                $addDriver($legacyMapped, 'Legacy Mapping');
             }
         }
 
@@ -725,7 +731,7 @@ class CognitoWebhookController extends Controller
             default => $this->extractOccupantDrivers($entry),
         };
         foreach ($extracted as $driver) {
-            $addDriver($driver);
+            $addDriver($driver, 'Auto-extracted');
         }
 
         foreach ($drivers as $driver) {
@@ -981,6 +987,199 @@ class CognitoWebhookController extends Controller
                 'error' => $e->getMessage()
             ]));
         }
+    }
+
+    /**
+     * Sync Policy Coverages using field mappings.
+     * Uses dynamic mapping to extract multiple coverage records from field mappings,
+     * with fallback to legacy single coverage mapping for backward compatibility.
+     * Coverages are restructured into the complex nested API format.
+     */
+    private function syncPolicyCoverages(array $entry, NowCertsFieldMapper $mapper, string $policyDatabaseId, array $context): void
+    {
+        try {
+            $coverages = [];
+            $seenCoverages = [];
+
+            $addCoverage = function (array $coverage, string $source) use (&$coverages, &$seenCoverages): void {
+                // Create a unique key based on coverage type or description for deduplication
+                $key = strtolower(trim(
+                    ($coverage['lineOfBusinessDatabaseId'] ?? '') . ' ' . 
+                    ($coverage['cargo_deductible'] ?? '') . ' ' .
+                    ($coverage['generalLiability_limitEachOccurrence'] ?? '') . ' ' .
+                    ($coverage['autoMobileLiability_limitCombinedSingle'] ?? '')
+                ));
+                
+                if ($key === '' || isset($seenCoverages[$key])) {
+                    return;
+                }
+                $seenCoverages[$key] = true;
+                $coverage['_source'] = $source; // Track source for logging
+                $coverages[] = $coverage;
+            };
+
+            // Multiple coverages from UI-configured mappings (PolicyCoverage entity) - NEW DYNAMIC APPROACH
+            $mappedCoverages = $mapper->mapPolicyCoverages($entry);
+            foreach ($mappedCoverages as $mapped) {
+                if (!empty($mapped)) {
+                    Log::info('NowCerts PolicyCoverage from UI mappings', array_merge($context, ['mapped_coverage_data' => $mapped]));
+                    $addCoverage($mapped, 'UI Mappings');
+                }
+            }
+
+            // Fallback to legacy single coverage mapping for backward compatibility
+            if (empty($mappedCoverages)) {
+                $legacyCoverage = $mapper->mapPolicyCoverage($entry);
+                if (!empty($legacyCoverage)) {
+                    Log::info('NowCerts PolicyCoverage from legacy mapping', array_merge($context, ['legacy_coverage_data' => $legacyCoverage]));
+                    $addCoverage($legacyCoverage, 'Legacy Mapping');
+                }
+            }
+
+            if (empty($coverages)) {
+                return; // No policy coverage mappings configured
+            }
+
+            // Transform flat mapped data into the complex nested API structure
+            $policyCoverages = [];
+            foreach ($coverages as $index => $coverage) {
+                $source = $coverage['_source'] ?? 'Unknown';
+                unset($coverage['_source']);
+
+                $transformedCoverage = $this->transformToPolicyCoverageApiFormat($coverage);
+                $coverageLabel = $this->generateCoverageLabel($transformedCoverage, $index);
+
+                Log::info("NowCerts mapped PolicyCoverage ({$source})", array_merge($context, [
+                    'coverage_data' => $transformedCoverage,
+                    'coverage_label' => $coverageLabel
+                ]));
+
+                $policyCoverages[] = $transformedCoverage;
+            }
+
+            // Send to API
+            $apiData = [
+                'policyDatabaseId' => $policyDatabaseId,
+                'policyCoverages' => $policyCoverages
+            ];
+
+            try {
+                $response = $this->nowcerts->insertPolicyCoverage($apiData);
+                Log::info('NowCerts PolicyCoverages synced', array_merge($context, [
+                    'coverages_count' => count($policyCoverages),
+                    'policy_database_id' => $policyDatabaseId,
+                    'response' => $response
+                ]));
+            } catch (Throwable $e) {
+                Log::warning('NowCerts PolicyCoverage sync failed — non-blocking', array_merge($context, [
+                    'coverages_count' => count($policyCoverages),
+                    'policy_database_id' => $policyDatabaseId,
+                    'coverage_data' => $apiData,
+                    'error' => $e->getMessage()
+                ]));
+            }
+        } catch (Throwable $e) {
+            Log::warning('NowCerts PolicyCoverages processing failed — non-blocking', array_merge($context, [
+                'error' => $e->getMessage()
+            ]));
+        }
+    }
+
+    /**
+     * Transform flat mapped coverage data into the complex nested API format.
+     */
+    private function transformToPolicyCoverageApiFormat(array $flatData): array
+    {
+        $coverage = [];
+        
+        // Set basic identifiers
+        if (!empty($flatData['lineOfBusinessDatabaseId'])) {
+            $coverage['lineOfBusinessDatabaseId'] = $flatData['lineOfBusinessDatabaseId'];
+        }
+
+        // Transform nested structures
+        $nestedSections = [
+            'cargo' => 'cargo_',
+            'physicalDamage' => 'physicalDamage_',
+            'generalLiability' => 'generalLiability_',
+            'autoMobileLiability' => 'autoMobileLiability_',
+            'floodCoveragePrimary' => 'floodCoveragePrimary_',
+            'floodCoverageExcess' => 'floodCoverageExcess_',
+            'workerCompensationAndEmployersLiability' => 'workerCompensation_',
+            'other' => 'other_',
+            'other2' => 'other2_',
+            'other3' => 'other3_',
+            'other4' => 'other4_',
+            'homeOwnerCoverage' => 'homeOwnerCoverage_',
+            'acord27' => 'acord27_'
+        ];
+
+        foreach ($nestedSections as $sectionName => $prefix) {
+            $section = [];
+            foreach ($flatData as $key => $value) {
+                if (strpos($key, $prefix) === 0) {
+                    $fieldName = substr($key, strlen($prefix));
+                    $section[$fieldName] = $this->convertApiValue($value);
+                }
+            }
+            if (!empty($section)) {
+                $coverage[$sectionName] = $section;
+            }
+        }
+
+        // Handle custom coverages (special case)
+        $customCoverages = [];
+        foreach ($flatData as $key => $value) {
+            if (strpos($key, 'customCoverages_') === 0) {
+                $fieldName = substr($key, strlen('customCoverages_'));
+                $customCoverages[$fieldName] = $value;
+            }
+        }
+        if (!empty($customCoverages)) {
+            $coverage['customCoverages'] = [$customCoverages]; // Array of coverage objects
+        }
+
+        return array_filter($coverage, fn($v) => !empty($v));
+    }
+
+    /**
+     * Convert values to appropriate API types.
+     */
+    private function convertApiValue($value)
+    {
+        if ($value === 'true' || $value === '1') {
+            return true;
+        }
+        if ($value === 'false' || $value === '0') {
+            return false;
+        }
+        if (is_numeric($value)) {
+            return is_float($value + 0) ? (float)$value : (int)$value;
+        }
+        return $value;
+    }
+
+    /**
+     * Generate a label for logging purposes.
+     */
+    private function generateCoverageLabel(array $coverage, int $index): string
+    {
+        $parts = [];
+        
+        if (!empty($coverage['cargo']['deductible'])) {
+            $parts[] = 'Cargo';
+        }
+        if (!empty($coverage['generalLiability']['limitEachOccurrence'])) {
+            $parts[] = 'General Liability';
+        }
+        if (!empty($coverage['autoMobileLiability']['limitCombinedSingle'])) {
+            $parts[] = 'Auto Liability';
+        }
+        if (!empty($coverage['homeOwnerCoverage']['dwellingLimit'])) {
+            $parts[] = 'Home Owner';
+        }
+        
+        return !empty($parts) ? implode(', ', $parts) : 'Coverage #' . ($index + 1);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
