@@ -13,4 +13,11 @@ enum NowCertsEntity: string
     case InsuredLocation  = 'InsuredLocation';
     case GeneralLiabilityNotice = 'GeneralLiabilityNotice';
     case PolicyCoverage = 'PolicyCoverage';
+    case InsuredPolicies = 'InsuredPolicies';
+    // case ServiceRequestsAddDriver = 'ServiceRequestsAddDriver';
+    // case ServiceRequestsAddVehicle = 'ServiceRequestsAddVehicle';
+    case VehicleCoverage = 'VehicleCoverage';
+    case Claim = 'Claim';
+    case PropertyLossClaim = 'PropertyLossClaim';
+    case WorkerCompensationClaim = 'WorkerCompensationClaim';
 }
