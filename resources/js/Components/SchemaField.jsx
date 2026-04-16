@@ -165,8 +165,8 @@ export default function SchemaField({ field, formId, depth = 0, mappings, availa
         return null;
     }
 
-    // Form 4, 11, 12 & 16 specific: Hide Entry collapsible group
-    if ((formId === '4' || formId === '11' || formId === '12' || formId === '16') && name === 'Entry') {
+    // Form 4, 11, 12, 16 & 17 specific: Hide Entry collapsible group
+    if ((formId === '4' || formId === '11' || formId === '12' || formId === '16' || formId === '17') && name === 'Entry') {
         return null;
     }
 

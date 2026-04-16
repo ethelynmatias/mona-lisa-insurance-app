@@ -1563,8 +1563,14 @@ class CognitoWebhookController extends Controller
                 }
             }
             
-            // Mark as watercraft origin for identification
+            // Mark as watercraft origin for identification and ensure proper deduplication
             $convertedVehicle['_watercraft_source'] = $group;
+            
+            // Ensure watercraft have proper year/make/model for deduplication
+            // Use VehicleType as part of make if make is missing
+            if (empty($convertedVehicle['Make']) && !empty($convertedVehicle['VehicleType'])) {
+                $convertedVehicle['Make'] = $convertedVehicle['VehicleType'];
+            }
             
             if (!empty($convertedVehicle)) {
                 $vehicles[] = $convertedVehicle;
