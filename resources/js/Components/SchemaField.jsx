@@ -150,7 +150,7 @@ function MappingSelect({ internalName, current, availableFields, onChange }) {
 }
 
 
-export default function SchemaField({ field, formId, depth = 0, mappings, availableFields, onChange }) {
+export default function SchemaField({ field, formId, depth = 0, mappings, availableFields, onChange, showHidden = false }) {
     // Merge all available fields (contacts + properties)
     const allAvailableFields = availableFields;
     const name         = field.Name         ?? field.name         ?? '—';
@@ -160,18 +160,18 @@ export default function SchemaField({ field, formId, depth = 0, mappings, availa
     const children     = field.Children     ?? field.children     ?? field.Fields ?? field.fields ?? [];
     const isGroup      = type === 'discovered-group';
 
-    // Form 13 specific: Hide Name2 and Entry collapsible groups
-    if (formId === '13' && (name === 'Name2' || name === 'Entry')) {
+    // Form 13 specific: Hide Name2 and Entry collapsible groups (unless showHidden is true)
+    if (formId === '13' && (name === 'Name2' || name === 'Entry') && !showHidden) {
         return null;
     }
 
-    // Form 4, 11 & 12 specific: Hide Entry collapsible group
-    if ((formId === '4' || formId === '11' || formId === '12') && name === 'Entry') {
+    // Form 4, 11, 12, 16 & 17 specific: Hide Entry collapsible group
+    if ((formId === '4' || formId === '11' || formId === '12' || formId === '16' || formId === '17') && name === 'Entry') {
         return null;
     }
 
-    // Hide Form collapsible for all forms
-    if (name === 'Form') {
+    // Hide Form collapsible for all forms (except form 13 when showHidden is true, and except form 16)
+    if (name === 'Form' && !(formId === '13' && showHidden) && formId !== '16') {
         return null;
     }
 
@@ -298,6 +298,7 @@ export default function SchemaField({ field, formId, depth = 0, mappings, availa
                     mappings={mappings}
                     availableFields={availableFields}
                     onChange={onChange}
+                    showHidden={showHidden}
                 />
             ))}
         </>

@@ -92,8 +92,6 @@ class CognitoController extends Controller
             $schemaNames = array_column($fields, 'InternalName');
             $this->addDiscoveredFields($fields, $schemaNames, $scalarDiscovered);
 
-            // Apply form-specific field visibility rules
-            $fields = $this->filterFieldsForForm($fields, $formId);
 
             $mapper      = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
             $lookup      = $mapper->getLookup();
@@ -131,33 +129,6 @@ class CognitoController extends Controller
         return back()->with('success', 'Mappings saved successfully.');
     }
 
-    /**
-     * Form-specific field visibility rules.
-     * Some forms have a large number of discovered scalar fields that are already
-     * handled by a seeder mapping; only the groups that need UI configuration are shown.
-     *
-     * Returns the full field list unchanged when no rule is defined for the form.
-     */
-    private function filterFieldsForForm(array $fields, string $formId): array
-    {
-        $rules = [
-            // Form 16 (Personal Umbrella): hide Vehicle2+ and Watercraft2+ (duplicate numbered groups);
-            // show everything else including Vehicle1, Watercraft1, and all other field groups.
-            '16' => function (array $field): bool {
-                $name = $field['Name'] ?? $field['InternalName'] ?? '';
-                if (preg_match('/^(Vehicle|Watercraft|RealEstate|Location)/i', $name)) {
-                    return in_array($name, ['Vehicle1', 'Watercraft1', 'RealEstate1', 'Location1'], true);
-                }
-                return true;
-            },
-        ];
-
-        if (! isset($rules[$formId])) {
-            return $fields;
-        }
-
-        return array_values(array_filter($fields, $rules[$formId]));
-    }
 
     protected function matchesSearch(mixed $item, string $search): bool
     {
