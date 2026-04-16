@@ -6,8 +6,8 @@
       "_jsx-runtime-DT_lPud-.js"
     ]
   },
-  "_WebhookHistoryPanel-BTLl_XEM.js": {
-    "file": "assets/WebhookHistoryPanel-BTLl_XEM.js",
+  "_WebhookHistoryPanel-B0uJZe8E.js": {
+    "file": "assets/WebhookHistoryPanel-B0uJZe8E.js",
     "name": "WebhookHistoryPanel",
     "imports": [
       "_jsx-runtime-DT_lPud-.js"
@@ -36,24 +36,24 @@
     ]
   },
   "resources/js/Pages/Cognito/FormDetails.jsx": {
-    "file": "assets/FormDetails-T1y3TAJ8.js",
+    "file": "assets/FormDetails-DS6joEyZ.js",
     "name": "FormDetails",
     "src": "resources/js/Pages/Cognito/FormDetails.jsx",
     "isDynamicEntry": true,
     "imports": [
       "_jsx-runtime-DT_lPud-.js",
-      "_WebhookHistoryPanel-BTLl_XEM.js",
+      "_WebhookHistoryPanel-B0uJZe8E.js",
       "_AuthenticatedLayout-CgEvVTNA.js"
     ]
   },
   "resources/js/Pages/Dashboard.jsx": {
-    "file": "assets/Dashboard-BU0mVvnG.js",
+    "file": "assets/Dashboard-BCiZF7bW.js",
     "name": "Dashboard",
     "src": "resources/js/Pages/Dashboard.jsx",
     "isDynamicEntry": true,
     "imports": [
       "_jsx-runtime-DT_lPud-.js",
-      "_WebhookHistoryPanel-BTLl_XEM.js",
+      "_WebhookHistoryPanel-B0uJZe8E.js",
       "_AuthenticatedLayout-CgEvVTNA.js"
     ]
   },
@@ -68,7 +68,7 @@
     ]
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-Ce19ctOp.js",
+    "file": "assets/app-DNn_HylU.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,

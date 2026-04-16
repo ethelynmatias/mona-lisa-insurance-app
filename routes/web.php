@@ -33,6 +33,7 @@ Route::middleware('auth')->group(function () {
 
     // Webhook history management
     Route::delete('/webhook/history',                   [CognitoWebhookController::class, 'clearAll'])->name('webhook.history.clear');
-    Route::delete('/webhook/history/{formId}',          [CognitoWebhookController::class, 'clearByForm'])->name('webhook.history.clear-form');
     Route::post('/webhook/history/{log}/rerun',         [CognitoWebhookController::class, 'rerunSync'])->name('webhook.history.rerun');
+    Route::delete('/webhook/entry/{log}',               [CognitoWebhookController::class, 'deleteEntry'])->name('webhook.history.delete');
+    Route::delete('/webhook/history/{formId}',          [CognitoWebhookController::class, 'clearByForm'])->name('webhook.history.clear-form');
 });

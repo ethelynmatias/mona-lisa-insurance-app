@@ -130,6 +130,19 @@ class CognitoWebhookController extends Controller
         return back()->with('success', 'Webhook history cleared for this form.');
     }
 
+    /**
+     * Delete a single webhook history entry.
+     */
+    public function deleteEntry(WebhookLog $log): RedirectResponse
+    {
+        $entryId = $log->entry_id;
+        $formName = $log->form_name ?? $log->form_id;
+        
+        $log->delete();
+
+        return back()->with('success', "Webhook entry deleted (Entry ID: {$entryId}, Form: {$formName}).");
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Core sync orchestration
     // ──────────────────────────────────────────────────────────────────────────
