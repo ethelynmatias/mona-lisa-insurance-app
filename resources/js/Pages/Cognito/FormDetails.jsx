@@ -5,6 +5,7 @@ import SchemaField from '@/Components/SchemaField';
 import SearchInput from '@/Components/SearchInput';
 import Pagination from '@/Components/Pagination';
 import WebhookHistoryPanel from '@/Components/WebhookHistoryPanel';
+import AutoFillInformation from '@/Components/AutoFillInformation';
 import { copyToClipboard } from '@/utils/clipboard';
 
 const PER_PAGE_OPTIONS = [20, 50, 100];
@@ -29,6 +30,7 @@ export default function FormDetails() {
     );
     const [uploadFields, setUploadFields] = useState(savedUploadFields);
     const [saving, setSaving] = useState(false);
+    const [showHidden, setShowHidden] = useState(false);
 
     const filtered = useMemo(() => {
         if (!search.trim()) return fields;
@@ -217,23 +219,10 @@ export default function FormDetails() {
                             clearRoute={route('webhook.history.clear-form', { formId })}
                         />
 
-                        {/* Auto-Fill Information Note */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-                            <div className="flex items-start gap-3">
-                                <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <div>
-                                    <p className="text-sm font-medium text-blue-900">Auto-Fill Information</p>
-                                    <p className="text-sm text-blue-700 mt-1">
-                                        Vehicle information and driver details will be automatically filled on the backend based on form data patterns.
-                                        You only need to map specific fields if you want to override the auto-detection. If there are missing fields,
-                                        you can find them on <b>NowCerts Notes</b>.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                        {/* Auto-Fill Information Note - Hidden for forms 11 and 12 */}
+                        {formId !== '11' && formId !== '12' && (
+                            <AutoFillInformation formId={formId} />
+                        )}
 
                         {/* Save Mappings Section */}
                         <div className="bg-white rounded-xl border border-gray-200 px-5 py-4">
@@ -307,6 +296,24 @@ export default function FormDetails() {
                                             ))}
                                         </select>
                                     </div>
+                                    {formId === '13' && (
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id="show-hidden"
+                                                checked={showHidden}
+                                                onChange={e => setShowHidden(e.target.checked)}
+                                                className="w-4 h-4 rounded border-gray-300 text-blue-600
+                                                    focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                                            />
+                                            <label 
+                                                htmlFor="show-hidden" 
+                                                className="text-xs text-gray-500 whitespace-nowrap cursor-pointer"
+                                            >
+                                                Show hidden fields
+                                            </label>
+                                        </div>
+                                    )}
                                     <div className="w-full sm:w-64">
                                         <SearchInput
                                             value={search}
@@ -343,6 +350,7 @@ export default function FormDetails() {
                                                     mappings={mappings}
                                                     availableFields={availableFields}
                                                     onChange={handleMappingChange}
+                                                    showHidden={showHidden}
                                                 />
                                             ))}
                                         </tbody>

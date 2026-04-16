@@ -137,7 +137,7 @@ class CognitoWebhookController extends Controller
     {
         $entryId = $log->entry_id;
         $formName = $log->form_name ?? $log->form_id;
-        
+
         $log->delete();
 
         return back()->with('success', "Webhook entry deleted (Entry ID: {$entryId}, Form: {$formName}).");
@@ -488,7 +488,7 @@ class CognitoWebhookController extends Controller
      * Reads NameOfOccupant.First / .Last from the flattened entry.
      * On first sync → inserts and stores the returned contactId.
      * On rerun with stored contactId → updates instead of inserting.
-     * 
+     *
      * @deprecated Use syncContacts() for dynamic multi-contact support
      */
     private function syncOccupantContact(string $insuredDatabaseId, array $entry, array $context, bool $isRerun, array &$storedIds): void
@@ -549,7 +549,7 @@ class CognitoWebhookController extends Controller
      * Uses the Contact entity mappings configured in the UI.
      *
      * Stored under storedIds['mappedContactId'] to prevent duplicate inserts on rerun.
-     * 
+     *
      * @deprecated Use syncContacts() for dynamic multi-contact support
      */
     private function syncMappedContact(string $insuredDatabaseId, array $entry, NowCertsFieldMapper $mapper, array $context, bool $isRerun, array &$storedIds): void
@@ -610,7 +610,7 @@ class CognitoWebhookController extends Controller
         $fieldMap = [
             'database_id' => 'database_id',
             'first_name' => 'first_name',
-            'middle_name' => 'middle_name', 
+            'middle_name' => 'middle_name',
             'last_name' => 'last_name',
             'description' => 'description',
             'type' => 'type',
@@ -646,7 +646,7 @@ class CognitoWebhookController extends Controller
      * Syncs CoapplicantsName as a second principal contact on the insured.
      *
      * Stored under storedIds['coApplicantContactId'] to prevent duplicate inserts on rerun.
-     * 
+     *
      * @deprecated Use syncContacts() for dynamic multi-contact support
      */
     private function syncForm17CoApplicant(string $insuredDatabaseId, array $entry, array $context, bool $isRerun, array &$storedIds): void
@@ -818,6 +818,7 @@ class CognitoWebhookController extends Controller
         // Numbered / form-specific vehicles (auto-extracted for backward compatibility)
         $extracted = match ($formId) {
             '13'    => $this->extractForm13Vehicles($entry),
+            '16'    => $this->extractForm16Vehicles($entry),
             default => $this->extractVehiclesFromEntry($entry),
         };
         foreach ($extracted as $vehicle) {
@@ -931,11 +932,11 @@ class CognitoWebhookController extends Controller
             $addNotice = function (array $notice, string $source) use (&$notices, &$seenNotices): void {
                 // Create a unique key based on claim_number or description for deduplication
                 $key = strtolower(trim(
-                    ($notice['claim_number'] ?? '') . ' ' . 
+                    ($notice['claim_number'] ?? '') . ' ' .
                     ($notice['description_of_occurrence'] ?? '') . ' ' .
                     ($notice['description_of_loss'] ?? '')
                 ));
-                
+
                 if ($key === '' || isset($seenNotices[$key])) {
                     return;
                 }
@@ -965,7 +966,7 @@ class CognitoWebhookController extends Controller
             foreach ($notices as $index => $notice) {
                 // Ensure insured_database_id is set
                 $notice['insured_database_id'] = $insuredDatabaseId;
-                
+
                 // Remove the source tracking field before sending to API
                 $source = $notice['_source'] ?? 'Unknown';
                 unset($notice['_source']);
@@ -1017,12 +1018,12 @@ class CognitoWebhookController extends Controller
             $addCoverage = function (array $coverage, string $source) use (&$coverages, &$seenCoverages): void {
                 // Create a unique key based on coverage type or description for deduplication
                 $key = strtolower(trim(
-                    ($coverage['lineOfBusinessDatabaseId'] ?? '') . ' ' . 
+                    ($coverage['lineOfBusinessDatabaseId'] ?? '') . ' ' .
                     ($coverage['cargo_deductible'] ?? '') . ' ' .
                     ($coverage['generalLiability_limitEachOccurrence'] ?? '') . ' ' .
                     ($coverage['autoMobileLiability_limitCombinedSingle'] ?? '')
                 ));
-                
+
                 if ($key === '' || isset($seenCoverages[$key])) {
                     return;
                 }
@@ -1104,7 +1105,7 @@ class CognitoWebhookController extends Controller
     private function transformToPolicyCoverageApiFormat(array $flatData): array
     {
         $coverage = [];
-        
+
         // Set basic identifiers
         if (!empty($flatData['lineOfBusinessDatabaseId'])) {
             $coverage['lineOfBusinessDatabaseId'] = $flatData['lineOfBusinessDatabaseId'];
@@ -1178,7 +1179,7 @@ class CognitoWebhookController extends Controller
     private function generateCoverageLabel(array $coverage, int $index): string
     {
         $parts = [];
-        
+
         if (!empty($coverage['cargo']['deductible'])) {
             $parts[] = 'Cargo';
         }
@@ -1191,7 +1192,7 @@ class CognitoWebhookController extends Controller
         if (!empty($coverage['homeOwnerCoverage']['dwellingLimit'])) {
             $parts[] = 'Home Owner';
         }
-        
+
         return !empty($parts) ? implode(', ', $parts) : 'Coverage #' . ($index + 1);
     }
 
@@ -1213,13 +1214,13 @@ class CognitoWebhookController extends Controller
         $addProperty = function (array $property, string $source) use (&$properties, &$seenProperties, $context): void {
             // Create a unique key based on address or description for deduplication
             $key = strtolower(trim(
-                ($property['street'] ?? '') . ' ' . 
-                ($property['city'] ?? '') . ' ' . 
+                ($property['street'] ?? '') . ' ' .
+                ($property['city'] ?? '') . ' ' .
                 ($property['state'] ?? '') . ' ' .
                 ($property['zip'] ?? '') . ' ' .
                 ($property['description'] ?? '')
             ));
-            
+
             if ($key === '' || isset($seenProperties[$key])) {
                 return;
             }
@@ -1249,7 +1250,7 @@ class CognitoWebhookController extends Controller
         foreach ($properties as $index => $property) {
             // Ensure insured_database_id is set
             $property['insured_database_id'] = $insuredDatabaseId;
-            
+
             // Remove the source tracking field before sending to API
             $source = $property['_source'] ?? 'Unknown';
             unset($property['_source']);
@@ -1269,10 +1270,10 @@ class CognitoWebhookController extends Controller
                     'response' => $response,
                     'property_label' => $propertyLabel
                 ]));
-                
+
                 $syncedEntities[] = $entityLabel;
                 $allSyncedData[$entityLabel . '_' . $index] = $property;
-                
+
                 // Store the first property's database ID for legacy compatibility
                 if ($index === 0 && !$isRerun) {
                     $storedIds['propertyDatabaseId'] = $response['databaseId']
@@ -1295,7 +1296,7 @@ class CognitoWebhookController extends Controller
     /**
      * Map property fields, inject insured_database_id, and (on update) inject
      * the existing property's database_id so NowCerts updates rather than inserts.
-     * 
+     *
      * @deprecated Use syncProperties() for dynamic multi-property support
      */
     private function buildPropertyData(NowCertsFieldMapper $mapper, array $entry, ?string $insuredDatabaseId, ?string $storedPropertyId = null): array
@@ -1478,6 +1479,96 @@ class CognitoWebhookController extends Controller
                 'vin'                       => $vin,
                 'estimated_annual_distance' => $mileage,
             ], fn ($v) => $v !== null && $v !== '');
+        }
+
+        return $vehicles;
+    }
+
+    /**
+     * Extract vehicles AND watercraft from Form 16 (Personal Umbrella).
+     * 
+     * Combines:
+     * - Vehicle\d+.* patterns (traditional vehicles)
+     * - Watercraft\d+.* patterns (watercraft treated as vehicles)
+     * 
+     * Returns all as "vehicles" since NowCerts treats watercraft as vehicles.
+     */
+    private function extractForm16Vehicles(array $entry): array
+    {
+        $vehicles = [];
+
+        // Extract traditional Vehicle\d+.* patterns
+        $vehicleGroups = [];
+        foreach ($entry as $key => $value) {
+            if (! preg_match('/^(Vehicle\d+)\.(.+)$/', $key, $m)) {
+                continue;
+            }
+            if ($value !== null && $value !== '') {
+                $vehicleGroups[$m[1]][$m[2]] = $value;
+            }
+        }
+
+        // Extract Watercraft\d+.* patterns and convert to vehicle format
+        $watercraftGroups = [];
+        foreach ($entry as $key => $value) {
+            if (! preg_match('/^(Watercraft\d+)\.(.+)$/', $key, $m)) {
+                continue;
+            }
+            if ($value !== null && $value !== '') {
+                $watercraftGroups[$m[1]][$m[2]] = $value;
+            }
+        }
+
+        // Add vehicle groups
+        foreach ($vehicleGroups as $group => $data) {
+            $vehicles[] = $data;
+        }
+
+        // Convert watercraft to vehicle format and add them
+        foreach ($watercraftGroups as $group => $data) {
+            $convertedVehicle = [];
+            
+            // Map watercraft fields to vehicle fields
+            foreach ($data as $field => $value) {
+                switch ($field) {
+                    case 'TypeManufacturerModel':
+                        // Split "Type Manufacturer Model" into make/model
+                        $parts = explode(' ', trim($value), 3);
+                        $convertedVehicle['VehicleType'] = $parts[0] ?? null;
+                        $convertedVehicle['Make'] = $parts[1] ?? null; 
+                        $convertedVehicle['Model'] = isset($parts[2]) ? trim($parts[2]) : null;
+                        break;
+                    case 'Year':
+                        $convertedVehicle['Year'] = $value;
+                        break;
+                    case 'LengthinFeet':
+                        $convertedVehicle['Length'] = $value;
+                        break;
+                    case 'Horsepower':
+                        $convertedVehicle['Horsepower'] = $value;
+                        break;
+                    case 'MaxSpeed':
+                        $convertedVehicle['MaxSpeed'] = $value;
+                        break;
+                    case 'UnderlyingCarrier':
+                        $convertedVehicle['UnderlyingCarrier'] = $value;
+                        break;
+                    case 'UnderlyingLiabilityLimit':
+                        $convertedVehicle['UnderlyingLiabilityLimit'] = $value;
+                        break;
+                    default:
+                        // Pass through any other fields as-is
+                        $convertedVehicle[$field] = $value;
+                        break;
+                }
+            }
+            
+            // Mark as watercraft origin for identification
+            $convertedVehicle['_watercraft_source'] = $group;
+            
+            if (!empty($convertedVehicle)) {
+                $vehicles[] = $convertedVehicle;
+            }
         }
 
         return $vehicles;
