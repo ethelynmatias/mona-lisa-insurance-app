@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\LogsController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\CognitoController;
 use App\Http\Controllers\SettingsController;
@@ -30,6 +31,11 @@ Route::middleware('auth')->group(function () {
     Route::delete('/settings/users/{user}',       [SettingsController::class, 'deleteUser'])->name('settings.users.delete')->middleware('role:admin');
 
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+
+    // Admin logs
+    Route::get('/admin/logs',         [LogsController::class, 'index'])->name('admin.logs.index')->middleware('role:admin');
+    Route::get('/admin/logs/{log}',   [LogsController::class, 'show'])->name('admin.logs.show')->middleware('role:admin');
+    Route::delete('/admin/logs/clear', [LogsController::class, 'clear'])->name('admin.logs.clear')->middleware('role:admin');
 
     // Webhook history management
     Route::delete('/webhook/history',                   [CognitoWebhookController::class, 'clearAll'])->name('webhook.history.clear');
