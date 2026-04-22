@@ -693,10 +693,13 @@ class CognitoWebhookController extends Controller
         $seenVins   = [];
 
         $addVehicle = function (array $vehicle) use (&$vehicles, &$seenVins): void {
-            $vin = strtolower(trim($vehicle['vin'] ?? $vehicle['VIN'] ?? $vehicle['Vin'] ?? ''));
+            $vin   = strtolower(trim($vehicle['vin'] ?? $vehicle['VIN'] ?? $vehicle['Vin'] ?? ''));
+            $year  = $vehicle['year']  ?? $vehicle['Year']  ?? '';
+            $make  = $vehicle['make']  ?? $vehicle['Make']  ?? '';
+            $model = $vehicle['model'] ?? $vehicle['Model'] ?? '';
             $key = $vin !== ''
                 ? $vin
-                : strtolower(trim(($vehicle['year'] ?? '') . ' ' . ($vehicle['make'] ?? '') . ' ' . ($vehicle['model'] ?? '')));
+                : strtolower(trim("{$year} {$make} {$model}"));
             if ($key === '' || isset($seenVins[$key])) {
                 return;
             }
@@ -1393,11 +1396,11 @@ class CognitoWebhookController extends Controller
 
     /**
      * Extract vehicles AND watercraft from Form 16 (Personal Umbrella).
-     * 
+     *
      * Combines:
      * - Vehicle\d+.* patterns (traditional vehicles)
      * - Watercraft\d+.* patterns (watercraft treated as vehicles)
-     * 
+     *
      * Returns all as "vehicles" since NowCerts treats watercraft as vehicles.
      */
     private function extractForm16Vehicles(array $entry): array
@@ -1434,7 +1437,7 @@ class CognitoWebhookController extends Controller
         // Convert watercraft to vehicle format and add them
         foreach ($watercraftGroups as $group => $data) {
             $convertedVehicle = [];
-            
+
             // Map watercraft fields to vehicle fields
             foreach ($data as $field => $value) {
                 switch ($field) {
@@ -1442,7 +1445,7 @@ class CognitoWebhookController extends Controller
                         // Split "Type Manufacturer Model" into make/model
                         $parts = explode(' ', trim($value), 3);
                         $convertedVehicle['VehicleType'] = $parts[0] ?? null;
-                        $convertedVehicle['Make'] = $parts[1] ?? null; 
+                        $convertedVehicle['Make'] = $parts[1] ?? null;
                         $convertedVehicle['Model'] = isset($parts[2]) ? trim($parts[2]) : null;
                         break;
                     case 'Year':
@@ -1469,16 +1472,16 @@ class CognitoWebhookController extends Controller
                         break;
                 }
             }
-            
+
             // Mark as watercraft origin for identification and ensure proper deduplication
             $convertedVehicle['_watercraft_source'] = $group;
-            
+
             // Ensure watercraft have proper year/make/model for deduplication
             // Use VehicleType as part of make if make is missing
             if (empty($convertedVehicle['Make']) && !empty($convertedVehicle['VehicleType'])) {
                 $convertedVehicle['Make'] = $convertedVehicle['VehicleType'];
             }
-            
+
             if (!empty($convertedVehicle)) {
                 $vehicles[] = $convertedVehicle;
             }
@@ -1486,10 +1489,6 @@ class CognitoWebhookController extends Controller
 
         return $vehicles;
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Note helper
-    // ──────────────────────────────────────────────────────────────────────────
 
     /**
      * Insert a sync note on the insured record summarising the webhook data
