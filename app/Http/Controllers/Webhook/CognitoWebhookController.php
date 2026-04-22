@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\WebhookLog;
 use App\Repositories\Contracts\FormFieldMappingRepositoryInterface;
 use App\Repositories\Contracts\WebhookLogRepositoryInterface;
+use App\Services\DatabaseLogger;
 use App\Services\NowCertsFieldMapper;
 use App\Services\NowCertsService;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +19,6 @@ use Throwable;
 
 class CognitoWebhookController extends Controller
 {
-    /** Keys / prefixes excluded from sync notes */
     private const NOTE_EXCLUDED_KEYS     = ['Origin', 'origin', 'Action', 'action', 'Order', 'order', 'Entry', 'entry', 'Event', 'event'];
     private const NOTE_EXCLUDED_PREFIXES = ['Entry.', 'Form.'];
 
@@ -28,15 +28,6 @@ class CognitoWebhookController extends Controller
         private readonly FormFieldMappingRepositoryInterface $mappings,
     ) {}
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Public endpoints
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Receive an incoming Cognito Forms webhook, log it, then push to NowCerts.
-     *
-     * POST /webhook/cognito?form_id=1&event=entry.submitted
-     */
     public function receive(Request $request): JsonResponse
     {
         $payload   = $request->all();
@@ -79,9 +70,6 @@ class CognitoWebhookController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    /**
-     * Rerun the NowCerts sync for a specific webhook log entry.
-     */
     public function rerunSync(WebhookLog $log): RedirectResponse
     {
         if ($log->event_type === 'entry.deleted') {
@@ -110,9 +98,6 @@ class CognitoWebhookController extends Controller
         };
     }
 
-    /**
-     * Clear all webhook history.
-     */
     public function clearAll(): RedirectResponse
     {
         $this->webhookLogs->truncateAll();
@@ -120,9 +105,6 @@ class CognitoWebhookController extends Controller
         return back()->with('success', 'Webhook history cleared.');
     }
 
-    /**
-     * Clear webhook history for a specific form.
-     */
     public function clearByForm(string $formId): RedirectResponse
     {
         $this->webhookLogs->deleteByForm($formId);
@@ -130,9 +112,6 @@ class CognitoWebhookController extends Controller
         return back()->with('success', 'Webhook history cleared for this form.');
     }
 
-    /**
-     * Delete a single webhook history entry.
-     */
     public function deleteEntry(WebhookLog $log): RedirectResponse
     {
         $entryId = $log->entry_id;
@@ -143,23 +122,9 @@ class CognitoWebhookController extends Controller
         return back()->with('success', "Webhook entry deleted (Entry ID: {$entryId}, Form: {$formName}).");
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Core sync orchestration
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Map the Cognito payload to NowCerts entities and call the API.
-     * Updates the log record with the outcome.
-     *
-     * @param bool $isRerun  When true: inject stored NowCerts IDs (no lookup) and skip note.
-     */
     private function syncToNowCerts(WebhookLog $log, string $formId, array $entry, bool $isRerun = false): void
     {
         $context = ['webhook_log_id' => $log->id, 'form_id' => $formId, 'entry_id' => $log->entry_id];
-
-        // Stored IDs from a previous successful sync — used on rerun to avoid duplicate inserts.
-        // For entry.updated events (new log), inherit IDs from the most recent prior sync of
-        // the same entry so contacts and records are updated rather than duplicated.
         if ($isRerun) {
             $storedIds = $log->synced_nowcerts_ids ?? [];
         } elseif ($log->event_type === 'entry.updated' && $log->entry_id) {
@@ -169,9 +134,6 @@ class CognitoWebhookController extends Controller
         }
 
         try {
-            // Extract file uploads before flattening — list arrays are lost after flatten.
-            // If the user has configured specific upload fields, restrict to those;
-            // otherwise fall back to auto-detecting all file-upload list arrays.
             $configuredUploadFields = $this->mappings->getUploadFieldsForForm($formId);
             $fileUploads = NowCertsFieldMapper::extractFileUploads($entry);
             if (! empty($configuredUploadFields)) {
@@ -184,7 +146,7 @@ class CognitoWebhookController extends Controller
             $entry  = NowCertsFieldMapper::flattenEntry($entry);
             $mapper = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
 
-            Log::info('NowCerts sync started', array_merge($context, [
+            DatabaseLogger::info('NowCerts sync started', array_merge($context, [
                 'flattened_entry_keys' => array_keys($entry),
                 'file_upload_fields'   => array_column($fileUploads, 'field'),
                 'is_rerun'             => $isRerun,
@@ -195,12 +157,8 @@ class CognitoWebhookController extends Controller
             $errors            = [];
             $insuredDatabaseId = null;
             $allSyncedData     = [];
-
-            // ── Step 1: Sync primary mapped entities (Insured, Policy) ────────
             foreach ($this->primaryEntitySyncMap($mapper) as $entity => $callbacks) {
                 $data = $callbacks['map']($entry);
-
-                // On rerun: inject stored NowCerts IDs so API updates instead of inserting
                 if ($isRerun) {
                     if ($entity === NowCertsEntity::Insured->value && ! empty($storedIds['insuredDatabaseId'])) {
                         $data['DatabaseId'] = $storedIds['insuredDatabaseId'];
@@ -210,16 +168,16 @@ class CognitoWebhookController extends Controller
                     }
                 }
 
-                Log::info("NowCerts mapped {$entity}", array_merge($context, ['data' => $data]));
+                DatabaseLogger::info("NowCerts mapped {$entity}", array_merge($context, ['data' => $data]));
 
                 if (empty($data)) {
-                    Log::warning("NowCerts {$entity} skipped — no mapped fields", $context);
+                    DatabaseLogger::warning("NowCerts {$entity} skipped — no mapped fields", $context);
                     continue;
                 }
 
                 try {
                     $response = $callbacks['push']($data);
-                    Log::info("NowCerts {$entity} pushed", array_merge($context, ['response' => $response]));
+                    DatabaseLogger::info("NowCerts {$entity} pushed", array_merge($context, ['response' => $response]));
                     $syncedEntities[]       = $entity;
                     $allSyncedData[$entity] = $data;
 
@@ -233,65 +191,45 @@ class CognitoWebhookController extends Controller
                             ?? null;
                     }
                 } catch (Throwable $e) {
-                    Log::error("NowCerts {$entity} failed", array_merge($context, ['error' => $e->getMessage()]));
+                    DatabaseLogger::error("NowCerts {$entity} failed", array_merge($context, ['error' => $e->getMessage()]));
                     $errors[] = "{$entity}: " . $e->getMessage();
                 }
             }
-
-            // Resolve insuredDatabaseId from stored ID if sync didn't return it (rerun scenario)
             if (! $insuredDatabaseId && ! empty($storedIds['insuredDatabaseId'])) {
                 $insuredDatabaseId = $storedIds['insuredDatabaseId'];
             }
-
-            // ── Step 2: Contacts ──────────────────────────────────────────────
             if ($insuredDatabaseId) {
                 $this->syncContacts($entry, $mapper, $insuredDatabaseId, $context, $formId, $isRerun, $storedIds);
             }
-
-            // ── Step 3: Drivers & Vehicles (dynamic payload fields) ───────────
-            // Prefer policyDatabaseId; fall back to insuredDatabaseId.
-            // Both Zapier/InsertDriver and Zapier/InsertVehicle accept either identifier.
             $policyDatabaseId = $storedIds['policyDatabaseId'] ?? null;
             if ($policyDatabaseId || $insuredDatabaseId) {
                 $this->syncDrivers($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
                 $this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
             }
-
-            // ── Step 4: Properties ────────────────────────────────────────────
             if ($insuredDatabaseId) {
                 $this->syncProperties($entry, $mapper, $insuredDatabaseId, $context, $isRerun, $storedIds, $syncedEntities, $allSyncedData, $errors);
             }
-
-            // ── Step 5: General Liability Notices ─────────────────────────────
             if ($insuredDatabaseId) {
                 $this->syncGeneralLiabilityNotices($entry, $mapper, $insuredDatabaseId, $context);
             }
-
-            // ── Step 6: Policy Coverages ──────────────────────────────────────
             $policyDatabaseId = $storedIds['policyDatabaseId'] ?? null;
             if ($policyDatabaseId) {
                 $this->syncPolicyCoverages($entry, $mapper, $policyDatabaseId, $context);
             }
-
-            // ── Step 7: Note (first sync only) ────────────────────────────────
             if (! $isRerun && $insuredDatabaseId && ! empty($allSyncedData)) {
                 $this->insertSyncNote($insuredDatabaseId, $log, $formId, $entry, $allSyncedData, $context);
             }
-
-            // ── Step 8: File uploads ──────────────────────────────────────────
             if ($insuredDatabaseId && ! empty($fileUploads)) {
                 $uploadedIds = $this->webhookLogs->getUploadedFileIds($formId, $log->entry_id ?? '');
                 $this->syncFileUploads($insuredDatabaseId, $fileUploads, $context, $log, $uploadedIds);
             }
-
-            // ── Finalise ──────────────────────────────────────────────────────
             if (empty($syncedEntities) && empty($errors)) {
-                Log::warning('NowCerts sync skipped — no field mappings configured', $context);
+                DatabaseLogger::warning('NowCerts sync skipped — no field mappings configured', $context);
                 $this->webhookLogs->update($log, ['sync_status' => SyncStatus::Skipped]);
                 return;
             }
 
-            Log::info('NowCerts sync finished', array_merge($context, [
+            DatabaseLogger::info('NowCerts sync finished', array_merge($context, [
                 'synced_entities' => $syncedEntities,
                 'errors'          => $errors,
             ]));
@@ -313,7 +251,7 @@ class CognitoWebhookController extends Controller
 
             $this->webhookLogs->update($log, $updateData);
         } catch (Throwable $e) {
-            Log::error('NowCerts sync exception', array_merge($context, ['error' => $e->getMessage()]));
+            DatabaseLogger::error('NowCerts sync exception', array_merge($context, ['error' => $e->getMessage()]));
             $this->webhookLogs->update($log, [
                 'sync_status' => SyncStatus::Failed,
                 'sync_error'  => $e->getMessage(),
@@ -321,14 +259,6 @@ class CognitoWebhookController extends Controller
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // Entity sync helpers
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Returns the primary entity sync map (Insured, Policy).
-     * Property, Drivers, and Vehicles are handled separately.
-     */
     private function primaryEntitySyncMap(NowCertsFieldMapper $mapper): array
     {
         return [
@@ -343,12 +273,6 @@ class CognitoWebhookController extends Controller
         ];
     }
 
-    /**
-     * Sync contacts via InsertContact/UpdateContact.
-     * Uses dynamic mapping to extract multiple contacts from field mappings,
-     * then appends form-specific auto-extracted contacts for backward compatibility.
-     * Contacts are deduplicated by normalized first+last name combination.
-     */
     private function syncContacts(array $entry, NowCertsFieldMapper $mapper, string $insuredDatabaseId, array $context, string $formId, bool $isRerun, array &$storedIds): void
     {
         $contacts = [];
@@ -360,40 +284,29 @@ class CognitoWebhookController extends Controller
                 return;
             }
             $seenContacts[$key] = true;
-            $contact['_source'] = $source; // Track source for logging
+            $contact['_source'] = $source;
             $contacts[] = $contact;
         };
-
-        // Multiple contacts from UI-configured mappings (Contact entity) - NEW DYNAMIC APPROACH
         $mappedContacts = $mapper->mapContacts($entry);
         foreach ($mappedContacts as $mapped) {
             if (!empty($mapped['first_name']) || !empty($mapped['last_name'])) {
-                Log::info('NowCerts contact from UI mappings', array_merge($context, ['mapped_contact_data' => $mapped]));
+                DatabaseLogger::info('NowCerts contact from UI mappings', array_merge($context, ['mapped_contact_data' => $mapped]));
                 $addContact($mapped, 'UI Mappings');
             }
         }
-
-        // Fallback to legacy contact mappings for backward compatibility
         if (empty($mappedContacts)) {
-            // Form 13: sync mapped Contact entity fields via InsertPrincipal
             if ($formId === '13') {
                 $legacyMapped = $mapper->mapContact($entry);
                 if (!empty($legacyMapped)) {
-                    Log::info('NowCerts contact from legacy Form 13 mapping', array_merge($context, ['legacy_contact_data' => $legacyMapped]));
+                    DatabaseLogger::info('NowCerts contact from legacy Form 13 mapping', array_merge($context, ['legacy_contact_data' => $legacyMapped]));
                     $addContact($legacyMapped, 'Legacy Form 13');
                 }
             }
         }
-
-        // Form-specific auto-extracted contacts for backward compatibility
         $this->addAutoExtractedContacts($entry, $formId, $addContact, $context);
-
-        // Sync each contact
         foreach ($contacts as $index => $contact) {
             $source = $contact['_source'] ?? 'Unknown';
             unset($contact['_source']);
-
-            // Convert Contact entity field names to InsertPrincipal API format if needed
             $principalData = $this->formatContactDataForPrincipal($contact);
             $principalData['policy_database_id'] = $storedIds['policyDatabaseId'] ?? null;
 
@@ -406,7 +319,7 @@ class CognitoWebhookController extends Controller
 
                 if ($isRerun && $storedContactId) {
                     $this->nowcerts->updateContact($insuredDatabaseId, $storedContactId, $principalData);
-                    Log::info('NowCerts contact updated', array_merge($context, [
+                    DatabaseLogger::info('NowCerts contact updated', array_merge($context, [
                         'insuredDatabaseId' => $insuredDatabaseId,
                         'contactId' => $storedContactId,
                         'contact_name' => $label,
@@ -425,7 +338,7 @@ class CognitoWebhookController extends Controller
                         $storedIds[$storedContactKey] = $contactId;
                     }
 
-                    Log::info('NowCerts contact added', array_merge($context, [
+                    DatabaseLogger::info('NowCerts contact added', array_merge($context, [
                         'insuredDatabaseId' => $insuredDatabaseId,
                         'contactId' => $contactId,
                         'contact_name' => $label,
@@ -433,7 +346,7 @@ class CognitoWebhookController extends Controller
                     ]));
                 }
             } catch (Throwable $e) {
-                Log::warning('NowCerts contact sync failed — non-blocking', array_merge($context, [
+                DatabaseLogger::warning('NowCerts contact sync failed — non-blocking', array_merge($context, [
                     'contact_name' => $label,
                     'source' => $source,
                     'contact_data' => $principalData,
@@ -443,12 +356,8 @@ class CognitoWebhookController extends Controller
         }
     }
 
-    /**
-     * Add auto-extracted contacts for form-specific backward compatibility.
-     */
     private function addAutoExtractedContacts(array $entry, string $formId, callable $addContact, array $context): void
     {
-        // Legacy occupant contact extraction
         $firstName = $entry['NameOfOccupant.First'] ?? null;
         $lastName  = $entry['NameOfOccupant.Last']  ?? null;
 
@@ -463,8 +372,6 @@ class CognitoWebhookController extends Controller
                 $addContact($occupantContact, 'Auto-extracted Occupant');
             }
         }
-
-        // Form 17: co-applicant extraction
         if ($formId === '17') {
             $coFirstName = $entry['CoapplicantsName.First'] ?? null;
             $coLastName  = $entry['CoapplicantsName.Last']  ?? null;
@@ -512,7 +419,7 @@ class CognitoWebhookController extends Controller
 
             if ($isRerun && $storedContactId) {
                 $this->nowcerts->updateContact($insuredDatabaseId, $storedContactId, $contactData);
-                Log::info('NowCerts occupant contact updated', array_merge($context, [
+                DatabaseLogger::info('NowCerts occupant contact updated', array_merge($context, [
                     'insuredDatabaseId' => $insuredDatabaseId,
                     'contactId'         => $storedContactId,
                     'occupant'          => trim("{$firstName} {$lastName}"),
@@ -530,14 +437,14 @@ class CognitoWebhookController extends Controller
                     $storedIds['contactId'] = $contactId;
                 }
 
-                Log::info('NowCerts occupant contact added', array_merge($context, [
+                DatabaseLogger::info('NowCerts occupant contact added', array_merge($context, [
                     'insuredDatabaseId' => $insuredDatabaseId,
                     'contactId'         => $contactId,
                     'occupant'          => trim("{$firstName} {$lastName}"),
                 ]));
             }
         } catch (Throwable $e) {
-            Log::warning('NowCerts occupant contact failed — non-blocking', array_merge($context, [
+            DatabaseLogger::warning('NowCerts occupant contact failed — non-blocking', array_merge($context, [
                 'error' => $e->getMessage(),
             ]));
         }
@@ -568,7 +475,7 @@ class CognitoWebhookController extends Controller
 
             if ($isRerun && $storedContactId) {
                 $this->nowcerts->updateContact($insuredDatabaseId, $storedContactId, $principalData);
-                Log::info('NowCerts mapped contact updated', array_merge($context, [
+                DatabaseLogger::info('NowCerts mapped contact updated', array_merge($context, [
                     'insuredDatabaseId' => $insuredDatabaseId,
                     'contactId'         => $storedContactId,
                     'contact_data'      => $principalData,
@@ -586,14 +493,14 @@ class CognitoWebhookController extends Controller
                     $storedIds['mappedContactId'] = $contactId;
                 }
 
-                Log::info('NowCerts mapped contact added', array_merge($context, [
+                DatabaseLogger::info('NowCerts mapped contact added', array_merge($context, [
                     'insuredDatabaseId' => $insuredDatabaseId,
                     'contactId'         => $contactId,
                     'contact_data'      => $principalData,
                 ]));
             }
         } catch (Throwable $e) {
-            Log::warning('NowCerts mapped contact failed — non-blocking', array_merge($context, [
+            DatabaseLogger::warning('NowCerts mapped contact failed — non-blocking', array_merge($context, [
                 'error' => $e->getMessage(),
                 'contact_data' => $principalData,
             ]));
@@ -669,7 +576,7 @@ class CognitoWebhookController extends Controller
 
             if ($isRerun && $storedContactId) {
                 $this->nowcerts->updateContact($insuredDatabaseId, $storedContactId, $contactData);
-                Log::info('NowCerts co-applicant contact updated', array_merge($context, [
+                DatabaseLogger::info('NowCerts co-applicant contact updated', array_merge($context, [
                     'insuredDatabaseId' => $insuredDatabaseId,
                     'contactId'         => $storedContactId,
                     'coApplicant'       => trim("{$firstName} {$lastName}"),
@@ -687,14 +594,14 @@ class CognitoWebhookController extends Controller
                     $storedIds['coApplicantContactId'] = $contactId;
                 }
 
-                Log::info('NowCerts co-applicant contact added', array_merge($context, [
+                DatabaseLogger::info('NowCerts co-applicant contact added', array_merge($context, [
                     'insuredDatabaseId' => $insuredDatabaseId,
                     'contactId'         => $contactId,
                     'coApplicant'       => trim("{$firstName} {$lastName}"),
                 ]));
             }
         } catch (Throwable $e) {
-            Log::warning('NowCerts co-applicant contact failed — non-blocking', array_merge($context, [
+            DatabaseLogger::warning('NowCerts co-applicant contact failed — non-blocking', array_merge($context, [
                 'error' => $e->getMessage(),
             ]));
         }
@@ -724,7 +631,7 @@ class CognitoWebhookController extends Controller
         $mappedDrivers = $mapper->mapDrivers($entry);
         foreach ($mappedDrivers as $mapped) {
             if (!empty($mapped['first_name']) || !empty($mapped['last_name'])) {
-                Log::info('NowCerts driver from UI mappings', array_merge($context, ['mapped_driver_data' => $mapped]));
+                DatabaseLogger::info('NowCerts driver from UI mappings', array_merge($context, ['mapped_driver_data' => $mapped]));
                 $addDriver($mapped);
             }
         }
@@ -733,7 +640,7 @@ class CognitoWebhookController extends Controller
         if (empty($mappedDrivers)) {
             $legacyMapped = $mapper->mapDriver($entry);
             if (!empty($legacyMapped['first_name']) || !empty($legacyMapped['last_name'])) {
-                Log::info('NowCerts driver from legacy mapping', array_merge($context, ['legacy_driver_data' => $legacyMapped]));
+                DatabaseLogger::info('NowCerts driver from legacy mapping', array_merge($context, ['legacy_driver_data' => $legacyMapped]));
                 $addDriver($legacyMapped, 'Legacy Mapping');
             }
         }
@@ -767,9 +674,9 @@ class CognitoWebhookController extends Controller
 
             try {
                 $response = $this->nowcerts->zapierInsertDriver($data);
-                Log::info('NowCerts driver synced', array_merge($context, ['driver' => $label, 'response' => $response]));
+                DatabaseLogger::info('NowCerts driver synced', array_merge($context, ['driver' => $label, 'response' => $response]));
             } catch (Throwable $e) {
-                Log::warning('NowCerts driver sync failed — non-blocking', array_merge($context, ['driver' => $label, 'error' => $e->getMessage()]));
+                DatabaseLogger::warning('NowCerts driver sync failed — non-blocking', array_merge($context, ['driver' => $label, 'error' => $e->getMessage()]));
             }
         }
     }
@@ -786,10 +693,13 @@ class CognitoWebhookController extends Controller
         $seenVins   = [];
 
         $addVehicle = function (array $vehicle) use (&$vehicles, &$seenVins): void {
-            $vin = strtolower(trim($vehicle['vin'] ?? $vehicle['VIN'] ?? $vehicle['Vin'] ?? ''));
+            $vin   = strtolower(trim($vehicle['vin'] ?? $vehicle['VIN'] ?? $vehicle['Vin'] ?? ''));
+            $year  = $vehicle['year']  ?? $vehicle['Year']  ?? '';
+            $make  = $vehicle['make']  ?? $vehicle['Make']  ?? '';
+            $model = $vehicle['model'] ?? $vehicle['Model'] ?? '';
             $key = $vin !== ''
                 ? $vin
-                : strtolower(trim(($vehicle['year'] ?? '') . ' ' . ($vehicle['make'] ?? '') . ' ' . ($vehicle['model'] ?? '')));
+                : strtolower(trim("{$year} {$make} {$model}"));
             if ($key === '' || isset($seenVins[$key])) {
                 return;
             }
@@ -801,7 +711,7 @@ class CognitoWebhookController extends Controller
         $mappedVehicles = $mapper->mapVehicles($entry);
         foreach ($mappedVehicles as $mapped) {
             if (!empty($mapped['year']) || !empty($mapped['make']) || !empty($mapped['vin'])) {
-                Log::info('NowCerts vehicle from UI mappings', array_merge($context, ['mapped_vehicle_data' => $mapped]));
+                DatabaseLogger::info('NowCerts vehicle from UI mappings', array_merge($context, ['mapped_vehicle_data' => $mapped]));
                 $addVehicle($mapped);
             }
         }
@@ -810,7 +720,7 @@ class CognitoWebhookController extends Controller
         if (empty($mappedVehicles)) {
             $legacyMapped = $mapper->mapVehicle($entry);
             if (!empty($legacyMapped['year']) || !empty($legacyMapped['make']) || !empty($legacyMapped['vin'])) {
-                Log::info('NowCerts vehicle from legacy mapping', array_merge($context, ['legacy_vehicle_data' => $legacyMapped]));
+                DatabaseLogger::info('NowCerts vehicle from legacy mapping', array_merge($context, ['legacy_vehicle_data' => $legacyMapped]));
                 $addVehicle($legacyMapped);
             }
         }
@@ -854,9 +764,9 @@ class CognitoWebhookController extends Controller
 
             try {
                 $response = $this->nowcerts->zapierInsertVehicle($data);
-                Log::info('NowCerts vehicle synced', array_merge($context, ['vehicle' => $label, 'response' => $response]));
+                DatabaseLogger::info('NowCerts vehicle synced', array_merge($context, ['vehicle' => $label, 'response' => $response]));
             } catch (Throwable $e) {
-                Log::warning('NowCerts vehicle sync failed — non-blocking', array_merge($context, ['vehicle' => $label, 'error' => $e->getMessage()]));
+                DatabaseLogger::warning('NowCerts vehicle sync failed — non-blocking', array_merge($context, ['vehicle' => $label, 'error' => $e->getMessage()]));
             }
         }
     }
@@ -881,7 +791,7 @@ class CognitoWebhookController extends Controller
                 $cognitoFileId = $file['Id'] ?? null;
 
                 if ($cognitoFileId && in_array($cognitoFileId, $alreadyUploadedIds, true)) {
-                    Log::info('NowCerts document skipped — already uploaded', array_merge($context, [
+                    DatabaseLogger::info('NowCerts document skipped — already uploaded', array_merge($context, [
                         'field'         => $fieldLabel,
                         'file'          => $file['Name'] ?? $cognitoFileId,
                         'cognitoFileId' => $cognitoFileId,
@@ -895,13 +805,13 @@ class CognitoWebhookController extends Controller
 
                 try {
                     $this->nowcerts->uploadDocument($insuredDatabaseId, $url, $name, $contentType, $fieldLabel);
-                    Log::info('NowCerts document uploaded', array_merge($context, ['field' => $fieldLabel, 'file' => $name]));
+                    DatabaseLogger::info('NowCerts document uploaded', array_merge($context, ['field' => $fieldLabel, 'file' => $name]));
 
                     if ($cognitoFileId) {
                         $newlyUploadedIds[] = $cognitoFileId;
                     }
                 } catch (Throwable $e) {
-                    Log::error('NowCerts document upload failed', array_merge($context, [
+                    DatabaseLogger::error('NowCerts document upload failed', array_merge($context, [
                         'field' => $fieldLabel,
                         'file'  => $name,
                         'error' => $e->getMessage(),
@@ -949,7 +859,7 @@ class CognitoWebhookController extends Controller
             $mappedNotices = $mapper->mapGeneralLiabilityNotices($entry);
             foreach ($mappedNotices as $mapped) {
                 if (!empty($mapped)) {
-                    Log::info('NowCerts GeneralLiabilityNotice from UI mappings', array_merge($context, ['mapped_notice_data' => $mapped]));
+                    DatabaseLogger::info('NowCerts GeneralLiabilityNotice from UI mappings', array_merge($context, ['mapped_notice_data' => $mapped]));
                     $addNotice($mapped, 'UI Mappings');
                 }
             }
@@ -958,7 +868,7 @@ class CognitoWebhookController extends Controller
             if (empty($mappedNotices)) {
                 $legacyNotice = $mapper->mapGeneralLiabilityNotice($entry);
                 if (!empty($legacyNotice)) {
-                    Log::info('NowCerts GeneralLiabilityNotice from legacy mapping', array_merge($context, ['legacy_notice_data' => $legacyNotice]));
+                    DatabaseLogger::info('NowCerts GeneralLiabilityNotice from legacy mapping', array_merge($context, ['legacy_notice_data' => $legacyNotice]));
                     $addNotice($legacyNotice, 'Legacy Mapping');
                 }
             }
@@ -974,21 +884,21 @@ class CognitoWebhookController extends Controller
                 $noticeLabel = trim(($notice['claim_number'] ?? '') . ' ' . ($notice['description_of_occurrence'] ?? ''));
                 $noticeLabel = $noticeLabel ?: 'Notice #' . ($index + 1);
 
-                Log::info("NowCerts mapped GeneralLiabilityNotice ({$source})", array_merge($context, [
+                DatabaseLogger::info("NowCerts mapped GeneralLiabilityNotice ({$source})", array_merge($context, [
                     'data' => $notice,
                     'notice_label' => $noticeLabel
                 ]));
 
                 try {
                     $response = $this->nowcerts->insertGeneralLiabilityNotice($notice);
-                    Log::info('NowCerts GeneralLiabilityNotice synced', array_merge($context, [
+                    DatabaseLogger::info('NowCerts GeneralLiabilityNotice synced', array_merge($context, [
                         'notice_data' => $notice,
                         'notice_label' => $noticeLabel,
                         'source' => $source,
                         'response' => $response
                     ]));
                 } catch (Throwable $e) {
-                    Log::warning('NowCerts GeneralLiabilityNotice sync failed — non-blocking', array_merge($context, [
+                    DatabaseLogger::warning('NowCerts GeneralLiabilityNotice sync failed — non-blocking', array_merge($context, [
                         'notice_data' => $notice,
                         'notice_label' => $noticeLabel,
                         'source' => $source,
@@ -997,7 +907,7 @@ class CognitoWebhookController extends Controller
                 }
             }
         } catch (Throwable $e) {
-            Log::warning('NowCerts GeneralLiabilityNotices processing failed — non-blocking', array_merge($context, [
+            DatabaseLogger::warning('NowCerts GeneralLiabilityNotices processing failed — non-blocking', array_merge($context, [
                 'error' => $e->getMessage()
             ]));
         }
@@ -1036,7 +946,7 @@ class CognitoWebhookController extends Controller
             $mappedCoverages = $mapper->mapPolicyCoverages($entry);
             foreach ($mappedCoverages as $mapped) {
                 if (!empty($mapped)) {
-                    Log::info('NowCerts PolicyCoverage from UI mappings', array_merge($context, ['mapped_coverage_data' => $mapped]));
+                    DatabaseLogger::info('NowCerts PolicyCoverage from UI mappings', array_merge($context, ['mapped_coverage_data' => $mapped]));
                     $addCoverage($mapped, 'UI Mappings');
                 }
             }
@@ -1045,7 +955,7 @@ class CognitoWebhookController extends Controller
             if (empty($mappedCoverages)) {
                 $legacyCoverage = $mapper->mapPolicyCoverage($entry);
                 if (!empty($legacyCoverage)) {
-                    Log::info('NowCerts PolicyCoverage from legacy mapping', array_merge($context, ['legacy_coverage_data' => $legacyCoverage]));
+                    DatabaseLogger::info('NowCerts PolicyCoverage from legacy mapping', array_merge($context, ['legacy_coverage_data' => $legacyCoverage]));
                     $addCoverage($legacyCoverage, 'Legacy Mapping');
                 }
             }
@@ -1063,7 +973,7 @@ class CognitoWebhookController extends Controller
                 $transformedCoverage = $this->transformToPolicyCoverageApiFormat($coverage);
                 $coverageLabel = $this->generateCoverageLabel($transformedCoverage, $index);
 
-                Log::info("NowCerts mapped PolicyCoverage ({$source})", array_merge($context, [
+                DatabaseLogger::info("NowCerts mapped PolicyCoverage ({$source})", array_merge($context, [
                     'coverage_data' => $transformedCoverage,
                     'coverage_label' => $coverageLabel
                 ]));
@@ -1079,13 +989,13 @@ class CognitoWebhookController extends Controller
 
             try {
                 $response = $this->nowcerts->insertPolicyCoverage($apiData);
-                Log::info('NowCerts PolicyCoverages synced', array_merge($context, [
+                DatabaseLogger::info('NowCerts PolicyCoverages synced', array_merge($context, [
                     'coverages_count' => count($policyCoverages),
                     'policy_database_id' => $policyDatabaseId,
                     'response' => $response
                 ]));
             } catch (Throwable $e) {
-                Log::warning('NowCerts PolicyCoverage sync failed — non-blocking', array_merge($context, [
+                DatabaseLogger::warning('NowCerts PolicyCoverage sync failed — non-blocking', array_merge($context, [
                     'coverages_count' => count($policyCoverages),
                     'policy_database_id' => $policyDatabaseId,
                     'coverage_data' => $apiData,
@@ -1093,7 +1003,7 @@ class CognitoWebhookController extends Controller
                 ]));
             }
         } catch (Throwable $e) {
-            Log::warning('NowCerts PolicyCoverages processing failed — non-blocking', array_merge($context, [
+            DatabaseLogger::warning('NowCerts PolicyCoverages processing failed — non-blocking', array_merge($context, [
                 'error' => $e->getMessage()
             ]));
         }
@@ -1233,7 +1143,7 @@ class CognitoWebhookController extends Controller
         $mappedProperties = $mapper->mapProperties($entry);
         foreach ($mappedProperties as $mapped) {
             if (!empty($mapped)) {
-                Log::info('NowCerts property from UI mappings', array_merge($context, ['mapped_property_data' => $mapped]));
+                DatabaseLogger::info('NowCerts property from UI mappings', array_merge($context, ['mapped_property_data' => $mapped]));
                 $addProperty($mapped, 'UI Mappings');
             }
         }
@@ -1242,7 +1152,7 @@ class CognitoWebhookController extends Controller
         if (empty($mappedProperties)) {
             $legacyPropertyData = $this->buildPropertyData($mapper, $entry, $insuredDatabaseId, $isRerun ? ($storedIds['propertyDatabaseId'] ?? null) : null);
             if (!empty($legacyPropertyData)) {
-                Log::info('NowCerts property from legacy mapping', array_merge($context, ['legacy_property_data' => $legacyPropertyData]));
+                DatabaseLogger::info('NowCerts property from legacy mapping', array_merge($context, ['legacy_property_data' => $legacyPropertyData]));
                 $addProperty($legacyPropertyData, 'Legacy Mapping');
             }
         }
@@ -1259,14 +1169,14 @@ class CognitoWebhookController extends Controller
             $propertyLabel = trim(($property['street'] ?? '') . ' ' . ($property['city'] ?? '') . ' ' . ($property['state'] ?? ''));
             $propertyLabel = $propertyLabel ?: 'Property #' . ($index + 1);
 
-            Log::info("NowCerts mapped {$entityLabel} ({$source})", array_merge($context, [
+            DatabaseLogger::info("NowCerts mapped {$entityLabel} ({$source})", array_merge($context, [
                 'data' => $property,
                 'property_label' => $propertyLabel
             ]));
 
             try {
                 $response = $this->nowcerts->zapierInsertProperty($property);
-                Log::info("NowCerts {$entityLabel} pushed", array_merge($context, [
+                DatabaseLogger::info("NowCerts {$entityLabel} pushed", array_merge($context, [
                     'response' => $response,
                     'property_label' => $propertyLabel
                 ]));
@@ -1283,7 +1193,7 @@ class CognitoWebhookController extends Controller
                         ?? null;
                 }
             } catch (Throwable $e) {
-                Log::error("NowCerts {$entityLabel} failed", array_merge($context, [
+                DatabaseLogger::error("NowCerts {$entityLabel} failed", array_merge($context, [
                     'error' => $e->getMessage(),
                     'property_label' => $propertyLabel,
                     'property_data' => $property
@@ -1486,11 +1396,11 @@ class CognitoWebhookController extends Controller
 
     /**
      * Extract vehicles AND watercraft from Form 16 (Personal Umbrella).
-     * 
+     *
      * Combines:
      * - Vehicle\d+.* patterns (traditional vehicles)
      * - Watercraft\d+.* patterns (watercraft treated as vehicles)
-     * 
+     *
      * Returns all as "vehicles" since NowCerts treats watercraft as vehicles.
      */
     private function extractForm16Vehicles(array $entry): array
@@ -1527,7 +1437,7 @@ class CognitoWebhookController extends Controller
         // Convert watercraft to vehicle format and add them
         foreach ($watercraftGroups as $group => $data) {
             $convertedVehicle = [];
-            
+
             // Map watercraft fields to vehicle fields
             foreach ($data as $field => $value) {
                 switch ($field) {
@@ -1535,7 +1445,7 @@ class CognitoWebhookController extends Controller
                         // Split "Type Manufacturer Model" into make/model
                         $parts = explode(' ', trim($value), 3);
                         $convertedVehicle['VehicleType'] = $parts[0] ?? null;
-                        $convertedVehicle['Make'] = $parts[1] ?? null; 
+                        $convertedVehicle['Make'] = $parts[1] ?? null;
                         $convertedVehicle['Model'] = isset($parts[2]) ? trim($parts[2]) : null;
                         break;
                     case 'Year':
@@ -1562,16 +1472,16 @@ class CognitoWebhookController extends Controller
                         break;
                 }
             }
-            
+
             // Mark as watercraft origin for identification and ensure proper deduplication
             $convertedVehicle['_watercraft_source'] = $group;
-            
+
             // Ensure watercraft have proper year/make/model for deduplication
             // Use VehicleType as part of make if make is missing
             if (empty($convertedVehicle['Make']) && !empty($convertedVehicle['VehicleType'])) {
                 $convertedVehicle['Make'] = $convertedVehicle['VehicleType'];
             }
-            
+
             if (!empty($convertedVehicle)) {
                 $vehicles[] = $convertedVehicle;
             }
@@ -1579,10 +1489,6 @@ class CognitoWebhookController extends Controller
 
         return $vehicles;
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Note helper
-    // ──────────────────────────────────────────────────────────────────────────
 
     /**
      * Insert a sync note on the insured record summarising the webhook data
@@ -1631,9 +1537,9 @@ class CognitoWebhookController extends Controller
                 'creator_name'        => 'Cognito Webhook',
             ]);
 
-            Log::info('NowCerts note added to insured', array_merge($context, ['insuredDatabaseId' => $insuredDatabaseId]));
+            DatabaseLogger::info('NowCerts note added to insured', array_merge($context, ['insuredDatabaseId' => $insuredDatabaseId]));
         } catch (Throwable $e) {
-            Log::warning('NowCerts note failed — non-blocking', array_merge($context, ['error' => $e->getMessage()]));
+            DatabaseLogger::warning('NowCerts note failed — non-blocking', array_merge($context, ['error' => $e->getMessage()]));
         }
     }
 
