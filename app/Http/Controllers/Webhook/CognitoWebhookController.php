@@ -143,8 +143,9 @@ class CognitoWebhookController extends Controller
                 ));
             }
 
-            $entry  = NowCertsFieldMapper::flattenEntry($entry);
-            $mapper = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
+            $rawEntry = $entry;
+            $entry    = NowCertsFieldMapper::flattenEntry($entry);
+            $mapper   = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
 
             DatabaseLogger::info('NowCerts sync started', array_merge($context, [
                 'flattened_entry_keys' => array_keys($entry),
@@ -207,7 +208,7 @@ class CognitoWebhookController extends Controller
                 $this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
             }
             if ($insuredDatabaseId) {
-                $this->syncProperties($entry, $mapper, $insuredDatabaseId, $context, $isRerun, $storedIds, $syncedEntities, $allSyncedData, $errors);
+                $this->syncProperties($entry, $mapper, $insuredDatabaseId, $context, $isRerun, $storedIds, $syncedEntities, $allSyncedData, $errors, $formId, $rawEntry);
             }
             if ($insuredDatabaseId) {
                 $this->syncGeneralLiabilityNotices($entry, $mapper, $insuredDatabaseId, $context);
@@ -1116,7 +1117,7 @@ class CognitoWebhookController extends Controller
      * with fallback to legacy single property mapping for backward compatibility.
      * Properties are deduplicated by address or other key identifiers.
      */
-    private function syncProperties(array $entry, NowCertsFieldMapper $mapper, string $insuredDatabaseId, array $context, bool $isRerun, array &$storedIds, array &$syncedEntities, array &$allSyncedData, array &$errors): void
+    private function syncProperties(array $entry, NowCertsFieldMapper $mapper, string $insuredDatabaseId, array $context, bool $isRerun, array &$storedIds, array &$syncedEntities, array &$allSyncedData, array &$errors, string $formId = '', array $rawEntry = []): void
     {
         $properties = [];
         $seenProperties = [];
@@ -1124,7 +1125,7 @@ class CognitoWebhookController extends Controller
         $addProperty = function (array $property, string $source) use (&$properties, &$seenProperties, $context): void {
             // Create a unique key based on address or description for deduplication
             $key = strtolower(trim(
-                ($property['street'] ?? '') . ' ' .
+                ($property['address_line_1'] ?? $property['street'] ?? '') . ' ' .
                 ($property['city'] ?? '') . ' ' .
                 ($property['state'] ?? '') . ' ' .
                 ($property['zip'] ?? '') . ' ' .
@@ -1154,6 +1155,18 @@ class CognitoWebhookController extends Controller
             if (!empty($legacyPropertyData)) {
                 DatabaseLogger::info('NowCerts property from legacy mapping', array_merge($context, ['legacy_property_data' => $legacyPropertyData]));
                 $addProperty($legacyPropertyData, 'Legacy Mapping');
+            }
+        }
+
+        // Form 16 — auto-extract Location* and RealEstate* sections as properties
+        if ($formId === '16' && !empty($rawEntry)) {
+            foreach ($this->extractForm16LocationProperties($rawEntry) as $prop) {
+                DatabaseLogger::info('NowCerts property from Form16 Location auto-extract', array_merge($context, ['prop' => $prop]));
+                $addProperty($prop, 'Auto-extracted Location');
+            }
+            foreach ($this->extractForm16RealEstateProperties($rawEntry) as $prop) {
+                DatabaseLogger::info('NowCerts property from Form16 RealEstate auto-extract', array_merge($context, ['prop' => $prop]));
+                $addProperty($prop, 'Auto-extracted RealEstate');
             }
         }
 
@@ -1201,6 +1214,78 @@ class CognitoWebhookController extends Controller
                 $errors[] = "{$entityLabel} ({$propertyLabel}): " . $e->getMessage();
             }
         }
+    }
+
+    /**
+     * Form 16 — extract Location1…Location10 as property records.
+     * Each Location entry has: Location (description), OccupancyType, UnitsAcres,
+     * UnderlyingLimit, UnderlyingCarrier. Skips entries with no meaningful data.
+     */
+    private function extractForm16LocationProperties(array $rawEntry): array
+    {
+        $properties = [];
+
+        foreach ($rawEntry as $key => $data) {
+            if (!preg_match('/^Location(\d+)$/', $key)) {
+                continue;
+            }
+            if (!is_array($data)) {
+                continue;
+            }
+
+            $location = $data['Location'] ?? null;
+            if (empty($location)) {
+                continue;
+            }
+
+            $properties[] = array_filter([
+                'description'  => $location,
+                'property_use' => $data['OccupancyType'] ?? null,
+            ], fn ($v) => $v !== null && $v !== '');
+        }
+
+        return $properties;
+    }
+
+    /**
+     * Form 16 — extract RealEstate1…RealEstate15 as property records.
+     * Address is nested two levels deep (RealEstate1.Address.City etc.) so it cannot
+     * be reached by the one-level flattenEntry() — we read from the raw payload here.
+     * Skips entries where the address has no Line1, City, or PostalCode.
+     */
+    private function extractForm16RealEstateProperties(array $rawEntry): array
+    {
+        $properties = [];
+
+        foreach ($rawEntry as $key => $data) {
+            if (!preg_match('/^RealEstate(\d+)$/', $key)) {
+                continue;
+            }
+            if (!is_array($data)) {
+                continue;
+            }
+
+            $address = is_array($data['Address'] ?? null) ? $data['Address'] : [];
+            $line1   = $address['Line1']      ?? null;
+            $city    = $address['City']       ?? null;
+            $zip     = $address['PostalCode'] ?? null;
+
+            if (empty($line1) && empty($city) && empty($zip)) {
+                continue;
+            }
+
+            $properties[] = array_filter([
+                'address_line_1' => $line1,
+                'address_line_2' => $address['Line2'] ?? null,
+                'city'           => $city,
+                'state'          => $address['State'] ?? null,
+                'zip'            => $zip,
+                'property_use'   => $data['OccupancyType'] ?? null,
+                'description'    => $data['AcresOfUnits']  ?? null,
+            ], fn ($v) => $v !== null && $v !== '');
+        }
+
+        return $properties;
     }
 
     /**
