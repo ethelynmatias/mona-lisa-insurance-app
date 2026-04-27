@@ -233,32 +233,45 @@ export default function FormDetails() {
                                         Configure how form fields map to NowCerts entities
                                     </p>
                                 </div>
-                                <button
-                                    onClick={handleSave}
-                                    disabled={saving || !!availableFieldsError || Object.keys(availableFields).length === 0}
-                                    className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white
-                                        text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60
-                                        disabled:cursor-not-allowed transition-colors"
-                                >
-                                    {saving ? (
-                                        <>
-                                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                <path className="opacity-75" fill="currentColor"
-                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                            </svg>
-                                            Saving…
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                                            </svg>
-                                            Save Mappings
-                                        </>
-                                    )}
-                                </button>
+                                <div className="flex items-center gap-3">
+                                    <Link
+                                        href={route('forms.mappings.view', { formId })}
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600
+                                            border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                        </svg>
+                                        View Saved Mappings
+                                    </Link>
+                                    <button
+                                        onClick={handleSave}
+                                        disabled={saving || !!availableFieldsError || Object.keys(availableFields).length === 0}
+                                        className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white
+                                            text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60
+                                            disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        {saving ? (
+                                            <>
+                                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                    <path className="opacity-75" fill="currentColor"
+                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                </svg>
+                                                Saving…
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                                </svg>
+                                                Save Mappings
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         </div>
 

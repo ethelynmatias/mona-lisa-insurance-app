@@ -119,6 +119,34 @@ class CognitoController extends Controller
         ]);
     }
 
+    public function viewMappings(string $formId): Response
+    {
+        $forms = [];
+        try {
+            $forms = $this->cognito->getForms();
+        } catch (\Throwable) {}
+
+        $form = collect($forms)->firstWhere('Id', $formId);
+
+        $mappings = $this->mappings->getMappingsForForm($formId);
+
+        $rows = collect($mappings)
+            ->filter(fn ($m) => ! empty($m['entity']) && ! empty($m['field']))
+            ->map(fn ($m, $cognitoField) => [
+                'cognito_field'   => $cognitoField,
+                'nowcerts_entity' => $m['entity'],
+                'nowcerts_field'  => $m['field'],
+            ])
+            ->values()
+            ->all();
+
+        return Inertia::render('Cognito/SavedMappings', [
+            'form'    => $form,
+            'formId'  => $formId,
+            'mappings' => $rows,
+        ]);
+    }
+
     public function saveMappings(SaveMappingsRequest $request, string $formId): RedirectResponse
     {
         $validated = $request->validated();

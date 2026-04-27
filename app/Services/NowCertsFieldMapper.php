@@ -695,6 +695,15 @@ class NowCertsFieldMapper
             return $matches[1] ?: 'PropertyAddress';
         }
 
+        // Pattern 9: Dot-notation fields — use the top-level prefix as the group key so that
+        // sibling sub-fields (e.g. LocationAddress.FullAddress and LocationAddress.City) land
+        // in the same group, while a numbered variant (LocationAddress2.*) gets its own group.
+        // Strip any __entity suffix (e.g. __property, __property2) before extracting the prefix.
+        $normalized = preg_replace('/__\w+$/', '', $cognitoField);
+        if (str_contains($normalized, '.')) {
+            return explode('.', $normalized, 2)[0];
+        }
+
         // Default: treat as single property group
         return 'default';
     }

@@ -27,7 +27,12 @@ class CognitoFormsService
             ->timeout($timeout)
             ->withToken($apiKey)
             ->acceptJson()
-            ->asJson();
+            ->asJson()
+            ->retry(3, 500, fn ($e) =>
+                $e instanceof \Illuminate\Http\Client\RequestException &&
+                in_array($e->response?->status(), [502, 503, 504], true),
+                throw: false,
+            );
     }
 
     public function getForms(): array
@@ -92,6 +97,7 @@ class CognitoFormsService
             403     => 'Forbidden: the API key does not have the required scope.',
             404     => 'Not found: the form or entry does not exist.',
             429     => 'Rate limit exceeded: too many requests.',
+            502, 503, 504 => 'Cognito Forms is temporarily unavailable (HTTP ' . $status . '). Please try again in a moment.',
             default => $body['message'] ?? "Cognito Forms API error (HTTP {$status}).",
         };
     }

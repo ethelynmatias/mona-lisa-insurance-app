@@ -19,8 +19,9 @@ Route::middleware('guest')->group(function () {
 // Authenticated only
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard',              [CognitoController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard/forms/{formId}',          [CognitoController::class, 'show'])->name('forms.show');
-    Route::post('/dashboard/forms/{formId}/mappings', [CognitoController::class, 'saveMappings'])->name('forms.mappings.save');
+    Route::get('/dashboard/forms/{formId}',                   [CognitoController::class, 'show'])->name('forms.show');
+    Route::get('/dashboard/forms/{formId}/mappings',          [CognitoController::class, 'viewMappings'])->name('forms.mappings.view');
+    Route::post('/dashboard/forms/{formId}/mappings',         [CognitoController::class, 'saveMappings'])->name('forms.mappings.save');
 
     // Settings
     Route::get('/settings',                      [SettingsController::class, 'index'])->name('settings');
