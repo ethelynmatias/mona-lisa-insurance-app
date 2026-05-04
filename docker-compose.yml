@@ -1,5 +1,8 @@
 services:
   app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: ${DOCKERHUB_USERNAME}/mona-lisa-insurance:latest
     container_name: mona-lisa-app
     restart: unless-stopped
@@ -14,7 +17,7 @@ services:
       - DB_USERNAME=${DB_USERNAME:-sail}
       - DB_PASSWORD=${DB_PASSWORD:-password}
     volumes:
-      - /var/www/mona-lisa-insurance-app/.env:/var/www/.env
+      - ./.env:/var/www/.env
       - storage-data:/var/www/storage
     depends_on:
       mysql:
