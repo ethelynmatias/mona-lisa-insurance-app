@@ -1210,56 +1210,40 @@ class CognitoSyncService
     ): void {
         try {
 
-            $subject = implode([
-                'Form: '      . ($log->form_name ?? $formId).' test ',
-                'Entry ID: '  . ($log->entry_id  ?? 'N/A'),
-                'Synced at: ' . now()->format('Y-m-d H:i:s'),
-            ]);
+            $lines = [
+                'Form'      => $log->form_name ?? $formId,
+                'Entry ID'  => $log->entry_id  ?? 'N/A',
+                'Synced at' => now()->format('Y-m-d H:i:s'),
+            ];
 
-            $body = [];
-
-            $body[] = '[Webhook Data]';
             foreach ($entry as $key => $value) {
                 if ($this->isNoteExcluded($key)) {
                     continue;
                 }
                 if (is_scalar($value) && $value !== '' && $value !== null) {
-                    $body[] = "  {$key}: {$value}";
+                    $lines[$key] = $value;
                 }
             }
 
             foreach ($allSyncedData as $entity => $fields) {
-
-                $body[] = "[{$entity}]";
                 foreach ($fields as $key => $value) {
                     if ($this->isNoteExcluded($key)) {
                         continue;
                     }
                     if (is_scalar($value) && $value !== '' && $value !== null) {
-                        $body[] = "  {$key}: {$value}";
+                        $lines["[{$entity}] {$key}"] = $value;
                     }
                 }
             }
 
-            $payload = [
+            $this->nowcerts->insertNote([
                 'insured_database_id' => $insuredDatabaseId,
-                'subject'             => $subject,
-                'description'         => implode("\r\n", $body),
+                'subject'             => $lines,
                 'creator_name'        => 'Cognito Webhook',
-            ];
+            ]);
 
-            DatabaseLogger::info('NowCerts note payload', array_merge($context, [
-                'insuredDatabaseId' => $insuredDatabaseId,
-                'subject'           => $subject,
-                'description'       => implode("\r\n", $body),
-            ]));
+            DatabaseLogger::info('NowCerts note added to insured', array_merge($context, ['insuredDatabaseId' => $insuredDatabaseId]));
 
-            $response = $this->nowcerts->insertNote($payload);
-
-            DatabaseLogger::info('NowCerts note response', array_merge($context, [
-                'insuredDatabaseId' => $insuredDatabaseId,
-                'response'          => $response,
-            ]));
         } catch (Throwable $e) {
             DatabaseLogger::warning('NowCerts note failed — non-blocking', array_merge($context, ['error' => $e->getMessage()]));
         }
