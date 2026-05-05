@@ -3,58 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Models\AppLog;
+use App\QueryBuilders\AppLogQueryBuilder;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class LogsController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, AppLogQueryBuilder $builder): Response
     {
-        $query = AppLog::query()->orderBy('logged_at', 'desc');
-
-        if ($request->filled('level')) {
-            $query->level($request->level);
-        }
-
-        if ($request->filled('channel')) {
-            $query->channel($request->channel);
-        }
-
-        if ($request->filled('form_id')) {
-            $query->formId($request->form_id);
-        }
-
-        if ($request->filled('search')) {
-            $query->where('message', 'like', '%' . $request->search . '%');
-        }
-
-        if ($request->filled('hours')) {
-            $query->recent((int) $request->hours);
-        }
-
-        $logs = $query->paginate(50)->withQueryString();
-
-        $stats = [
-            'total'      => AppLog::count(),
-            'errors'     => AppLog::level('error')->count(),
-            'warnings'   => AppLog::level('warning')->count(),
-            'info'       => AppLog::level('info')->count(),
-            'recent_24h' => AppLog::recent(24)->count(),
-        ];
-
-        $levels   = AppLog::distinct('level')->pluck('level')->sort()->values();
-        $channels = AppLog::distinct('channel')->pluck('channel')->sort()->values();
-        $formIds  = AppLog::whereNotNull('form_id')->distinct('form_id')->pluck('form_id')->sort()->values();
+        $logs = $builder->build()
+            ->paginate(50)
+            ->withQueryString();
 
         return Inertia::render('Logs/Index', [
             'logs'           => $logs,
-            'stats'          => $stats,
-            'filters'        => [
-                'levels'   => $levels,
-                'channels' => $channels,
-                'form_ids' => $formIds,
-            ],
+            'stats'          => $this->stats(),
+            'filters'        => $this->filters(),
             'currentFilters' => $request->only(['level', 'channel', 'form_id', 'search', 'hours']),
         ]);
     }
@@ -66,22 +31,38 @@ class LogsController extends Controller
         ]);
     }
 
-    public function clear(Request $request)
+    public function clear(Request $request, AppLogQueryBuilder $builder)
     {
-        $query = AppLog::query();
+        $query = $builder->build();
 
-        if ($request->filled('level')) {
-            $query->level($request->level);
-        }
-
-        if ($request->filled('older_than_days')) {
-            $query->where('logged_at', '<', now()->subDays((int) $request->older_than_days));
-        } else {
-            $query->where('logged_at', '<', now()->subDays(30));
-        }
+        $query->when(
+            $request->older_than_days,
+            fn ($q, $v) => $q->where('logged_at', '<', now()->subDays((int) $v)),
+            fn ($q)     => $q->where('logged_at', '<', now()->subDays(30))
+        );
 
         $deleted = $query->delete();
 
         return back()->with('success', "Cleared {$deleted} log entries.");
+    }
+
+    private function stats(): array
+    {
+        return [
+            'total'      => AppLog::count(),
+            'errors'     => AppLog::level('error')->count(),
+            'warnings'   => AppLog::level('warning')->count(),
+            'info'       => AppLog::level('info')->count(),
+            'recent_24h' => AppLog::recent(24)->count(),
+        ];
+    }
+
+    private function filters(): array
+    {
+        return [
+            'levels'   => AppLog::distinct('level')->pluck('level')->sort()->values(),
+            'channels' => AppLog::distinct('channel')->pluck('channel')->sort()->values(),
+            'form_ids' => AppLog::whereNotNull('form_id')->distinct('form_id')->pluck('form_id')->sort()->values(),
+        ];
     }
 }
