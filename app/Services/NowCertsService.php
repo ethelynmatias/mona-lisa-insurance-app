@@ -324,7 +324,7 @@ class NowCertsService
             // Injury Specifics
             'type_of_injury_illness', 'part_of_body_affected', 'type_of_injury_illness_code', 'part_of_body_affected_code',
             // Incident Details
-            'equipment_materials_or_chemicals_employee_was_using', 'activity_employee_was_engaged', 
+            'equipment_materials_or_chemicals_employee_was_using', 'activity_employee_was_engaged',
             'work_process_employee_was_engaged', 'how_injury_or_illness_occurred', 'cause_of_injury_code',
             // Recovery/Death Information
             'date_return_to_work', 'date_of_death',
@@ -349,7 +349,7 @@ class NowCertsService
     {
         $fields = array_map(fn ($f) => array_values($f), self::KNOWN_FIELDS);
         $fields[NowCertsEntity::Property->value] = $this->getPropertyFields();
-        
+
         return $fields;
     }
 
@@ -780,7 +780,7 @@ class NowCertsService
     /**
      * Sync insured with policies - find-or-create insured, then sync policies and quotes.
      * This method handles both creating new records and updating existing ones.
-     * 
+     *
      * @param array $data Complete InsuredAndPolicies payload
      * @return array API response with injected database IDs
      */
@@ -791,14 +791,14 @@ class NowCertsService
         $insuredDatabaseId = null;
 
         if ($existing) {
-            $insuredDatabaseId = $existing['insuredDatabaseId'] 
-                ?? $existing['DatabaseId'] 
-                ?? $existing['databaseId'] 
+            $insuredDatabaseId = $existing['insuredDatabaseId']
+                ?? $existing['DatabaseId']
+                ?? $existing['databaseId']
                 ?? null;
-            
+
             if ($insuredDatabaseId) {
                 $data['databaseId'] = $insuredDatabaseId;
-                
+
                 // Also inject insured database ID into policies and quotes arrays
                 if (isset($data['policies']) && is_array($data['policies'])) {
                     foreach ($data['policies'] as &$policy) {
@@ -807,7 +807,7 @@ class NowCertsService
                         }
                     }
                 }
-                
+
                 if (isset($data['quotes']) && is_array($data['quotes'])) {
                     foreach ($data['quotes'] as &$quote) {
                         if (!isset($quote['insuredDatabaseId'])) {
@@ -815,10 +815,10 @@ class NowCertsService
                         }
                     }
                 }
-                
+
                 Log::info('NowCerts existing insured found for InsuredAndPolicies sync', [
                     'insuredDatabaseId' => $insuredDatabaseId,
-                    'name' => trim(($existing['firstName'] ?? $existing['FirstName'] ?? '') . ' ' . 
+                    'name' => trim(($existing['firstName'] ?? $existing['FirstName'] ?? '') . ' ' .
                                   ($existing['lastName'] ?? $existing['LastName'] ?? '')),
                     'policies_count' => count($data['policies'] ?? []),
                     'quotes_count' => count($data['quotes'] ?? []),
@@ -833,13 +833,13 @@ class NowCertsService
                     $existingPolicy = $this->firstFromResponse(
                         $this->findPolicies(['Number' => $policy['number']])
                     );
-                    
+
                     if ($existingPolicy) {
-                        $policyDatabaseId = $existingPolicy['policyDatabaseId'] 
-                            ?? $existingPolicy['DatabaseId'] 
-                            ?? $existingPolicy['databaseId'] 
+                        $policyDatabaseId = $existingPolicy['policyDatabaseId']
+                            ?? $existingPolicy['DatabaseId']
+                            ?? $existingPolicy['databaseId']
                             ?? null;
-                            
+
                         if ($policyDatabaseId) {
                             $policy['databaseId'] = $policyDatabaseId;
                         }
@@ -855,13 +855,13 @@ class NowCertsService
                     $existingQuote = $this->firstFromResponse(
                         $this->findPolicies(['Number' => $quote['number']])
                     );
-                    
+
                     if ($existingQuote) {
-                        $quoteDatabaseId = $existingQuote['policyDatabaseId'] 
-                            ?? $existingQuote['DatabaseId'] 
-                            ?? $existingQuote['databaseId'] 
+                        $quoteDatabaseId = $existingQuote['policyDatabaseId']
+                            ?? $existingQuote['DatabaseId']
+                            ?? $existingQuote['databaseId']
                             ?? null;
-                            
+
                         if ($quoteDatabaseId) {
                             $quote['databaseId'] = $quoteDatabaseId;
                         }
@@ -874,9 +874,9 @@ class NowCertsService
 
         // Extract and return database IDs for reference
         if (!$insuredDatabaseId) {
-            $insuredDatabaseId = $result['DatabaseId'] 
-                ?? $result['databaseId'] 
-                ?? $result['insuredDatabaseId'] 
+            $insuredDatabaseId = $result['DatabaseId']
+                ?? $result['databaseId']
+                ?? $result['insuredDatabaseId']
                 ?? null;
 
             if (!$insuredDatabaseId) {
@@ -888,7 +888,7 @@ class NowCertsService
         }
 
         $result['_insuredDatabaseId'] = $insuredDatabaseId;
-        
+
         return $result;
     }
     /**
@@ -1006,7 +1006,7 @@ class NowCertsService
 
     /**
      * Sync a driver - find-or-create based on name and insured association.
-     * 
+     *
      * @param array $data Driver data including insured linkage
      * @return array API response
      */
@@ -1014,14 +1014,14 @@ class NowCertsService
     {
         // Look for existing driver by name within the insured context
         $existing = null;
-        
+
         if (!empty($data['first_name']) && !empty($data['last_name']) && !empty($data['insured_database_id'])) {
             $searchParams = [
                 'FirstName' => $data['first_name'],
                 'LastName' => $data['last_name'],
                 'InsuredId' => $data['insured_database_id']
             ];
-            
+
             $existing = $this->firstFromResponse(
                 $this->findDrivers($searchParams)
             );
@@ -1029,10 +1029,10 @@ class NowCertsService
 
         if ($existing) {
             $driverDatabaseId = $existing['databaseId'] ?? $existing['DatabaseId'] ?? null;
-            
+
             if ($driverDatabaseId) {
                 $data['database_id'] = $driverDatabaseId;
-                
+
                 Log::info('NowCerts existing driver found for sync', [
                     'driverDatabaseId' => $driverDatabaseId,
                     'name' => trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? '')),
@@ -1081,27 +1081,27 @@ class NowCertsService
 
     /**
      * Sync a vehicle - find-or-create based on VIN or year/make/model and insured association.
-     * 
+     *
      * @param array $data Vehicle data including insured linkage
      * @return array API response
      */
     public function syncVehicle(array $data): array
     {
         $existing = null;
-        
+
         // First try to find by VIN if provided
         if (!empty($data['vin']) && !empty($data['insured_database_id'])) {
-            // Note: NowCerts API doesn't have a direct vehicle finder by VIN, 
+            // Note: NowCerts API doesn't have a direct vehicle finder by VIN,
             // so we'll use the general approach for now
             $existing = $this->findExistingVehicle($data);
         }
 
         if ($existing) {
             $vehicleDatabaseId = $existing['databaseId'] ?? $existing['DatabaseId'] ?? null;
-            
+
             if ($vehicleDatabaseId) {
                 $data['database_id'] = $vehicleDatabaseId;
-                
+
                 Log::info('NowCerts existing vehicle found for sync', [
                     'vehicleDatabaseId' => $vehicleDatabaseId,
                     'vin' => $data['vin'] ?? 'N/A',
@@ -1124,7 +1124,7 @@ class NowCertsService
             // Get vehicles for the insured and filter locally
             $vehicles = $this->getVehicles(['key' => $data['insured_database_id'] ?? '']);
             $vehicleList = $vehicles['data'] ?? $vehicles ?? [];
-            
+
             if (!is_array($vehicleList) || empty($vehicleList)) {
                 return null;
             }
@@ -1132,7 +1132,7 @@ class NowCertsService
             // First try to match by VIN
             if (!empty($data['vin'])) {
                 foreach ($vehicleList as $vehicle) {
-                    if (isset($vehicle['vin']) && 
+                    if (isset($vehicle['vin']) &&
                         strtolower($vehicle['vin']) === strtolower($data['vin'])) {
                         return $vehicle;
                     }
@@ -1162,7 +1162,7 @@ class NowCertsService
 
     // /**
     //  * Insert a service request to add a driver.
-    //  * 
+    //  *
     //  * @param array $data Service request data
     //  * @return array API response
     //  */
@@ -1176,7 +1176,7 @@ class NowCertsService
 
     // /**
     //  * Sync a service request to add a driver - find-or-create based on driver name and insured.
-    //  * 
+    //  *
     //  * @param array $data Service request data
     //  * @return array API response
     //  */
@@ -1184,7 +1184,7 @@ class NowCertsService
     // {
     //     // Look for existing service request by driver name and insured
     //     $existing = null;
-        
+
     //     if (!empty($data['driver_name_to_add']) && !empty($data['insured_id'])) {
     //         // Since there's no direct API to find service requests, we'll treat this as insert-only
     //         // The API will handle duplicates based on its own logic
@@ -1208,7 +1208,7 @@ class NowCertsService
 
     // /**
     //  * Insert a service request to add a vehicle.
-    //  * 
+    //  *
     //  * @param array $data Service request data
     //  * @return array API response
     //  */
@@ -1222,7 +1222,7 @@ class NowCertsService
 
     // /**
     //  * Sync a service request to add a vehicle - find-or-create based on VIN/vehicle info and insured.
-    //  * 
+    //  *
     //  * @param array $data Service request data
     //  * @return array API response
     //  */
@@ -1230,7 +1230,7 @@ class NowCertsService
     // {
     //     // Look for existing service request by VIN/vehicle info and insured
     //     $existing = null;
-        
+
     //     if (!empty($data['vin_number']) && !empty($data['insured_id'])) {
     //         // Since there's no direct API to find service requests, we'll treat this as insert-only
     //         // The API will handle duplicates based on its own logic
@@ -1256,7 +1256,7 @@ class NowCertsService
 
     /**
      * Insert vehicle coverage information.
-     * 
+     *
      * @param array $data Vehicle coverage data
      * @return array API response
      */
@@ -1270,7 +1270,7 @@ class NowCertsService
 
     /**
      * Sync vehicle coverage - checks if vehicle exists first, then inserts coverage.
-     * 
+     *
      * @param array $data Vehicle coverage data
      * @return array API response
      */
@@ -1282,13 +1282,13 @@ class NowCertsService
         // First, verify the vehicle exists if vehicle_database_id is provided
         if ($vehicleDatabaseId) {
             $vehicleExists = $this->checkVehicleExists($vehicleDatabaseId, $insuredDatabaseId);
-            
+
             if (!$vehicleExists) {
                 Log::warning('NowCerts vehicle not found for coverage sync', [
                     'vehicle_database_id' => $vehicleDatabaseId,
                     'insured_database_id' => $insuredDatabaseId,
                 ]);
-                
+
                 throw new RuntimeException("Vehicle with ID {$vehicleDatabaseId} not found for insured {$insuredDatabaseId}. Please ensure the vehicle is inserted before adding coverage.");
             }
         }
@@ -1316,7 +1316,7 @@ class NowCertsService
             // Get vehicles for the insured
             $vehicles = $this->getVehicles(['key' => $insuredDatabaseId ?? '']);
             $vehicleList = $vehicles['data'] ?? $vehicles ?? [];
-            
+
             if (!is_array($vehicleList)) {
                 return false;
             }
@@ -1324,7 +1324,7 @@ class NowCertsService
             // Check if the specific vehicle database ID exists
             foreach ($vehicleList as $vehicle) {
                 $existingVehicleId = $vehicle['databaseId'] ?? $vehicle['DatabaseId'] ?? $vehicle['vehicle_database_id'] ?? null;
-                
+
                 if ($existingVehicleId && $existingVehicleId === $vehicleDatabaseId) {
                     Log::info('NowCerts vehicle found for coverage sync', [
                         'vehicle_database_id' => $vehicleDatabaseId,
@@ -1351,10 +1351,10 @@ class NowCertsService
     private function getActiveCoverageTypes(array $data): array
     {
         $coverageTypes = [];
-        
+
         $coverageMap = [
             'bodily_injury' => 'bodily_injury_limit',
-            'property_damage' => 'property_damage_limit', 
+            'property_damage' => 'property_damage_limit',
             'comprehensive' => 'comprehensive_limit',
             'collision' => 'collision_limit',
             'umbi' => 'umbi_limit',
@@ -1399,7 +1399,7 @@ class NowCertsService
 
     /**
      * Sync a claim - find-or-create based on claim number and insured association.
-     * 
+     *
      * @param array $data Claim data
      * @return array API response
      */
@@ -1419,16 +1419,16 @@ class NowCertsService
         } else {
             // Check for existing claim by claim number and insured
             $existing = null;
-            
+
             if ($claimNumber && $insuredDatabaseId) {
                 $existing = $this->findExistingClaim($claimNumber, $insuredDatabaseId);
-                
+
                 if ($existing) {
                     $existingId = $existing['database_id'] ?? $existing['DatabaseId'] ?? $existing['databaseId'] ?? null;
-                    
+
                     if ($existingId) {
                         $data['database_id'] = $existingId;
-                        
+
                         Log::info('NowCerts existing claim found for sync', [
                             'database_id' => $existingId,
                             'claim_number' => $claimNumber,
@@ -1438,7 +1438,7 @@ class NowCertsService
                     }
                 }
             }
-            
+
             if (!$existing) {
                 Log::info('NowCerts creating new claim', [
                     'claim_number' => $claimNumber,
@@ -1461,7 +1461,7 @@ class NowCertsService
             // Get claims for the insured
             $claims = $this->getClaims(['key' => $insuredDatabaseId]);
             $claimList = $claims['data'] ?? $claims ?? [];
-            
+
             if (!is_array($claimList)) {
                 return null;
             }
@@ -1469,7 +1469,7 @@ class NowCertsService
             // Look for matching claim number
             foreach ($claimList as $claim) {
                 $existingClaimNumber = $claim['claim_number'] ?? $claim['claimNumber'] ?? $claim['ClaimNumber'] ?? null;
-                
+
                 if ($existingClaimNumber && $existingClaimNumber === $claimNumber) {
                     Log::info('NowCerts found existing claim', [
                         'claim_number' => $claimNumber,
@@ -1492,7 +1492,7 @@ class NowCertsService
 
     /**
      * Insert a property loss claim.
-     * 
+     *
      * @param array $data Property loss claim data
      * @return array API response
      */
@@ -1506,7 +1506,7 @@ class NowCertsService
 
     /**
      * Sync a property loss claim - find-or-create based on claim number and insured association.
-     * 
+     *
      * @param array $data Property loss claim data
      * @return array API response
      */
@@ -1527,17 +1527,17 @@ class NowCertsService
         } else {
             // Check for existing property loss claim by claim number and insured
             $existing = null;
-            
+
             if ($claimNumber && $insuredDatabaseId) {
                 // Reuse the existing findExistingClaim method since property loss claims are also claims
                 $existing = $this->findExistingClaim($claimNumber, $insuredDatabaseId);
-                
+
                 if ($existing) {
                     $existingId = $existing['database_id'] ?? $existing['DatabaseId'] ?? $existing['databaseId'] ?? null;
-                    
+
                     if ($existingId) {
                         $data['database_id'] = $existingId;
-                        
+
                         Log::info('NowCerts existing property loss claim found for sync', [
                             'database_id' => $existingId,
                             'claim_number' => $claimNumber,
@@ -1548,7 +1548,7 @@ class NowCertsService
                     }
                 }
             }
-            
+
             if (!$existing) {
                 Log::info('NowCerts creating new property loss claim', [
                     'claim_number' => $claimNumber,
@@ -1570,7 +1570,7 @@ class NowCertsService
     private function getActiveLossTypes(array $data): array
     {
         $lossTypes = [];
-        
+
         $lossTypeFlags = [
             'fire', 'theft', 'lightning', 'hail', 'flood', 'wind', 'other'
         ];
@@ -1591,7 +1591,7 @@ class NowCertsService
 
     /**
      * Insert a worker compensation claim.
-     * 
+     *
      * @param array $data Worker compensation claim data
      * @return array API response
      */
@@ -1605,7 +1605,7 @@ class NowCertsService
 
     /**
      * Sync a worker compensation claim - find-or-create based on claim number and insured association.
-     * 
+     *
      * @param array $data Worker compensation claim data
      * @return array API response
      */
@@ -1627,17 +1627,17 @@ class NowCertsService
         } else {
             // Check for existing worker compensation claim by claim number and insured
             $existing = null;
-            
+
             if ($claimNumber && $insuredDatabaseId) {
                 // Reuse the existing findExistingClaim method since worker comp claims are also claims
                 $existing = $this->findExistingClaim($claimNumber, $insuredDatabaseId);
-                
+
                 if ($existing) {
                     $existingId = $existing['database_id'] ?? $existing['DatabaseId'] ?? $existing['databaseId'] ?? null;
-                    
+
                     if ($existingId) {
                         $data['database_id'] = $existingId;
-                        
+
                         Log::info('NowCerts existing worker compensation claim found for sync', [
                             'database_id' => $existingId,
                             'claim_number' => $claimNumber,
@@ -1648,7 +1648,7 @@ class NowCertsService
                     }
                 }
             }
-            
+
             if (!$existing) {
                 Log::info('NowCerts creating new worker compensation claim', [
                     'claim_number' => $claimNumber,
@@ -1672,7 +1672,7 @@ class NowCertsService
     private function getActiveSafetyFlags(array $data): array
     {
         $safetyFlags = [];
-        
+
         $safetyFields = [
             'time_of_occurrence_cannot_be_determined',
             'were_safeguards_or_safety_equipment_provided',
@@ -1687,16 +1687,6 @@ class NowCertsService
         }
 
         return $safetyFlags;
-    }
-
-    /**
-     * List notes for an insured.
-     *
-     * @param  array{key?:string}  $params
-     */
-    public function getNotes(array $params = []): array
-    {
-        return $this->send('GET', 'NotesList', query: $params);
     }
 
     /**
@@ -1769,7 +1759,7 @@ class NowCertsService
 
     /**
      * Insert a General Liability Notice.
-     * 
+     *
      * @param array{
      *   description_of_occurrence?:string, database_id?:string, claim_number?:string,
      *   status?:string, street?:string, city?:string, state?:string, zip?:string,
@@ -1790,7 +1780,7 @@ class NowCertsService
 
     /**
      * Insert Policy Coverage.
-     * 
+     *
      * @param array{
      *   policyDatabaseId:string,
      *   policyCoverages:array
@@ -1811,7 +1801,7 @@ class NowCertsService
             fn ($v) => $v !== null && $v !== '',
         ));
     }
-    
+
     public function getAgents(array $params = []): array
     {
         return $this->send('GET', 'AgentList', query: $params);

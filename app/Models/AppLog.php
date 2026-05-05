@@ -23,8 +23,8 @@ class AppLog extends Model
     ];
 
     protected $casts = [
-        'context' => 'array',
-        'logged_at' => 'datetime',
+        'context'    => 'array',
+        'logged_at'  => 'datetime:Y-m-d H:i:s',
     ];
 
     public function scopeLevel(Builder $query, string $level): Builder

@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 
 const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: DashboardIcon },
+    { name: 'Dashboardssss', href: '/dashboard', icon: DashboardIcon },
     { name: 'Settings',  href: '/settings',  icon: SettingsIcon  },
-    { name: 'Logs',      href: '/admin/logs', icon: LogsIcon, adminOnly: true },
+    { name: 'Logs',      href: '/logs', icon: LogsIcon },
 ];
 
 function DashboardIcon() {
@@ -87,7 +87,7 @@ export default function AuthenticatedLayout({ children, title }) {
                 {/* Navigation */}
                 <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
                     {navigation
-                        .filter(item => !item.adminOnly || auth.user?.role === 'admin')
+                        .filter(item => !item.adminOnly || ['admin', 'main admin'].includes(auth.user?.role))
                         .map((item) => {
                             const Icon = item.icon;
                             const active = window.location.pathname === item.href;
@@ -117,7 +117,7 @@ export default function AuthenticatedLayout({ children, title }) {
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{auth.user?.name}</p>
                             <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full capitalize
-                                ${auth.user?.role === 'admin'
+                                ${['admin', 'main admin'].includes(auth.user?.role)
                                     ? 'bg-purple-100 text-purple-700'
                                     : 'bg-blue-100 text-blue-700'
                                 }`}>
