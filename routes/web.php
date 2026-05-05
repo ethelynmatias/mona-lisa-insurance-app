@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\LogsController;
+use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\CognitoController;
 use App\Http\Controllers\SettingsController;
@@ -32,6 +33,12 @@ Route::middleware('auth')->group(function () {
     Route::delete('/settings/users/{user}',       [SettingsController::class, 'deleteUser'])->name('settings.users.delete')->middleware('role:admin');
 
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+
+    // Notifications
+    Route::get('/notifications',                        [NotificationsController::class, 'index'])->name('notifications.index');
+    Route::patch('/notifications/{log}/read',           [NotificationsController::class, 'markRead'])->name('notifications.read');
+    Route::patch('/notifications/read-all',             [NotificationsController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::get('/notifications/unread-count',           [NotificationsController::class, 'unreadCount'])->name('notifications.unread-count');
 
     // Logs
     Route::get('/logs',          [LogsController::class, 'index'])->name('logs.index')->middleware('role:admin');

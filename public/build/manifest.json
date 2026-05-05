@@ -1,6 +1,6 @@
 {
-  "_AuthenticatedLayout-NjrgK6L0.js": {
-    "file": "assets/AuthenticatedLayout-NjrgK6L0.js",
+  "_AuthenticatedLayout-FTBX_-3M.js": {
+    "file": "assets/AuthenticatedLayout-FTBX_-3M.js",
     "name": "AuthenticatedLayout",
     "imports": [
       "_jsx-runtime-Bas90rLm.js"
@@ -18,7 +18,7 @@
     "name": "jsx-runtime"
   },
   "resources/css/app.css": {
-    "file": "assets/app-CcEvxbQ4.css",
+    "file": "assets/app-CClp8glQ.css",
     "name": "app",
     "names": [
       "app.css"
@@ -36,69 +36,79 @@
     ]
   },
   "resources/js/Pages/Cognito/FormDetails.jsx": {
-    "file": "assets/FormDetails-CEGrLKle.js",
+    "file": "assets/FormDetails-DiHezqiD.js",
     "name": "FormDetails",
     "src": "resources/js/Pages/Cognito/FormDetails.jsx",
     "isDynamicEntry": true,
     "imports": [
       "_jsx-runtime-Bas90rLm.js",
       "_WebhookHistoryPanel-CPlmRQVq.js",
-      "_AuthenticatedLayout-NjrgK6L0.js"
+      "_AuthenticatedLayout-FTBX_-3M.js"
     ]
   },
   "resources/js/Pages/Cognito/SavedMappings.jsx": {
-    "file": "assets/SavedMappings-C_dKYT-F.js",
+    "file": "assets/SavedMappings-BuzPcw2X.js",
     "name": "SavedMappings",
     "src": "resources/js/Pages/Cognito/SavedMappings.jsx",
     "isDynamicEntry": true,
     "imports": [
       "_jsx-runtime-Bas90rLm.js",
-      "_AuthenticatedLayout-NjrgK6L0.js"
+      "_AuthenticatedLayout-FTBX_-3M.js"
     ]
   },
   "resources/js/Pages/Dashboard.jsx": {
-    "file": "assets/Dashboard-9zYacI5r.js",
+    "file": "assets/Dashboard-BDdZelKY.js",
     "name": "Dashboard",
     "src": "resources/js/Pages/Dashboard.jsx",
     "isDynamicEntry": true,
     "imports": [
       "_jsx-runtime-Bas90rLm.js",
       "_WebhookHistoryPanel-CPlmRQVq.js",
-      "_AuthenticatedLayout-NjrgK6L0.js"
+      "_AuthenticatedLayout-FTBX_-3M.js"
     ]
   },
   "resources/js/Pages/Logs/Index.jsx": {
-    "file": "assets/Index-4wpdRZni.js",
+    "file": "assets/Index-BQcElpbB.js",
     "name": "Index",
     "src": "resources/js/Pages/Logs/Index.jsx",
     "isDynamicEntry": true,
     "imports": [
       "_jsx-runtime-Bas90rLm.js",
-      "_AuthenticatedLayout-NjrgK6L0.js"
+      "_AuthenticatedLayout-FTBX_-3M.js"
     ]
   },
   "resources/js/Pages/Logs/Show.jsx": {
-    "file": "assets/Show-BscfC_Re.js",
+    "file": "assets/Show-BQ8dZF6I.js",
     "name": "Show",
     "src": "resources/js/Pages/Logs/Show.jsx",
     "isDynamicEntry": true,
     "imports": [
       "_jsx-runtime-Bas90rLm.js",
-      "_AuthenticatedLayout-NjrgK6L0.js"
+      "_AuthenticatedLayout-FTBX_-3M.js"
+    ]
+  },
+  "resources/js/Pages/Notifications/Index.jsx": {
+    "file": "assets/Index-DBgnXSUI.js",
+    "name": "Index",
+    "src": "resources/js/Pages/Notifications/Index.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_jsx-runtime-Bas90rLm.js",
+      "_AuthenticatedLayout-FTBX_-3M.js"
     ]
   },
   "resources/js/Pages/Settings.jsx": {
-    "file": "assets/Settings-Cj2HQpDs.js",
+    "file": "assets/Settings-DJWNhib3.js",
     "name": "Settings",
     "src": "resources/js/Pages/Settings.jsx",
     "isDynamicEntry": true,
     "imports": [
       "_jsx-runtime-Bas90rLm.js",
-      "_AuthenticatedLayout-NjrgK6L0.js"
+      "_AuthenticatedLayout-FTBX_-3M.js"
     ]
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-C7rlI8F9.js",
+    "file": "assets/app-Clsk8yNY.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,
@@ -112,10 +122,11 @@
       "resources/js/Pages/Dashboard.jsx",
       "resources/js/Pages/Logs/Index.jsx",
       "resources/js/Pages/Logs/Show.jsx",
+      "resources/js/Pages/Notifications/Index.jsx",
       "resources/js/Pages/Settings.jsx"
     ],
     "css": [
-      "assets/app-CcEvxbQ4.css"
+      "assets/app-CClp8glQ.css"
     ]
   }
 }
