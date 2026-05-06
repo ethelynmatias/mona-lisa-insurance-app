@@ -172,27 +172,27 @@ class CognitoSyncService
                 $insuredDatabaseId = $storedIds['insuredDatabaseId'];
             }
             if ($insuredDatabaseId) {
-                $this->syncContacts($entry, $mapper, $insuredDatabaseId, $context, $formId, $isRerun, $storedIds);
+                //$this->syncContacts($entry, $mapper, $insuredDatabaseId, $context, $formId, $isRerun, $storedIds);
             }
             $policyDatabaseId = $storedIds['policyDatabaseId'] ?? null;
             if ($policyDatabaseId || $insuredDatabaseId) {
-                $this->syncDrivers($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
-                $this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
+                //$this->syncDrivers($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
+                //$this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
             }
             if ($insuredDatabaseId) {
-                $this->syncProperties($entry, $mapper, $insuredDatabaseId, $context, $isRerun, $storedIds, $syncedEntities, $allSyncedData, $errors, $formId, $rawEntry);
-                $this->syncGeneralLiabilityNotices($entry, $mapper, $insuredDatabaseId, $context);
+                //$this->syncProperties($entry, $mapper, $insuredDatabaseId, $context, $isRerun, $storedIds, $syncedEntities, $allSyncedData, $errors, $formId, $rawEntry);
+                //$this->syncGeneralLiabilityNotices($entry, $mapper, $insuredDatabaseId, $context);
             }
             $policyDatabaseId = $storedIds['policyDatabaseId'] ?? null;
             if ($policyDatabaseId) {
-                $this->syncPolicyCoverages($entry, $mapper, $policyDatabaseId, $context);
+                //$this->syncPolicyCoverages($entry, $mapper, $policyDatabaseId, $context);
             }
             if (! $isRerun && $insuredDatabaseId && ! empty($allSyncedData)) {
-                $this->insertSyncNote($insuredDatabaseId, $log, $formId, $entry, $allSyncedData, $context);
+                //$this->insertSyncNote($insuredDatabaseId, $log, $formId, $entry, $allSyncedData, $context);
             }
             if ($insuredDatabaseId && ! empty($fileUploads)) {
                 $uploadedIds = $this->webhookLogs->getUploadedFileIds($formId, $log->entry_id ?? '');
-                $this->syncFileUploads($insuredDatabaseId, $fileUploads, $context, $log, $uploadedIds);
+               // $this->syncFileUploads($insuredDatabaseId, $fileUploads, $context, $log, $uploadedIds);
             }
             if (empty($syncedEntities) && empty($errors)) {
                 DatabaseLogger::warning('NowCerts sync skipped — no field mappings configured', $context);
@@ -365,28 +365,28 @@ class CognitoSyncService
     private function formatContactDataForPrincipal(array $contactData): array
     {
         $fieldMap = [
-            'database_id'               => 'database_id',
-            'first_name'                => 'first_name',
-            'middle_name'               => 'middle_name',
-            'last_name'                 => 'last_name',
+            'database_id'               => 'databaseId',
+            'first_name'                => 'firstName',
+            'middle_name'               => 'middleName',
+            'last_name'                 => 'lastName',
             'description'               => 'description',
             'type'                      => 'type',
-            'personal_email'            => 'personal_email',
-            'business_email'            => 'business_email',
-            'home_phone'                => 'home_phone',
-            'office_phone'              => 'office_phone',
-            'cell_phone'                => 'cell_phone',
-            'personal_fax'              => 'personal_fax',
-            'business_fax'              => 'business_fax',
+            'personal_email'            => 'personalEmail',
+            'business_email'            => 'businessEmail',
+            'home_phone'                => 'homePhone',
+            'office_phone'              => 'officePhone',
+            'cell_phone'                => 'cellPhone',
+            'personal_fax'              => 'personalFax',
+            'business_fax'              => 'businessFax',
             'ssn'                       => 'ssn',
             'birthday'                  => 'birthday',
-            'marital_status'            => 'marital_status',
+            'marital_status'            => 'maritalStatus',
             'gender'                    => 'gender',
-            'is_driver'                 => 'is_driver',
-            'dl_number'                 => 'dl_number',
-            'dl_state'                  => 'dl_state',
-            'match_record_base_on_name' => 'match_record_base_on_name',
-            'is_primary'                => 'is_primary',
+            'is_driver'                 => 'isDriver',
+            'dl_number'                 => 'dlNumber',
+            'dl_state'                  => 'dlState',
+            'match_record_base_on_name' => 'matchRecordBaseOnName',
+            'is_primary'                => 'isPrimary',
         ];
 
         $result = [];
