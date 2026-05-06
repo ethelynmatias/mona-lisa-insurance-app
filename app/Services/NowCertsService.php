@@ -1695,8 +1695,8 @@ class NowCertsService
     public function insertNote(array $data): array
     {
         if (is_array($data['subject'] ?? null)) {
-            $data['subject'] = implode("\n&emsp; • &emsp;", array_map(
-                fn ($k, $v) => "[{$k}]=>{$v}",
+            $data['subject'] = implode("\n&nbsp; &bull; &nbsp;", array_map(
+                fn ($k, $v) => "[<b>{$k}</b>]=>{$v}",
                 array_keys($data['subject']),
                 array_values($data['subject']),
             ));
