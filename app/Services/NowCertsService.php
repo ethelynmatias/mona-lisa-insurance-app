@@ -36,12 +36,16 @@ class NowCertsService
      */
     public function getToken(): array
     {
+        $cached = Cache::get('nowcerts_tokens');
+        if ($cached) {
+            return $cached;
+        }
+
         $response = Http::acceptJson()
             ->post("{$this->baseUrl}/token", [
                 'userName' => $this->username,
                 'password' => $this->password,
             ]);
-
 
         if (! $response->successful()) {
             throw new RuntimeException(
@@ -50,24 +54,59 @@ class NowCertsService
         }
 
         $data = $response->json();
-        $tokens = [];
-        $tokens['accessToken'] = $data['accessToken'];
-        $tokens['refreshToken'] = $data['refreshToken'];
+        $tokens = [
+            'accessToken'  => $data['accessToken'] ?? throw new RuntimeException('Token not found in response.'),
+            'refreshToken' => $data['refreshToken'] ?? throw new RuntimeException('Refresh token not found in response.'),
+        ];
 
-        return $tokens
-            ?? throw new RuntimeException('Token not found in response.');
+        Cache::put('nowcerts_tokens', $tokens, now()->addMinutes(55));
+
+        return $tokens;
     }
 
-    /**
-     * Create Prospect
-     */
+    public function refreshToken(string $accessToken, string $refreshToken): array
+    {
+        $response = Http::acceptJson()
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+            ])
+            ->post("{$this->baseUrl}token/refresh", [
+                'accessToken'  => $accessToken,
+                'refreshToken' => $refreshToken,
+            ]);
+
+        if ($response->failed()) {
+            throw new \Exception(
+                'Token refresh failed: ' . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
+
     public function insertProspect(array $payload): array
     {
-        $tokens = $this->getToken();
+        $accessToken  = $this->getStoredAccessToken();
+        $refreshToken = $this->getStoredRefreshToken();
+
+        if (! $accessToken || ! $refreshToken) {
+            $tokens       = $this->getToken();
+            $accessToken  = $tokens['accessToken'];
+            $refreshToken = $tokens['refreshToken'];
+        }
 
         $response = Http::acceptJson()
-            ->withToken($tokens['accessToken'])
+            ->withToken($accessToken)
             ->post("{$this->baseUrl}Zapier/InsertProspect", $payload);
+
+        if ($response->status() === 401) {
+            $newTokens = $this->refreshToken($accessToken, $refreshToken);
+            $this->storeTokens($newTokens);
+
+            $response = Http::acceptJson()
+                ->withToken($newTokens['accessToken'])
+                ->post("{$this->baseUrl}Zapier/InsertProspect", $payload);
+        }
 
         if (! $response->successful()) {
             throw new RuntimeException(
@@ -76,6 +115,24 @@ class NowCertsService
         }
 
         return $response->json();
+    }
+
+    private function getStoredAccessToken(): ?string
+    {
+        return Cache::get('nowcerts_tokens')['accessToken'] ?? null;
+    }
+
+    private function getStoredRefreshToken(): ?string
+    {
+        return Cache::get('nowcerts_tokens')['refreshToken'] ?? null;
+    }
+
+    private function storeTokens(array $tokens): void
+    {
+        Cache::put('nowcerts_tokens', [
+            'accessToken'  => $tokens['accessToken'],
+            'refreshToken' => $tokens['refreshToken'],
+        ], now()->addMinutes(55));
     }
 
 }

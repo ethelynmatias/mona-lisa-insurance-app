@@ -12,14 +12,14 @@ class InsertProspectTest extends TestCase
         $service = app(NowCertsService::class);
 
         $result = $service->insertProspect([
-            'first_name'           => 'Johns',
-            'last_name'            => 'Does',
-            'email'               => 'eth+2@hubstart.io',
-            'phone_number'         => '555-123-4567',
+            'first_name'          => 'cris',
+            'last_name'           => 'Does',
+            'email'               => 'eth+3@hubstart.io',
+            'phone_number'        => '555-123-4567',
             'city'                => 'New York',
-            'state_name'               => 'New York',
-            'zip_code'             => '60601',
-            'type'               => "Personal"
+            'state_name'          => 'New York',
+            'zip_code'            => '60601',
+            'type'                => "Personal"
         ]);
 
         dump($result);
