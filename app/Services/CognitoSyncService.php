@@ -266,23 +266,28 @@ class CognitoSyncService
             $contacts[]         = $contact;
         };
 
-        $mappedContacts = $mapper->mapContacts($entry);
+        $mappedContacts  = $mapper->mapContacts($entry);
+        $hasUiContacts   = false;
+
         foreach ($mappedContacts as $mapped) {
             if (! empty($mapped['first_name']) || ! empty($mapped['last_name'])) {
                 DatabaseLogger::info('NowCerts contact from UI mappings', array_merge($context, ['mapped_contact_data' => $mapped]));
                 $addContact($mapped, 'UI Mappings');
+                $hasUiContacts = true;
             }
         }
 
-        if (empty($mappedContacts) && $formId === '13') {
-            $legacyMapped = $mapper->mapContact($entry);
-            if (! empty($legacyMapped)) {
-                DatabaseLogger::info('NowCerts contact from legacy Form 13 mapping', array_merge($context, ['legacy_contact_data' => $legacyMapped]));
-                $addContact($legacyMapped, 'Legacy Form 13');
+        if (! $hasUiContacts) {
+            if (in_array($formId, ['11', '13'], true)) {
+                $legacyMapped = $mapper->mapContact($entry);
+                if (! empty($legacyMapped)) {
+                    DatabaseLogger::info("NowCerts contact from legacy Form {$formId} mapping", array_merge($context, ['legacy_contact_data' => $legacyMapped]));
+                    $addContact($legacyMapped, "Legacy Form {$formId}");
+                }
             }
-        }
 
-        $this->addAutoExtractedContacts($entry, $formId, $addContact, $context);
+            $this->addAutoExtractedContacts($entry, $formId, $addContact, $context);
+        }
 
         foreach ($contacts as $index => $contact) {
             $source                              = $contact['_source'] ?? 'Unknown';
