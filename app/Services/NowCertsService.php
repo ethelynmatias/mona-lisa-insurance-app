@@ -84,7 +84,83 @@ class NowCertsService
         return $response->json();
     }
 
-    public function insertProspect(array $payload): array
+    public function getInsureds(string $databaseId): array
+    {
+        $accessToken  = $this->getStoredAccessToken();
+        $refreshToken = $this->getStoredRefreshToken();
+
+        if (! $accessToken || ! $refreshToken) {
+            $tokens       = $this->getToken();
+            $accessToken  = $tokens['accessToken'];
+            $refreshToken = $tokens['refreshToken'];
+        }
+
+        $response = Http::acceptJson()
+            ->withToken($accessToken)
+            ->get("{$this->baseUrl}api/InsuredDetailList({$databaseId})");
+
+        if ($response->status() === 401) {
+            $newTokens   = $this->refreshToken($accessToken, $refreshToken);
+            $this->storeTokens($newTokens);
+
+            $response = Http::acceptJson()
+                ->withToken($newTokens['accessToken'])
+                ->get("{$this->baseUrl}api/InsuredDetailList({$databaseId})");
+        }
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                'GetInsureds failed: ' . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
+
+    public function upsertPolicy(array $payload): array
+    {
+        $accessToken  = $this->getStoredAccessToken();
+        $refreshToken = $this->getStoredRefreshToken();
+
+        if (! $accessToken || ! $refreshToken) {
+            $tokens       = $this->getToken();
+            $accessToken  = $tokens['accessToken'];
+            $refreshToken = $tokens['refreshToken'];
+        }
+
+        $response = Http::acceptJson()
+            ->withToken($accessToken)
+            ->post("{$this->baseUrl}Zapier/InsertPolicy", $payload);
+
+        if ($response->status() === 401) {
+            $newTokens = $this->refreshToken($accessToken, $refreshToken);
+            $this->storeTokens($newTokens);
+
+            $response = Http::acceptJson()
+                ->withToken($newTokens['accessToken'])
+                ->post("{$this->baseUrl}Zapier/InsertPolicy", $payload);
+        }
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                'UpsertPolicy failed: ' . $response->body()
+            );
+        }
+
+        return $response->json();
+    }
+
+    public function getAvailableFields(): array
+    {
+        $result = [];
+        foreach (NowCertsEntity::cases() as $entity) {
+            $result[$entity->value] = $entity->fields();
+        }
+        return $result;
+    }
+
+    // Insert Prospect
+    public function syncInsured(array $payload): array
     {
         $accessToken  = $this->getStoredAccessToken();
         $refreshToken = $this->getStoredRefreshToken();
