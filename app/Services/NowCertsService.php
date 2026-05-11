@@ -4,16 +4,14 @@ namespace App\Services;
 
 use App\Enums\NowCertsEntity;
 use App\Traits\HandlesHttpResponse;
-use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class NowCertsService
 {
     use HandlesHttpResponse;
+
     private string $baseUrl;
     private string $username;
     private string $password;
@@ -31,9 +29,6 @@ class NowCertsService
         }
     }
 
-    /**
-     * Get API Token
-     */
     public function getToken(): array
     {
         $cached = Cache::get('nowcerts_tokens');
@@ -48,18 +43,16 @@ class NowCertsService
             ]);
 
         if (! $response->successful()) {
-            throw new RuntimeException(
-                'Momentum token request failed: ' . $response->body()
-            );
+            throw new RuntimeException('Momentum token request failed: ' . $response->body());
         }
 
-        $data = $response->json();
+        $data   = $response->json();
         $tokens = [
-            'accessToken'  => $data['accessToken'] ?? throw new RuntimeException('Token not found in response.'),
+            'accessToken'  => $data['accessToken']  ?? throw new RuntimeException('Token not found in response.'),
             'refreshToken' => $data['refreshToken'] ?? throw new RuntimeException('Refresh token not found in response.'),
         ];
 
-        Cache::put('nowcerts_tokens', $tokens, now()->addMinutes(55));
+        $this->storeTokens($tokens);
 
         return $tokens;
     }
@@ -67,18 +60,13 @@ class NowCertsService
     public function refreshToken(string $accessToken, string $refreshToken): array
     {
         $response = Http::acceptJson()
-            ->withHeaders([
-                'Content-Type' => 'application/json',
-            ])
             ->post("{$this->baseUrl}token/refresh", [
                 'accessToken'  => $accessToken,
                 'refreshToken' => $refreshToken,
             ]);
 
         if ($response->failed()) {
-            throw new \Exception(
-                'Token refresh failed: ' . $response->body()
-            );
+            throw new \Exception('Token refresh failed: ' . $response->body());
         }
 
         return $response->json();
@@ -86,68 +74,37 @@ class NowCertsService
 
     public function getInsureds(string $databaseId): array
     {
-        $accessToken  = $this->getStoredAccessToken();
-        $refreshToken = $this->getStoredRefreshToken();
+        return $this->request('GET', "api/InsuredDetailList({$databaseId})");
+    }
 
-        if (! $accessToken || ! $refreshToken) {
-            $tokens       = $this->getToken();
-            $accessToken  = $tokens['accessToken'];
-            $refreshToken = $tokens['refreshToken'];
-        }
-
-        $response = Http::acceptJson()
-            ->withToken($accessToken)
-            ->get("{$this->baseUrl}api/InsuredDetailList({$databaseId})");
-
-        if ($response->status() === 401) {
-            $newTokens   = $this->refreshToken($accessToken, $refreshToken);
-            $this->storeTokens($newTokens);
-
-            $response = Http::acceptJson()
-                ->withToken($newTokens['accessToken'])
-                ->get("{$this->baseUrl}api/InsuredDetailList({$databaseId})");
-        }
-
-        if (! $response->successful()) {
-            throw new RuntimeException(
-                'GetInsureds failed: ' . $response->body()
-            );
-        }
-
-        return $response->json();
+    public function syncInsured(array $payload): array
+    {
+        return $this->request('POST', 'Zapier/InsertProspect', $payload);
     }
 
     public function upsertPolicy(array $payload): array
     {
-        $accessToken  = $this->getStoredAccessToken();
-        $refreshToken = $this->getStoredRefreshToken();
+        return $this->request('POST', 'Zapier/InsertPolicy', $payload);
+    }
 
-        if (! $accessToken || ! $refreshToken) {
-            $tokens       = $this->getToken();
-            $accessToken  = $tokens['accessToken'];
-            $refreshToken = $tokens['refreshToken'];
-        }
+    public function insertContact(string $insuredDatabaseId, array $payload): array
+    {
+        $payload['insuredDatabaseId'] = $insuredDatabaseId;
 
-        $response = Http::acceptJson()
-            ->withToken($accessToken)
-            ->post("{$this->baseUrl}Zapier/InsertPolicy", $payload);
+        return $this->request('POST', 'Zapier/InsertPrincipal', $payload);
+    }
 
-        if ($response->status() === 401) {
-            $newTokens = $this->refreshToken($accessToken, $refreshToken);
-            $this->storeTokens($newTokens);
+    public function updateContact(string $insuredDatabaseId, string $contactDatabaseId, array $payload): array
+    {
+        $payload['insuredDatabaseId'] = $insuredDatabaseId;
+        $payload['databaseId']        = $contactDatabaseId;
 
-            $response = Http::acceptJson()
-                ->withToken($newTokens['accessToken'])
-                ->post("{$this->baseUrl}Zapier/InsertPolicy", $payload);
-        }
+        return $this->request('POST', 'Zapier/InsertPrincipal', $payload);
+    }
 
-        if (! $response->successful()) {
-            throw new RuntimeException(
-                'UpsertPolicy failed: ' . $response->body()
-            );
-        }
-
-        return $response->json();
+    public function zapierInsertProperty(array $data): array
+    {
+        return $this->request('POST', 'Zapier/InsertProperty', $data);
     }
 
     public function getAvailableFields(): array
@@ -159,48 +116,46 @@ class NowCertsService
         return $result;
     }
 
-    // Insert Prospect
-    public function syncInsured(array $payload): array
+    private function resolveTokens(): array
     {
-        $accessToken  = $this->getStoredAccessToken();
-        $refreshToken = $this->getStoredRefreshToken();
+        $accessToken  = Cache::get('nowcerts_tokens')['accessToken']  ?? null;
+        $refreshToken = Cache::get('nowcerts_tokens')['refreshToken'] ?? null;
 
         if (! $accessToken || ! $refreshToken) {
-            $tokens       = $this->getToken();
-            $accessToken  = $tokens['accessToken'];
-            $refreshToken = $tokens['refreshToken'];
+            return $this->getToken();
         }
 
-        $response = Http::acceptJson()
-            ->withToken($accessToken)
-            ->post("{$this->baseUrl}Zapier/InsertProspect", $payload);
+        return compact('accessToken', 'refreshToken');
+    }
+
+    private function request(string $method, string $path, array $data = []): array
+    {
+        $tokens = $this->resolveTokens();
+        $url    = $this->baseUrl . $path;
+
+        $response = $this->send($method, $url, $tokens['accessToken'], $data);
 
         if ($response->status() === 401) {
-            $newTokens = $this->refreshToken($accessToken, $refreshToken);
-            $this->storeTokens($newTokens);
+            $tokens = $this->refreshToken($tokens['accessToken'], $tokens['refreshToken']);
+            $this->storeTokens($tokens);
 
-            $response = Http::acceptJson()
-                ->withToken($newTokens['accessToken'])
-                ->post("{$this->baseUrl}Zapier/InsertProspect", $payload);
+            $response = $this->send($method, $url, $tokens['accessToken'], $data);
         }
 
         if (! $response->successful()) {
-            throw new RuntimeException(
-                'InsertProspect failed: ' . $response->body()
-            );
+            throw new RuntimeException("NowCerts {$method} {$path} failed: " . $response->body());
         }
 
         return $response->json();
     }
 
-    private function getStoredAccessToken(): ?string
+    private function send(string $method, string $url, string $accessToken, array $data): \Illuminate\Http\Client\Response
     {
-        return Cache::get('nowcerts_tokens')['accessToken'] ?? null;
-    }
+        $http = Http::acceptJson()->withToken($accessToken);
 
-    private function getStoredRefreshToken(): ?string
-    {
-        return Cache::get('nowcerts_tokens')['refreshToken'] ?? null;
+        return strtoupper($method) === 'GET'
+            ? $http->get($url, $data)
+            : $http->post($url, $data);
     }
 
     private function storeTokens(array $tokens): void
@@ -210,5 +165,4 @@ class NowCertsService
             'refreshToken' => $tokens['refreshToken'],
         ], now()->addMinutes(55));
     }
-
 }

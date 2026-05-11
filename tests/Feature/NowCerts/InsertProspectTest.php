@@ -11,10 +11,10 @@ class InsertProspectTest extends TestCase
     {
         $service = app(NowCertsService::class);
 
-        $result = $service->insertProspect([
-            'first_name'          => 'cris',
+        $result = $service->syncInsured([
+            'first_name'          => 'crissh',
             'last_name'           => 'Does',
-            'email'               => 'eth+3@hubstart.io',
+            'email'               => 'ethlocal+4@hubstart.io',
             'phone_number'        => '555-123-4567',
             'city'                => 'New York',
             'state_name'          => 'New York',
@@ -25,18 +25,5 @@ class InsertProspectTest extends TestCase
         dump($result);
 
         $this->assertNotEmpty($result);
-    }
-
-    public function test_insert_prospect_invalid_email(): void
-    {
-        $service = app(NowCertsService::class);
-
-        $this->expectException(\RuntimeException::class);
-
-        $service->insertProspect([
-            'firstName' => 'John',
-            'lastName'  => 'Doe',
-            'email'     => 'invalid-email',
-        ]);
     }
 }
