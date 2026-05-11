@@ -24,26 +24,26 @@ enum NowCertsEntity: string
         return match ($this) {
             self::Insured => [
                 // Identity
-                'firstName', 'lastName', 'middleName', 'commercialName', 'dba',
-                'type', 'insuredType',
+                'first_name', 'last_name', 'middle_name', 'commercial_name', 'dba',
+                'type', 'insured_type',
                 // Contact
                 'email', 'email2', 'email3',
-                'phoneNumber', 'cellPhone', 'smsPhone', 'fax',
+                'phone_number', 'cell_phone', 'sms_phone', 'fax',
                 // Address
-                'addressLine1', 'addressLine2', 'city', 'state', 'zipCode',
+                'address_line_1', 'address_line_2', 'city', 'state', 'zip_code',
                 // Profile
-                'dateOfBirth', 'description', 'active', 'website', 'fein',
-                'greetingName', 'preferredLanguage', 'naic',
-                'typeOfBusiness', 'sicCode', 'yearBusinessStarted',
-                'prospectType',
+                'date_of_birth', 'description', 'active', 'website', 'fein',
+                'greeting_name', 'preferred_language', 'naic',
+                'type_of_business', 'sic_code', 'year_business_started',
+                'prospect_type',
                 // Co-insured
-                'coInsured_FirstName', 'coInsured_LastName', 'coInsured_MiddleName',
-                'coInsured_DateOfBirth',
+                'co_insured_first_name', 'co_insured_last_name', 'co_insured_middle_name',
+                'co_insured_date_of_birth',
                 // Agency / CRM
-                'customerId', 'insuredId',
-                'tagName', 'tagDescription',
-                'referralSourceCompanyName',
-                'primaryAgencyOfficeLocationName',
+                'customer_id', 'insured_id',
+                'tag_name', 'tag_description',
+                'referral_source_company_name',
+                'primary_agency_office_location_name',
             ],
 
             self::Policy => [
@@ -85,20 +85,20 @@ enum NowCertsEntity: string
 
             self::Contact => [
                 // Identity
-                'databaseId', 'firstName', 'middleName', 'lastName', 'description', 'type',
+                'database_id', 'first_name', 'middle_name', 'last_name', 'description', 'type',
                 // Contact Information
-                'personalEmail', 'businessEmail',
-                'homePhone', 'officePhone', 'cellPhone',
-                'personalFax', 'businessFax',
+                'personal_email', 'business_email',
+                'home_phone', 'office_phone', 'cell_phone',
+                'personal_fax', 'business_fax',
                 // Personal Details
-                'ssn', 'birthday', 'maritalStatus', 'gender',
+                'ssn', 'birthday', 'marital_status', 'gender',
                 // Driver Information
-                'isDriver', 'dlNumber', 'dlState',
+                'is_driver', 'dl_number', 'dl_state',
                 // Linkage
-                'insuredDatabaseId', 'insuredEmail',
-                'insuredFirstName', 'insuredLastName', 'insuredCommercialName',
+                'insured_database_id', 'insured_email',
+                'insured_first_name', 'insured_last_name', 'insured_commercial_name',
                 // Flags
-                'matchRecordBaseOnName', 'isPrimary',
+                'match_record_base_on_name', 'is_primary',
             ],
 
             self::GeneralLiabilityNotice => [

@@ -103,8 +103,14 @@ class CognitoSyncService
             $storedIds = [];
         }
 
+        /*
+        echo "<pre>";
+            print_r($storedIds);
+        echo "</pre>";
+        exit;*/
         try {
             $configuredUploadFields = $this->mappings->getUploadFieldsForForm($formId);
+
             $fileUploads = NowCertsFieldMapper::extractFileUploads($entry);
             if (! empty($configuredUploadFields)) {
                 $fileUploads = array_values(array_filter(
@@ -167,6 +173,7 @@ class CognitoSyncService
                     $errors[] = "{$entity}: " . $e->getMessage();
                 }
             }
+
 
             if (! $insuredDatabaseId && ! empty($storedIds['insuredDatabaseId'])) {
                 $insuredDatabaseId = $storedIds['insuredDatabaseId'];
@@ -387,6 +394,11 @@ class CognitoSyncService
             'dl_state'                  => 'dlState',
             'match_record_base_on_name' => 'matchRecordBaseOnName',
             'is_primary'                => 'isPrimary',
+            'insured_database_id'       => 'insuredDatabaseId',
+            'insured_email'             => 'insuredEmail',
+            'insured_first_name'        => 'insuredFirstName',
+            'insured_last_name'         => 'insuredLastName',
+            'insured_commercial_name'   => 'insuredCommercialName',
         ];
 
         $result = [];

@@ -53,7 +53,7 @@ class NowCertsFieldMapper
     {
         $result = $this->mapEntity(NowCertsEntity::Insured, $entry);
 
-        if (empty($result['firstName']) && empty($result['lastName'])) {
+        if (empty($result['first_name']) && empty($result['last_name'])) {
             $result = array_merge($result, $this->resolveOccupantName($entry));
         }
 
@@ -802,15 +802,15 @@ class NowCertsFieldMapper
             } elseif (str_ends_with($lower, '.firstandlast') || ! str_contains($lower, '.')) {
                 $parts = explode(' ', trim($value), 2);
                 return array_filter([
-                    'firstName' => $parts[0] ?? null,
-                    'lastName'  => $parts[1] ?? null,
+                    'first_name' => $parts[0] ?? null,
+                    'last_name'  => $parts[1] ?? null,
                 ]);
             }
         }
 
         return array_filter([
-            'firstName' => $first,
-            'lastName'  => $last,
+            'first_name' => $first,
+            'last_name'  => $last,
         ]);
     }
 

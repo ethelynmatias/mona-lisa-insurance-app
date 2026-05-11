@@ -6,6 +6,7 @@ use App\Enums\NowCertsEntity;
 use App\Traits\HandlesHttpResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class NowCertsService
@@ -77,9 +78,82 @@ class NowCertsService
         return $this->request('GET', "api/InsuredDetailList({$databaseId})");
     }
 
-    public function syncInsured(array $payload): array
+    public function syncInsured(array $data): array
     {
-        return $this->request('POST', 'Zapier/InsertProspect', $payload);
+        $existing   = $this->findExistingInsured($data);
+        $databaseId = null;
+
+        if ($existing) {
+            $databaseId         = $existing['insuredDatabaseId']
+                ?? $existing['DatabaseId']
+                ?? $existing['databaseId']
+                ?? null;
+            $data['DatabaseId'] = $databaseId;
+
+            Log::info('NowCerts existing insured found — will update', [
+                'insuredDatabaseId' => $databaseId,
+                'name'              => trim(($existing['firstName'] ?? $existing['FirstName'] ?? '') . ' ' . ($existing['lastName'] ?? $existing['LastName'] ?? '')),
+            ]);
+        }
+
+        $result = $this->upsertInsured($data);
+
+        if (! $databaseId) {
+            $databaseId = $result['DatabaseId']
+                ?? $result['databaseId']
+                ?? $result['insuredDatabaseId']
+                ?? null;
+
+            if (! $databaseId) {
+                $found      = $this->findExistingInsured($data);
+                $databaseId = $found
+                    ? ($found['insuredDatabaseId'] ?? $found['DatabaseId'] ?? $found['databaseId'] ?? null)
+                    : null;
+            }
+        }
+
+        if ($databaseId) {
+            try {
+                $full       = $this->getInsureds($databaseId);
+                $databaseId = $full['insuredDatabaseId']
+                    ?? $full['DatabaseId']
+                    ?? $full['databaseId']
+                    ?? $databaseId;
+            } catch (\Throwable) {
+                // Keep the ID we already resolved
+            }
+        }
+
+        $result['_insuredDatabaseId'] = $databaseId;
+
+        return $result;
+    }
+
+    private function upsertInsured(array $data): array
+    {
+        return $this->request('POST', 'Zapier/InsertProspect', $data);
+    }
+
+    private function findExistingInsured(array $data): ?array
+    {
+        $email = $data['email'] ?? $data['Email'] ?? null;
+
+        if (! $email) {
+            return null;
+        }
+
+        try {
+            $results = $this->request('GET', 'api/Insured', [
+                '$filter' => "eMail eq '{$email}'",
+                '$top'    => 1,
+            ]);
+
+            $items = $results['value'] ?? $results;
+
+            return is_array($items) && ! empty($items) ? $items[0] : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public function upsertPolicy(array $payload): array
@@ -89,6 +163,7 @@ class NowCertsService
 
     public function insertContact(string $insuredDatabaseId, array $payload): array
     {
+
         $payload['insuredDatabaseId'] = $insuredDatabaseId;
 
         return $this->request('POST', 'Zapier/InsertPrincipal', $payload);
