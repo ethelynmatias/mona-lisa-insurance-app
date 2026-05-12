@@ -84,7 +84,8 @@ class NowCertsService
         $databaseId = null;
 
         if ($existing) {
-            $databaseId         = $existing['insuredDatabaseId']
+            $databaseId         = $existing['database_id']
+                ?? $existing['insuredDatabaseId']
                 ?? $existing['DatabaseId']
                 ?? $existing['databaseId']
                 ?? null;
@@ -99,7 +100,8 @@ class NowCertsService
         $result = $this->upsertInsured($data);
 
         if (! $databaseId) {
-            $databaseId = $result['DatabaseId']
+            $databaseId = $result['database_id']
+                ?? $result['DatabaseId']
                 ?? $result['databaseId']
                 ?? $result['insuredDatabaseId']
                 ?? null;
@@ -107,7 +109,7 @@ class NowCertsService
             if (! $databaseId) {
                 $found      = $this->findExistingInsured($data);
                 $databaseId = $found
-                    ? ($found['insuredDatabaseId'] ?? $found['DatabaseId'] ?? $found['databaseId'] ?? null)
+                    ? ($found['database_id'] ?? $found['insuredDatabaseId'] ?? $found['DatabaseId'] ?? $found['databaseId'] ?? null)
                     : null;
             }
         }
@@ -115,7 +117,8 @@ class NowCertsService
         if ($databaseId) {
             try {
                 $full       = $this->getInsureds($databaseId);
-                $databaseId = $full['insuredDatabaseId']
+                $databaseId = $full['database_id']
+                    ?? $full['insuredDatabaseId']
                     ?? $full['DatabaseId']
                     ?? $full['databaseId']
                     ?? $databaseId;
@@ -164,14 +167,14 @@ class NowCertsService
     public function insertContact(string $insuredDatabaseId, array $payload): array
     {
 
-        $payload['insuredDatabaseId'] = $insuredDatabaseId;
+        $payload['insured_database_id'] = $insuredDatabaseId;
 
         return $this->request('POST', 'Zapier/InsertPrincipal', $payload);
     }
 
     public function updateContact(string $insuredDatabaseId, string $contactDatabaseId, array $payload): array
     {
-        $payload['insuredDatabaseId'] = $insuredDatabaseId;
+        $payload['insured_database_id'] = $insuredDatabaseId;
         $payload['databaseId']        = $contactDatabaseId;
 
         return $this->request('POST', 'Zapier/InsertPrincipal', $payload);

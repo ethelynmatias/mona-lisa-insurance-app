@@ -103,11 +103,6 @@ class CognitoSyncService
             $storedIds = [];
         }
 
-        /*
-        echo "<pre>";
-            print_r($storedIds);
-        echo "</pre>";
-        exit;*/
         try {
             $configuredUploadFields = $this->mappings->getUploadFieldsForForm($formId);
 
@@ -136,6 +131,7 @@ class CognitoSyncService
             $allSyncedData     = [];
 
             foreach ($this->primaryEntitySyncMap($mapper) as $entity => $callbacks) {
+
                 $data = $callbacks['map']($entry);
                 if ($isRerun) {
                     if ($entity === NowCertsEntity::Insured->value && ! empty($storedIds['insuredDatabaseId'])) {
@@ -174,6 +170,9 @@ class CognitoSyncService
                 }
             }
 
+            DatabaseLogger::info('NowCerts sync in process', array_merge($context, [
+                'insuredDatabaseId'           => $insuredDatabaseId,
+            ]));
 
             if (! $insuredDatabaseId && ! empty($storedIds['insuredDatabaseId'])) {
                 $insuredDatabaseId = $storedIds['insuredDatabaseId'];
@@ -208,8 +207,9 @@ class CognitoSyncService
             }
 
             DatabaseLogger::info('NowCerts sync finished', array_merge($context, [
-                'synced_entities' => $syncedEntities,
-                'errors'          => $errors,
+                'synced_entities'    => $syncedEntities,
+                'errors'             => $errors,
+                'insuredDatabaseId'  => $insuredDatabaseId,
             ]));
 
             if (! $isRerun && $insuredDatabaseId) {
@@ -269,6 +269,13 @@ class CognitoSyncService
         $mappedContacts  = $mapper->mapContacts($entry);
         $hasUiContacts   = false;
 
+        DatabaseLogger::info('syncContacts — mapper result', array_merge($context, [
+            'form_id'               => $formId,
+            'insured_database_id'   => $insuredDatabaseId,
+            'mapped_contacts_count' => count($mappedContacts),
+            'mapped_contacts'       => $mappedContacts,
+        ]));
+
         foreach ($mappedContacts as $mapped) {
             if (! empty($mapped['first_name']) || ! empty($mapped['last_name'])) {
                 DatabaseLogger::info('NowCerts contact from UI mappings', array_merge($context, ['mapped_contact_data' => $mapped]));
@@ -278,7 +285,7 @@ class CognitoSyncService
         }
 
         if (! $hasUiContacts) {
-            if (in_array($formId, ['11', '13'], true)) {
+            if (in_array($formId,['11','13'], true)) {
                 $legacyMapped = $mapper->mapContact($entry);
                 if (! empty($legacyMapped)) {
                     DatabaseLogger::info("NowCerts contact from legacy Form {$formId} mapping", array_merge($context, ['legacy_contact_data' => $legacyMapped]));
@@ -292,12 +299,16 @@ class CognitoSyncService
         foreach ($contacts as $index => $contact) {
             $source                              = $contact['_source'] ?? 'Unknown';
             unset($contact['_source']);
-            $principalData                       = $this->formatContactDataForPrincipal($contact);
-            $principalData['policy_database_id'] = $storedIds['policyDatabaseId'] ?? null;
+            $principalData = $this->formatContactDataForPrincipal($contact);
+            if (! empty($storedIds['policyDatabaseId'])) {
+                $principalData['policy_database_id'] = $storedIds['policyDatabaseId'];
+            }
             $label                               = trim(($contact['first_name'] ?? '') . ' ' . ($contact['last_name'] ?? ''));
             $label                               = $label ?: 'Contact #' . ($index + 1);
 
             try {
+
+
                 $storedContactKey = "contactId_{$index}";
                 $storedContactId  = $storedIds[$storedContactKey] ?? null;
 
@@ -310,6 +321,8 @@ class CognitoSyncService
                         'source'            => $source,
                     ]));
                 } else {
+
+
                     $response  = $this->nowcerts->insertContact($insuredDatabaseId, $principalData);
                     $contactId = $response['data']['database_id']
                         ?? $response['database_id']
@@ -334,6 +347,7 @@ class CognitoSyncService
                     'contact_name' => $label,
                     'source'       => $source,
                     'contact_data' => $principalData,
+                    'insuredDatabaseId' => $insuredDatabaseId,
                     'error'        => $e->getMessage(),
                 ]));
             }
@@ -376,42 +390,7 @@ class CognitoSyncService
 
     private function formatContactDataForPrincipal(array $contactData): array
     {
-        $fieldMap = [
-            'database_id'               => 'databaseId',
-            'first_name'                => 'firstName',
-            'middle_name'               => 'middleName',
-            'last_name'                 => 'lastName',
-            'description'               => 'description',
-            'type'                      => 'type',
-            'personal_email'            => 'personalEmail',
-            'business_email'            => 'businessEmail',
-            'home_phone'                => 'homePhone',
-            'office_phone'              => 'officePhone',
-            'cell_phone'                => 'cellPhone',
-            'personal_fax'              => 'personalFax',
-            'business_fax'              => 'businessFax',
-            'ssn'                       => 'ssn',
-            'birthday'                  => 'birthday',
-            'marital_status'            => 'maritalStatus',
-            'gender'                    => 'gender',
-            'is_driver'                 => 'isDriver',
-            'dl_number'                 => 'dlNumber',
-            'dl_state'                  => 'dlState',
-            'match_record_base_on_name' => 'matchRecordBaseOnName',
-            'is_primary'                => 'isPrimary',
-            'insured_database_id'       => 'insuredDatabaseId',
-            'insured_email'             => 'insuredEmail',
-            'insured_first_name'        => 'insuredFirstName',
-            'insured_last_name'         => 'insuredLastName',
-            'insured_commercial_name'   => 'insuredCommercialName',
-        ];
-
-        $result = [];
-        foreach ($contactData as $contactField => $value) {
-            $result[$fieldMap[$contactField] ?? $contactField] = $value;
-        }
-
-        return array_filter($result, fn ($v) => $v !== null && $v !== '');
+        return array_filter($contactData, fn ($v) => $v !== null && $v !== '');
     }
 
     private function syncDrivers(?string $policyDatabaseId, ?string $insuredDatabaseId, array $entry, string $formId, NowCertsFieldMapper $mapper, array $context): void
