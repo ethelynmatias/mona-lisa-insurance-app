@@ -180,6 +180,11 @@ class NowCertsService
         return $this->request('POST', 'Zapier/InsertPrincipal', $payload);
     }
 
+    public function insertNote(array $data): array
+    {
+        return $this->request('POST', 'Zapier/InsertNote', $data);
+    }
+
     public function zapierInsertProperty(array $data): array
     {
         return $this->request('POST', 'Zapier/InsertProperty', $data);
