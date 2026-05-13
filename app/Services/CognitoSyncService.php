@@ -187,11 +187,11 @@ class CognitoSyncService
             }
             if ($insuredDatabaseId) {
                 $this->syncProperties($entry, $mapper, $insuredDatabaseId, $context, $isRerun, $storedIds, $syncedEntities, $allSyncedData, $errors, $formId, $rawEntry);
-                //$this->syncGeneralLiabilityNotices($entry, $mapper, $insuredDatabaseId, $context);
+                $this->syncGeneralLiabilityNotices($entry, $mapper, $insuredDatabaseId, $context);
             }
             $policyDatabaseId = $storedIds['policyDatabaseId'] ?? null;
             if ($policyDatabaseId) {
-                //$this->syncPolicyCoverages($entry, $mapper, $policyDatabaseId, $context);
+                $this->syncPolicyCoverages($entry, $mapper, $policyDatabaseId, $context);
             }
             if (! $isRerun && $insuredDatabaseId && ! empty($allSyncedData)) {
                 $this->insertSyncNote($insuredDatabaseId, $log, $formId, $entry, $allSyncedData, $context);
@@ -307,8 +307,6 @@ class CognitoSyncService
             $label                               = $label ?: 'Contact #' . ($index + 1);
 
             try {
-
-
                 $storedContactKey = "contactId_{$index}";
                 $storedContactId  = $storedIds[$storedContactKey] ?? null;
 

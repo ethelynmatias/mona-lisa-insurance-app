@@ -315,6 +315,22 @@ class NowCertsService
         return $this->request('POST', 'Zapier/InsertVehicle', $data);
     }
 
+    public function insertGeneralLiabilityNotice(array $data): array
+    {
+        return $this->request('POST', 'Zapier/InsertGeneralLiabilityNotice', array_filter(
+            $data,
+            fn ($v) => $v !== null && $v !== '',
+        ));
+    }
+
+    public function insertPolicyCoverage(array $data): array
+    {
+        return $this->request('POST', 'PolicyCoverage/Insert', array_filter(
+            $data,
+            fn ($v) => $v !== null && $v !== '',
+        ));
+    }
+
     public function zapierInsertProperty(array $data): array
     {
         return $this->request('POST', 'Zapier/InsertProperty', $data);
