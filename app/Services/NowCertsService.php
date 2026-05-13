@@ -184,7 +184,7 @@ class NowCertsService
     {
         if (is_array($data['subject'] ?? null)) {
             $data['subject'] = implode("\n&emsp; • &emsp;", array_map(
-                fn ($k, $v) => "[{$k}]=>{$v}",
+                fn ($k, $v) => "<b>[{$k}]</b>=>{$v}",
                 array_keys($data['subject']),
                 array_values($data['subject']),
             ));
