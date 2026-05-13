@@ -182,6 +182,14 @@ class NowCertsService
 
     public function insertNote(array $data): array
     {
+        if (is_array($data['subject'] ?? null)) {
+            $data['subject'] = implode("\n&emsp; • &emsp;", array_map(
+                fn ($k, $v) => "[{$k}]=>{$v}",
+                array_keys($data['subject']),
+                array_values($data['subject']),
+            ));
+        }
+
         return $this->request('POST', 'Zapier/InsertNote', $data);
     }
 
