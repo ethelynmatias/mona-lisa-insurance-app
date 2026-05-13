@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 
 const navigation = [
-    { name: 'Dashboards',     href: '/dashboard',     icon: DashboardIcon              },
+    { name: 'Dashboard',     href: '/dashboard',     icon: DashboardIcon              },
     { name: 'Notifications', href: '/notifications', icon: BellIcon,     badge: true  },
     { name: 'Settings',      href: '/settings',      icon: SettingsIcon               },
     { name: 'Logs',          href: '/logs',          icon: LogsIcon, adminOnly: true  },

@@ -185,6 +185,92 @@ class NowCertsService
         return $this->request('POST', 'Zapier/InsertNote', $data);
     }
 
+    public function uploadDocument(
+        string $insuredDatabaseId,
+        string $fileUrl,
+        string $fileName,
+        string $contentType,
+        string $fieldLabel = '',
+    ): array {
+        Log::info('NowCerts downloading file for upload', ['url' => $fileUrl, 'name' => $fileName]);
+
+        $fileContent = Http::timeout($this->timeout)->get($fileUrl)->body();
+
+        $folderId = $this->getInsuredDocumentsFolderId($insuredDatabaseId);
+
+        $params = [
+            'insured_database_id'        => $insuredDatabaseId,
+            'creator_name'               => 'Webhook',
+            'is_insured_visible_folder'  => 'true',
+        ];
+        if ($folderId) {
+            $params['folder_id'] = $folderId;
+        }
+
+        $endpoint = 'Insured/UploadInsuredFile';
+        $query    = http_build_query($params);
+        $tokens   = $this->resolveTokens();
+
+        Log::info('NowCerts API request', [
+            'method'     => 'PUT',
+            'endpoint'   => $endpoint,
+            'insured_id' => $insuredDatabaseId,
+            'folder_id'  => $folderId,
+            'file_name'  => $fileName,
+        ]);
+
+        $response = Http::baseUrl($this->baseUrl)
+            ->timeout($this->timeout)
+            ->withToken($tokens['accessToken'])
+            ->attach('file', $fileContent, $fileName)
+            ->put("{$endpoint}?{$query}");
+
+        if ($response->status() === 401) {
+            $tokens   = $this->refreshToken($tokens['accessToken'], $tokens['refreshToken']);
+            $this->storeTokens($tokens);
+            $response = Http::baseUrl($this->baseUrl)
+                ->timeout($this->timeout)
+                ->withToken($tokens['accessToken'])
+                ->attach('file', $fileContent, $fileName)
+                ->put("{$endpoint}?{$query}");
+        }
+
+        Log::debug('NowCerts API response', [
+            'endpoint' => $endpoint,
+            'status'   => $response->status(),
+            'body'     => $response->json() ?? $response->body(),
+        ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException("NowCerts PUT {$endpoint} failed: " . $response->body(), $response->status());
+        }
+
+        return $response->json() ?? [];
+    }
+
+    private function getInsuredDocumentsFolderId(string $insuredDatabaseId): ?string
+    {
+        try {
+            $folders = $this->request('GET', "Files/GetInsuredLevelFolders/{$insuredDatabaseId}");
+            $items   = $folders['data'] ?? $folders;
+
+            if (! is_array($items)) {
+                return null;
+            }
+
+            foreach ($items as $folder) {
+                $name = strtolower($folder['name'] ?? $folder['Name'] ?? '');
+                if (str_contains($name, 'document')) {
+                    return $folder['databaseId'] ?? $folder['DatabaseId'] ?? null;
+                }
+            }
+        } catch (\Throwable) {
+            // Fall through to root upload
+        }
+
+        return null;
+    }
+
     public function zapierInsertProperty(array $data): array
     {
         return $this->request('POST', 'Zapier/InsertProperty', $data);

@@ -198,7 +198,7 @@ class CognitoSyncService
             }
             if ($insuredDatabaseId && ! empty($fileUploads)) {
                 $uploadedIds = $this->webhookLogs->getUploadedFileIds($formId, $log->entry_id ?? '');
-               // $this->syncFileUploads($insuredDatabaseId, $fileUploads, $context, $log, $uploadedIds);
+                $this->syncFileUploads($insuredDatabaseId, $fileUploads, $context, $log, $uploadedIds);
             }
             if (empty($syncedEntities) && empty($errors)) {
                 DatabaseLogger::warning('NowCerts sync skipped — no field mappings configured', $context);
