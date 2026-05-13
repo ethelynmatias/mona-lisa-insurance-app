@@ -182,7 +182,7 @@ class CognitoSyncService
             }
             $policyDatabaseId = $storedIds['policyDatabaseId'] ?? null;
             if ($policyDatabaseId || $insuredDatabaseId) {
-                //$this->syncDrivers($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
+                $this->syncDrivers($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
                 //$this->syncVehicles($policyDatabaseId, $insuredDatabaseId, $entry, $formId, $mapper, $context);
             }
             if ($insuredDatabaseId) {

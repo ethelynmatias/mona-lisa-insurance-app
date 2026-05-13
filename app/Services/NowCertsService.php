@@ -305,6 +305,11 @@ class NowCertsService
         return null;
     }
 
+    public function zapierInsertDriver(array $data): array
+    {
+        return $this->request('POST', 'Zapier/InsertDriver', $data);
+    }
+
     public function zapierInsertProperty(array $data): array
     {
         return $this->request('POST', 'Zapier/InsertProperty', $data);
