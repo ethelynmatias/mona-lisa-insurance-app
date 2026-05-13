@@ -192,24 +192,36 @@ class NowCertsService
         string $contentType,
         string $fieldLabel = '',
     ): array {
-        Log::info('NowCerts downloading file for upload', ['url' => $fileUrl, 'name' => $fileName]);
+        Log::info('NowCerts downloading file for upload', [
+            'url'  => $fileUrl,
+            'name' => $fileName,
+        ]);
 
-        $fileContent = Http::timeout($this->timeout)->get($fileUrl)->body();
+        $fileContent = Http::timeout($this->timeout)
+            ->get($fileUrl)
+            ->body();
 
         $folderId = $this->getInsuredDocumentsFolderId($insuredDatabaseId);
 
-        $params = [
-            'insured_database_id'        => $insuredDatabaseId,
-            'creator_name'               => 'Webhook',
-            'is_insured_visible_folder'  => 'true',
-        ];
-        if ($folderId) {
-            $params['folder_id'] = $folderId;
-        }
+        $tokens = $this->resolveTokens();
 
-        $endpoint = 'Insured/UploadInsuredFile';
-        $query    = http_build_query($params);
-        $tokens   = $this->resolveTokens();
+        $query = http_build_query(array_filter([
+            'insuredId'              => $insuredDatabaseId,
+            'creatorName'            => 'Webhook',
+            'isInsuredVisibleFolder' => 'true',
+            'folderId'               => $folderId,
+        ], fn ($v) => $v !== null));
+
+        $multipart = [
+            [
+                'name'     => 'file',
+                'contents' => $fileContent,
+                'filename' => $fileName,
+                'headers'  => ['Content-Type' => $contentType],
+            ],
+        ];
+
+        $endpoint = 'Insured/UploadInsuredFile?' . $query;
 
         Log::info('NowCerts API request', [
             'method'     => 'PUT',
@@ -222,27 +234,34 @@ class NowCertsService
         $response = Http::baseUrl($this->baseUrl)
             ->timeout($this->timeout)
             ->withToken($tokens['accessToken'])
-            ->attach('file', $fileContent, $fileName)
-            ->put("{$endpoint}?{$query}");
+            ->withHeaders(['Accept' => 'application/json'])
+            ->send('PUT', $endpoint, ['multipart' => $multipart]);
 
         if ($response->status() === 401) {
-            $tokens   = $this->refreshToken($tokens['accessToken'], $tokens['refreshToken']);
+            $tokens = $this->refreshToken(
+                $tokens['accessToken'],
+                $tokens['refreshToken']
+            );
+
             $this->storeTokens($tokens);
+
             $response = Http::baseUrl($this->baseUrl)
                 ->timeout($this->timeout)
                 ->withToken($tokens['accessToken'])
-                ->attach('file', $fileContent, $fileName)
-                ->put("{$endpoint}?{$query}");
+                ->withHeaders(['Accept' => 'application/json'])
+                ->send('PUT', $endpoint, ['multipart' => $multipart]);
         }
 
         Log::debug('NowCerts API response', [
-            'endpoint' => $endpoint,
-            'status'   => $response->status(),
-            'body'     => $response->json() ?? $response->body(),
+            'status' => $response->status(),
+            'body'   => $response->json() ?? $response->body(),
         ]);
 
         if (! $response->successful()) {
-            throw new RuntimeException("NowCerts PUT {$endpoint} failed: " . $response->body(), $response->status());
+            throw new RuntimeException(
+                'NowCerts UploadInsuredFile failed: ' . $response->body(),
+                $response->status()
+            );
         }
 
         return $response->json() ?? [];
@@ -251,17 +270,24 @@ class NowCertsService
     private function getInsuredDocumentsFolderId(string $insuredDatabaseId): ?string
     {
         try {
-            $folders = $this->request('GET', "Files/GetInsuredLevelFolders/{$insuredDatabaseId}");
-            $items   = $folders['data'] ?? $folders;
+            $items = $this->request('GET', "Files/GetInsuredLevelFolders/{$insuredDatabaseId}");
 
             if (! is_array($items)) {
                 return null;
             }
 
             foreach ($items as $folder) {
-                $name = strtolower($folder['name'] ?? $folder['Name'] ?? '');
-                if (str_contains($name, 'document')) {
-                    return $folder['databaseId'] ?? $folder['DatabaseId'] ?? null;
+                // Target the system "Files" folder (systemFolderType 20)
+                if (($folder['systemFolderType'] ?? null) === 20) {
+                    return $folder['id'] ?? null;
+                }
+            }
+
+            // Fallback: any folder whose name contains "files"
+            foreach ($items as $folder) {
+                $name = strtolower($folder['name'] ?? '');
+                if (str_contains($name, 'files')) {
+                    return $folder['id'] ?? null;
                 }
             }
         } catch (\Throwable) {
