@@ -194,7 +194,7 @@ class CognitoSyncService
                 //$this->syncPolicyCoverages($entry, $mapper, $policyDatabaseId, $context);
             }
             if (! $isRerun && $insuredDatabaseId && ! empty($allSyncedData)) {
-                //$this->insertSyncNote($insuredDatabaseId, $log, $formId, $entry, $allSyncedData, $context);
+                $this->insertSyncNote($insuredDatabaseId, $log, $formId, $entry, $allSyncedData, $context);
             }
             if ($insuredDatabaseId && ! empty($fileUploads)) {
                 $uploadedIds = $this->webhookLogs->getUploadedFileIds($formId, $log->entry_id ?? '');
