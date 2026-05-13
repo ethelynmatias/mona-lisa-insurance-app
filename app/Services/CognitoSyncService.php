@@ -576,6 +576,7 @@ class CognitoSyncService
                     DatabaseLogger::error('NowCerts document upload failed', array_merge($context, [
                         'field' => $fieldLabel,
                         'file'  => $name,
+                        'insuredDatabaseId'=>$insuredDatabaseId,
                         'error' => $e->getMessage(),
                     ]));
                 }
