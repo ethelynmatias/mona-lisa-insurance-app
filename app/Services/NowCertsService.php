@@ -310,6 +310,11 @@ class NowCertsService
         return $this->request('POST', 'Zapier/InsertDriver', $data);
     }
 
+    public function zapierInsertVehicle(array $data): array
+    {
+        return $this->request('POST', 'Zapier/InsertVehicle', $data);
+    }
+
     public function zapierInsertProperty(array $data): array
     {
         return $this->request('POST', 'Zapier/InsertProperty', $data);
