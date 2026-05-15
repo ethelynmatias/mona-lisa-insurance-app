@@ -18,6 +18,7 @@ enum NowCertsEntity: string
     case Claim                   = 'Claim';
     case PropertyLossClaim       = 'PropertyLossClaim';
     case WorkerCompensationClaim = 'WorkerCompensationClaim';
+    case Opportunity             = 'Opportunity';
 
     public function fields(): array
     {
@@ -309,6 +310,19 @@ enum NowCertsEntity: string
                 'insured_database_id', 'insured_email', 'insured_first_name', 'insured_last_name', 'insured_commercial_name',
                 // Policy Information
                 'policy_number',
+            ],
+
+            self::Opportunity => [
+                // Opportunity Details
+                'line_of_business_name', 'needed_by', 'opportunity_stage_name',
+                'win_probability', 'agency_commission', 'description',
+                'created_from_renewal',
+                // Assignment
+                'assigned_to',
+                // Insured Information
+                'insured_first_name', 'insured_last_name', 'insured_email',
+                // Policy
+                'policy_numbers',
             ],
 
             default => [],

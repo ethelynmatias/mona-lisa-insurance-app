@@ -336,6 +336,11 @@ class NowCertsService
         return $this->request('POST', 'Zapier/InsertProperty', $data);
     }
 
+    public function zapierInsertOpportunity(array $data): array
+    {
+        return $this->request('POST', 'Zapier/InsertOpportunity', $data);
+    }
+
     public function getAvailableFields(): array
     {
         $result = [];
