@@ -885,6 +885,16 @@ class CognitoSyncService
             $propertyLabel = trim(($property['street'] ?? '') . ' ' . ($property['city'] ?? '') . ' ' . ($property['state'] ?? ''));
             $propertyLabel = $propertyLabel ?: 'Property #' . ($index + 1);
 
+            $addressLine1 = $property['address_line_1'] ?? $property['street'] ?? null;
+            if (empty($addressLine1) || empty($property['state'] ?? null)) {
+                DatabaseLogger::warning("NowCerts {$entityLabel} skipped — missing address_line_1 or state", array_merge($context, [
+                    'source'         => $source,
+                    'property_label' => $propertyLabel,
+                    'property_data'  => $property,
+                ]));
+                continue;
+            }
+
             DatabaseLogger::info("NowCerts mapped {$entityLabel} ({$source})", array_merge($context, [
                 'data'           => $property,
                 'property_label' => $propertyLabel,
@@ -927,14 +937,26 @@ class CognitoSyncService
                 continue;
             }
 
-            $location = $data['Location'] ?? null;
-            if (empty($location)) {
+            // Only extract if there is a structured Address with at least state, since
+            // NowCerts requires address_line_1 and state on InsertProperty.
+            $address = is_array($data['Address'] ?? null) ? $data['Address'] : [];
+            $line1   = $address['Line1']      ?? null;
+            $city    = $address['City']       ?? null;
+            $state   = $address['State']      ?? null;
+            $zip     = $address['PostalCode'] ?? null;
+
+            if (empty($state) || (empty($line1) && empty($city))) {
                 continue;
             }
 
             $properties[] = array_filter([
-                'description'  => $location,
-                'property_use' => $data['OccupancyType'] ?? null,
+                'address_line_1' => $line1,
+                'address_line_2' => $address['Line2'] ?? null,
+                'city'           => $city,
+                'state'          => $state,
+                'zip'            => $zip,
+                'property_use'   => $data['OccupancyType'] ?? null,
+                'description'    => $data['Location']      ?? null,
             ], fn ($v) => $v !== null && $v !== '');
         }
 
@@ -953,9 +975,11 @@ class CognitoSyncService
             $address = is_array($data['Address'] ?? null) ? $data['Address'] : [];
             $line1   = $address['Line1']      ?? null;
             $city    = $address['City']       ?? null;
+            $state   = $address['State']      ?? null;
             $zip     = $address['PostalCode'] ?? null;
 
-            if (empty($line1) && empty($city) && empty($zip)) {
+            // NowCerts requires address_line_1 and state; skip incomplete entries.
+            if (empty($state) || (empty($line1) && empty($city) && empty($zip))) {
                 continue;
             }
 
@@ -963,7 +987,7 @@ class CognitoSyncService
                 'address_line_1' => $line1,
                 'address_line_2' => $address['Line2'] ?? null,
                 'city'           => $city,
-                'state'          => $address['State'] ?? null,
+                'state'          => $state,
                 'zip'            => $zip,
                 'property_use'   => $data['OccupancyType'] ?? null,
                 'description'    => $data['AcresOfUnits']  ?? null,
