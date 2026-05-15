@@ -1,11 +1,13 @@
 services:
   app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: ${DOCKERHUB_USERNAME}/mona-lisa-insurance:latest
     container_name: mona-lisa-app
     restart: unless-stopped
     ports:
       - "8000:8000"
-      - "5173:5173"
     environment:
       - DB_CONNECTION=mysql
       - DB_HOST=mysql
@@ -14,8 +16,10 @@ services:
       - DB_USERNAME=${DB_USERNAME:-sail}
       - DB_PASSWORD=${DB_PASSWORD:-password}
     volumes:
-      - /var/www/mona-lisa-insurance-app/.env:/var/www/.env
+      - .:/var/www
       - storage-data:/var/www/storage
+      - /var/www/vendor
+      - /var/www/node_modules
     depends_on:
       mysql:
         condition: service_healthy
