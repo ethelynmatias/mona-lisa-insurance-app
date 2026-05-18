@@ -80,41 +80,47 @@ class NowCertsService
 
     public function syncInsured(array $data): array
     {
-        // If DatabaseId was already injected (from stored IDs on entry.updated), trust it
-        $databaseId = $data['DatabaseId'] ?? null;
+        // If database_id was already injected (from stored IDs on entry.updated), trust it
+        $databaseId = $this->validId($data['database_id'] ?? $data['DatabaseId'] ?? null);
 
         if (! $databaseId) {
             $existing = $this->findExistingInsured($data);
 
             if ($existing) {
-                $databaseId = $existing['insuredDatabaseId']
+                $databaseId = $this->validId(
+                    $existing['insuredDatabaseId']
                     ?? $existing['DatabaseId']
                     ?? $existing['databaseId']
                     ?? $existing['database_id']
-                    ?? null;
+                    ?? null
+                );
 
-                $data['DatabaseId'] = $databaseId;
+                if ($databaseId) {
+                    $data['database_id'] = $databaseId;
 
-                Log::info('NowCerts existing insured found — will update', [
-                    'insuredDatabaseId' => $databaseId,
-                    'name'              => trim(($existing['firstName'] ?? $existing['FirstName'] ?? '') . ' ' . ($existing['lastName'] ?? $existing['LastName'] ?? '')),
-                ]);
+                    Log::info('NowCerts existing insured found — will update', [
+                        'insuredDatabaseId' => $databaseId,
+                        'name'              => trim(($existing['firstName'] ?? $existing['FirstName'] ?? '') . ' ' . ($existing['lastName'] ?? $existing['LastName'] ?? '')),
+                    ]);
+                }
             }
         }
 
         $result = $this->upsertInsured($data);
 
         if (! $databaseId) {
-            $databaseId = $result['DatabaseId']
+            $databaseId = $this->validId(
+                $result['DatabaseId']
                 ?? $result['databaseId']
                 ?? $result['database_id']
                 ?? $result['insuredDatabaseId']
-                ?? null;
+                ?? null
+            );
 
             if (! $databaseId) {
                 $found      = $this->findExistingInsured($data);
                 $databaseId = $found
-                    ? ($found['insuredDatabaseId'] ?? $found['DatabaseId'] ?? $found['databaseId'] ?? $found['database_id'] ?? null)
+                    ? $this->validId($found['insuredDatabaseId'] ?? $found['DatabaseId'] ?? $found['databaseId'] ?? $found['database_id'] ?? null)
                     : null;
             }
         }
@@ -124,9 +130,17 @@ class NowCertsService
         return $result;
     }
 
+    private function validId(mixed $id): ?string
+    {
+        if (empty($id) || $id === '00000000-0000-0000-0000-000000000000') {
+            return null;
+        }
+        return (string) $id;
+    }
+
     private function upsertInsured(array $data): array
     {
-        return $this->request('POST', 'Insured/Insert', $data);
+        return $this->request('POST', 'Zapier/InsertProspect', $data);
     }
 
     private function findExistingInsured(array $data): ?array
@@ -345,17 +359,39 @@ class NowCertsService
 
     public function zapierInsertProperty(array $data): array
     {
-        if (isset($data['database_id']) && (
-            empty($data['database_id']) ||
-            $data['database_id'] === '00000000-0000-0000-0000-000000000000'
-        )) {
+        $hasDatabaseId =
+            !empty($data['database_id']) &&
+            $data['database_id'] !== '00000000-0000-0000-0000-000000000000';
+
+        // Remove invalid empty GUID
+        if (!$hasDatabaseId) {
             unset($data['database_id']);
         }
 
-        return $this->request('POST', 'Zapier/InsertProperty', array_filter(
-            $data,
-            fn ($v) => $v !== null && $v !== '',
-        ));
+        // Strip zero UUID / empty insured_database_id — NowCerts rejects it
+        if (! $this->validId($data['insured_database_id'] ?? null)) {
+            unset($data['insured_database_id']);
+        }
+
+        // NowCerts rejects insured linkage fields on update
+        if ($hasDatabaseId) {
+            unset(
+                $data['insured_database_id'],
+                $data['insured_email'],
+                $data['insured_first_name'],
+                $data['insured_last_name'],
+                $data['insured_commercial_name'],
+            );
+        }
+
+        return $this->request(
+            'POST',
+            'Zapier/InsertProperty',
+            array_filter(
+                $data,
+                fn ($v) => $v !== null && $v !== ''
+            )
+        );
     }
 
     public function zapierInsertOpportunity(array $data): array

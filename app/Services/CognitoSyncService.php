@@ -136,7 +136,7 @@ class CognitoSyncService
                 $data = $callbacks['map']($entry);
                 if ($isRerun) {
                     if ($entity === NowCertsEntity::Insured->value && ! empty($storedIds['insuredDatabaseId'])) {
-                        $data['DatabaseId'] = $storedIds['insuredDatabaseId'];
+                        $data['database_id'] = $storedIds['insuredDatabaseId'];
                     }
                     if ($entity === NowCertsEntity::Policy->value && ! empty($storedIds['policyDatabaseId'])) {
                         $data['policy_database_id'] = $storedIds['policyDatabaseId'];
@@ -157,7 +157,8 @@ class CognitoSyncService
                     $allSyncedData[$entity] = $data;
 
                     if ($entity === NowCertsEntity::Insured->value && ! $insuredDatabaseId) {
-                        $insuredDatabaseId = $response['_insuredDatabaseId'] ?? null;
+                        $id = $response['_insuredDatabaseId'] ?? null;
+                        $insuredDatabaseId = ($id && $id !== '00000000-0000-0000-0000-000000000000') ? $id : null;
                     }
                     if ($entity === NowCertsEntity::Policy->value && ! $isRerun) {
                         $storedIds['policyDatabaseId'] = $response['policyDatabaseId']
@@ -175,7 +176,8 @@ class CognitoSyncService
                 'insuredDatabaseId'           => $insuredDatabaseId,
             ]));
 
-            if (! $insuredDatabaseId && ! empty($storedIds['insuredDatabaseId'])) {
+            if (! $insuredDatabaseId && ! empty($storedIds['insuredDatabaseId'])
+                && $storedIds['insuredDatabaseId'] !== '00000000-0000-0000-0000-000000000000') {
                 $insuredDatabaseId = $storedIds['insuredDatabaseId'];
             }
             if ($insuredDatabaseId) {
