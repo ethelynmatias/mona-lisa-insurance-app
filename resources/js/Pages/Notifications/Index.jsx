@@ -15,9 +15,105 @@ const EVENT_LABELS = {
     'entry.deleted':   'Deleted',
 };
 
+function PayloadModal({ item, onClose }) {
+    if (!item) return null;
+
+    const sections = [
+        {
+            label: 'Payload',
+            value: item.payload,
+            show: item.payload && Object.keys(item.payload).length > 0,
+        },
+        {
+            label: 'Synced Entities',
+            value: item.synced_entities,
+            show: item.synced_entities?.length > 0,
+        },
+        {
+            label: 'Uploaded File IDs',
+            value: item.uploaded_file_ids,
+            show: item.uploaded_file_ids?.length > 0,
+        },
+        {
+            label: 'Synced NowCerts IDs',
+            value: item.synced_nowcerts_ids,
+            show: item.synced_nowcerts_ids && Object.keys(item.synced_nowcerts_ids).length > 0,
+        },
+    ];
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+
+            {/* Panel */}
+            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+                {/* Header */}
+                <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200">
+                    <div>
+                        <h3 className="text-base font-semibold text-gray-900">
+                            {item.form_name ?? item.form_id}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                ${STATUS_COLORS[item.sync_status] ?? 'bg-gray-100 text-gray-600'}`}>
+                                {item.sync_status}
+                            </span>
+                            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
+                                {EVENT_LABELS[item.event_type] ?? item.event_type}
+                            </span>
+                            {item.entry_id && (
+                                <span className="text-xs text-gray-500">Entry #{item.entry_id}</span>
+                            )}
+                            <span className="text-xs text-gray-400">{item.created_at}</span>
+                        </div>
+                    </div>
+                    <button onClick={onClose}
+                        className="ml-4 text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none"
+                        aria-label="Close">
+                        &times;
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="overflow-y-auto px-6 py-4 space-y-5 flex-1">
+                    {item.sync_error && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                            <p className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-1">Sync Error</p>
+                            <p className="text-sm text-red-600 break-words">{item.sync_error}</p>
+                        </div>
+                    )}
+
+                    {item.synced_at && (
+                        <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Synced At</p>
+                            <p className="text-sm text-gray-700">{item.synced_at}</p>
+                        </div>
+                    )}
+
+                    {sections.map(({ label, value, show }) => show && (
+                        <div key={label}>
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+                            <pre className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-800
+                                overflow-x-auto whitespace-pre-wrap break-words leading-relaxed">
+                                {JSON.stringify(value, null, 2)}
+                            </pre>
+                        </div>
+                    ))}
+
+                    {!item.sync_error && sections.every(s => !s.show) && !item.synced_at && (
+                        <p className="text-sm text-gray-400 text-center py-6">No additional details available.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function Index() {
     const { notifications, unreadCount, currentFilter } = usePage().props;
     const [loading, setLoading] = useState(false);
+    const [selected, setSelected] = useState(null);
 
     function setFilter(filter) {
         router.get('/notifications', filter === 'all' ? {} : { filter }, { preserveState: true, replace: true });
@@ -86,7 +182,9 @@ export default function Index() {
 
                     {notifications.data.map(item => (
                         <div key={item.id}
+                            onClick={() => setSelected(item)}
                             className={`bg-white border rounded-lg px-5 py-4 flex items-start gap-4 transition-colors
+                                cursor-pointer hover:shadow-sm
                                 ${!item.read_at ? 'border-blue-200 bg-blue-50/30' : 'border-gray-200'}`}>
 
                             {/* Unread dot */}
@@ -125,7 +223,8 @@ export default function Index() {
                             {/* Actions */}
                             <div className="flex-shrink-0 flex items-center gap-3">
                                 {!item.read_at && (
-                                    <button onClick={() => markRead(item.id)}
+                                    <button
+                                        onClick={e => { e.stopPropagation(); markRead(item.id); }}
                                         className="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap">
                                         Mark read
                                     </button>
@@ -156,6 +255,8 @@ export default function Index() {
                     </div>
                 )}
             </div>
+
+            <PayloadModal item={selected} onClose={() => setSelected(null)} />
         </AuthenticatedLayout>
     );
 }
