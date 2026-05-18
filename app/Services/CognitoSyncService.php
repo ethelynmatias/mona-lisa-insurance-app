@@ -8,6 +8,7 @@ use App\Models\WebhookLog;
 use App\Repositories\Contracts\FormFieldMappingRepositoryInterface;
 use App\Repositories\Contracts\WebhookLogRepositoryInterface;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Str;
 use Throwable;
 
 class CognitoSyncService
@@ -138,7 +139,7 @@ class CognitoSyncService
                         $data['DatabaseId'] = $storedIds['insuredDatabaseId'];
                     }
                     if ($entity === NowCertsEntity::Policy->value && ! empty($storedIds['policyDatabaseId'])) {
-                        $data['policyDatabaseId'] = $storedIds['policyDatabaseId'];
+                        $data['policy_database_id'] = $storedIds['policyDatabaseId'];
                     }
                 }
 
@@ -669,10 +670,10 @@ class CognitoSyncService
 
             $addCoverage = function (array $coverage, string $source) use (&$coverages, &$seenCoverages): void {
                 $key = strtolower(trim(
-                    ($coverage['lineOfBusinessDatabaseId'] ?? '') . ' ' .
+                    ($coverage['line_of_business_database_id'] ?? '') . ' ' .
                     ($coverage['cargo_deductible'] ?? '') . ' ' .
-                    ($coverage['generalLiability_limitEachOccurrence'] ?? '') . ' ' .
-                    ($coverage['autoMobileLiability_limitCombinedSingle'] ?? '')
+                    ($coverage['general_liability_limit_each_occurrence'] ?? '') . ' ' .
+                    ($coverage['auto_mobile_liability_limit_combined_single'] ?? '')
                 ));
                 if ($key === '' || isset($seenCoverages[$key])) {
                     return;
@@ -749,23 +750,23 @@ class CognitoSyncService
     {
         $coverage = [];
 
-        if (! empty($flatData['lineOfBusinessDatabaseId'])) {
-            $coverage['lineOfBusinessDatabaseId'] = $flatData['lineOfBusinessDatabaseId'];
+        if (! empty($flatData['line_of_business_database_id'])) {
+            $coverage['lineOfBusinessDatabaseId'] = $flatData['line_of_business_database_id'];
         }
 
         $nestedSections = [
             'cargo'                                   => 'cargo_',
-            'physicalDamage'                          => 'physicalDamage_',
-            'generalLiability'                        => 'generalLiability_',
-            'autoMobileLiability'                     => 'autoMobileLiability_',
-            'floodCoveragePrimary'                    => 'floodCoveragePrimary_',
-            'floodCoverageExcess'                     => 'floodCoverageExcess_',
-            'workerCompensationAndEmployersLiability' => 'workerCompensation_',
+            'physicalDamage'                          => 'physical_damage_',
+            'generalLiability'                        => 'general_liability_',
+            'autoMobileLiability'                     => 'auto_mobile_liability_',
+            'floodCoveragePrimary'                    => 'flood_coverage_primary_',
+            'floodCoverageExcess'                     => 'flood_coverage_excess_',
+            'workerCompensationAndEmployersLiability' => 'worker_compensation_',
             'other'                                   => 'other_',
             'other2'                                  => 'other2_',
             'other3'                                  => 'other3_',
             'other4'                                  => 'other4_',
-            'homeOwnerCoverage'                       => 'homeOwnerCoverage_',
+            'homeOwnerCoverage'                       => 'home_owner_coverage_',
             'acord27'                                 => 'acord27_',
         ];
 
@@ -773,7 +774,8 @@ class CognitoSyncService
             $section = [];
             foreach ($flatData as $key => $value) {
                 if (str_starts_with($key, $prefix)) {
-                    $section[substr($key, strlen($prefix))] = $this->convertApiValue($value);
+                    $subKey = substr($key, strlen($prefix));
+                    $section[Str::camel($subKey)] = $this->convertApiValue($value);
                 }
             }
             if (! empty($section)) {
@@ -783,8 +785,8 @@ class CognitoSyncService
 
         $customCoverages = [];
         foreach ($flatData as $key => $value) {
-            if (str_starts_with($key, 'customCoverages_')) {
-                $customCoverages[substr($key, strlen('customCoverages_'))] = $value;
+            if (str_starts_with($key, 'custom_coverages_')) {
+                $customCoverages[substr($key, strlen('custom_coverages_'))] = $value;
             }
         }
         if (! empty($customCoverages)) {

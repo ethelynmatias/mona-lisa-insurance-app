@@ -80,50 +80,42 @@ class NowCertsService
 
     public function syncInsured(array $data): array
     {
-        $existing   = $this->findExistingInsured($data);
-        $databaseId = null;
+        // If DatabaseId was already injected (from stored IDs on entry.updated), trust it
+        $databaseId = $data['DatabaseId'] ?? null;
 
-        if ($existing) {
-            $databaseId         = $existing['database_id']
-                ?? $existing['insuredDatabaseId']
-                ?? $existing['DatabaseId']
-                ?? $existing['databaseId']
-                ?? null;
-            $data['DatabaseId'] = $databaseId;
+        if (! $databaseId) {
+            $existing = $this->findExistingInsured($data);
 
-            Log::info('NowCerts existing insured found — will update', [
-                'insuredDatabaseId' => $databaseId,
-                'name'              => trim(($existing['firstName'] ?? $existing['FirstName'] ?? '') . ' ' . ($existing['lastName'] ?? $existing['LastName'] ?? '')),
-            ]);
+            if ($existing) {
+                $databaseId = $existing['insuredDatabaseId']
+                    ?? $existing['DatabaseId']
+                    ?? $existing['databaseId']
+                    ?? $existing['database_id']
+                    ?? null;
+
+                $data['DatabaseId'] = $databaseId;
+
+                Log::info('NowCerts existing insured found — will update', [
+                    'insuredDatabaseId' => $databaseId,
+                    'name'              => trim(($existing['firstName'] ?? $existing['FirstName'] ?? '') . ' ' . ($existing['lastName'] ?? $existing['LastName'] ?? '')),
+                ]);
+            }
         }
 
         $result = $this->upsertInsured($data);
 
         if (! $databaseId) {
-            $databaseId = $result['database_id']
-                ?? $result['DatabaseId']
+            $databaseId = $result['DatabaseId']
                 ?? $result['databaseId']
+                ?? $result['database_id']
                 ?? $result['insuredDatabaseId']
                 ?? null;
 
             if (! $databaseId) {
                 $found      = $this->findExistingInsured($data);
                 $databaseId = $found
-                    ? ($found['database_id'] ?? $found['insuredDatabaseId'] ?? $found['DatabaseId'] ?? $found['databaseId'] ?? null)
+                    ? ($found['insuredDatabaseId'] ?? $found['DatabaseId'] ?? $found['databaseId'] ?? $found['database_id'] ?? null)
                     : null;
-            }
-        }
-
-        if ($databaseId) {
-            try {
-                $full       = $this->getInsureds($databaseId);
-                $databaseId = $full['database_id']
-                    ?? $full['insuredDatabaseId']
-                    ?? $full['DatabaseId']
-                    ?? $full['databaseId']
-                    ?? $databaseId;
-            } catch (\Throwable) {
-                // Keep the ID we already resolved
             }
         }
 
@@ -134,29 +126,44 @@ class NowCertsService
 
     private function upsertInsured(array $data): array
     {
-        return $this->request('POST', 'Zapier/InsertProspect', $data);
+        return $this->request('POST', 'Insured/Insert', $data);
     }
 
     private function findExistingInsured(array $data): ?array
     {
-        $email = $data['email'] ?? $data['Email'] ?? null;
+        // NowCerts mapped data uses 'EMail'; fallback to common variants
+        $email = $data['EMail'] ?? $data['email'] ?? $data['Email'] ?? null;
 
-        if (! $email) {
-            return null;
+        if ($email) {
+            try {
+                $results = $this->request('GET', 'Customers/GetCustomers', ['Email' => $email]);
+                $items   = $results['value'] ?? (array_is_list($results) ? $results : []);
+
+                if (! empty($items)) {
+                    return $items[0];
+                }
+            } catch (\Throwable) {
+                // fall through to name lookup
+            }
         }
 
-        try {
-            $results = $this->request('GET', 'api/Insured', [
-                '$filter' => "eMail eq '{$email}'",
-                '$top'    => 1,
-            ]);
+        $firstName = $data['FirstName'] ?? $data['first_name'] ?? '';
+        $lastName  = $data['LastName']  ?? $data['last_name']  ?? '';
 
-            $items = $results['value'] ?? $results;
+        if ($firstName || $lastName) {
+            try {
+                $results = $this->request('GET', 'Customers/GetCustomers', ['Name' => trim("{$firstName} {$lastName}")]);
+                $items   = $results['value'] ?? (array_is_list($results) ? $results : []);
 
-            return is_array($items) && ! empty($items) ? $items[0] : null;
-        } catch (\Throwable) {
-            return null;
+                if (! empty($items)) {
+                    return $items[0];
+                }
+            } catch (\Throwable) {
+                // no match
+            }
         }
+
+        return null;
     }
 
     public function upsertPolicy(array $payload): array
