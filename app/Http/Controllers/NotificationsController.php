@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\WebhookLog;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -32,18 +31,18 @@ class NotificationsController extends Controller
         ]);
     }
 
-    public function markRead(WebhookLog $log): JsonResponse
+    public function markRead(WebhookLog $log): RedirectResponse
     {
         $log->update(['read_at' => now()]);
 
-        return response()->json(['ok' => true]);
+        return back();
     }
 
-    public function markAllRead(): JsonResponse
+    public function markAllRead(): RedirectResponse
     {
         WebhookLog::whereNull('read_at')->update(['read_at' => now()]);
 
-        return response()->json(['ok' => true]);
+        return back();
     }
 
     public function unreadCount(): JsonResponse
