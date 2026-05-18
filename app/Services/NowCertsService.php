@@ -392,38 +392,31 @@ class NowCertsService
     public function zapierInsertProperty(array $data): array
     {
         $hasDatabaseId =
-            !empty($data['database_id']) &&
-            $data['database_id'] !== '00000000-0000-0000-0000-000000000000';
+            ! empty($data['databaseId']) &&
+            $data['databaseId'] !== '00000000-0000-0000-0000-000000000000';
 
         // Remove invalid empty GUID
-        if (!$hasDatabaseId) {
-            unset($data['database_id']);
+        if (! $hasDatabaseId) {
+            unset($data['databaseId']);
         }
 
-        // Strip zero UUID / empty insured_database_id — NowCerts rejects it
-        if (! $this->validId($data['insured_database_id'] ?? null)) {
-            unset($data['insured_database_id']);
+        // Strip zero UUID / empty insuredDatabaseId — NowCerts rejects it
+        if (! $this->validId($data['insuredDatabaseId'] ?? null)) {
+            unset($data['insuredDatabaseId']);
         }
 
         // NowCerts rejects insured linkage fields on update
         if ($hasDatabaseId) {
             unset(
-                $data['insured_database_id'],
-                $data['insured_email'],
-                $data['insured_first_name'],
-                $data['insured_last_name'],
-                $data['insured_commercial_name'],
+                $data['insuredDatabaseId'],
+                $data['insuredEmail'],
+                $data['insuredFirstName'],
+                $data['insuredLastName'],
+                $data['insuredCommercialName'],
             );
         }
 
-        return $this->request(
-            'POST',
-            'Zapier/InsertProperty',
-            array_filter(
-                $data,
-                fn ($v) => $v !== null && $v !== ''
-            )
-        );
+        return $this->request('POST', 'Property/InsertOrUpdate', $data);
     }
 
     public function zapierInsertOpportunity(array $data): array

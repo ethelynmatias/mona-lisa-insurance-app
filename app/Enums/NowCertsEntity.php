@@ -256,36 +256,49 @@ enum NowCertsEntity: string
                 // Linkage
                 'insured_database_id', 'insured_email',
                 'insured_first_name', 'insured_last_name', 'insured_commercial_name',
-                'database_id',
+                'database_id', 'policies_database_id',
                 // Location
-                'address_1', 'address_2', 'city', 'state', 'zip_code', 'country',
-                'county', 'location_number', 'building_number',
+                'address_line_1', 'address_line_2', 'city', 'county', 'state', 'zip',
+                'location_number', 'building_number',
                 // Property Details
-                'property_use', 'occupancy', 'description', 'description_of_operations',
-                'construction_type', 'construction_built_date',
-                'stories', 'square_footage', 'unit_count', 'bedroom_count', 'bathroom_count',
-                // Roof & Foundation
-                'roof_type', 'roof_year', 'foundation_type',
-                // Systems
-                'heating_type', 'plumbing_type', 'kitchen_quality',
-                // Safety & Distance
-                'distance_to_hydrant', 'distance_to_fire_station',
-                'alarm_system', 'sprinkler_system',
-                // Features
-                'pool', 'patio_cover', 'townhouse_indicator',
-                'pets_indicator', 'pet_details', 'special_features',
-                // Wind & Inspection
-                'wind_mitigation_inspection_date',
-                // Insurance History
-                'current_carrier', 'prior_losses', 'claim_details',
-                'policy_effective_date',
-                // Notes & Remarks
-                'dwelling_requirements', 'property_notes', 'coverage_remarks',
-                'additional_details_1', 'additional_details_2',
-                'additional_details_3', 'additional_details_4',
-                'remarks',
-                // Other
+                'property_use', 'description', 'description_of_operations',
                 'any_area_leased_to_others', 'attach_to_policy_number',
+                // Coverage
+                'coverage_property_type_cd',
+                'coverage_dwelling_a_limit', 'coverage_dwelling_a_premium',
+                'coverage_other_structures_b_limit', 'coverage_other_structures_b_premium',
+                'coverage_personal_property_c_limit', 'coverage_personal_property_c_premium',
+                'coverage_loss_of_use_d_limit', 'coverage_loss_of_use_d_premium',
+                'coverage_personal_liability_e_limit', 'coverage_personal_liability_e_premium',
+                'coverage_medical_payments_f_limit', 'coverage_medical_payments_f_premium',
+                'coverage_all_other_perils_deductible', 'coverage_all_other_perils_deductible_pct',
+                'coverage_hurricane_premium', 'coverage_hurricane_deductible', 'coverage_hurricane_deductible_pct',
+                'coverage_inc_ordinance_or_law_yes_no', 'coverage_inc_ordinance_or_law_premium',
+                // Additional (Business)
+                'additional_number_of_full_time_employees', 'additional_number_of_part_time_employees',
+                'additional_annual_revenues', 'additional_occupied_pct', 'additional_occupied_area',
+                'additional_open_to_public_area', 'additional_total_building_area',
+                'additional_any_area_leased_to_others', 'additional_occupancy_desc',
+                // Additional1 (Construction)
+                'additional1_construction_cd', 'additional1_year_built', 'additional1_num_stories',
+                'additional1_roof_material_cd', 'additional1_residence_type_cd', 'additional1_dwell_use_cd',
+                'additional1_fire_protection_class_cd', 'additional1_distance_to_hydrant',
+                'additional1_air_conditioning_cd', 'additional1_distance_to_fire_station',
+                // Additional2 (Structure)
+                'additional2_dwell_style_cd', 'additional2_estimated_repl_cost_amt',
+                'additional2_number_of_units', 'additional2_heat_source_primary_cd',
+                'additional2_num_families', 'additional2_fireplace_info_num_hearths',
+                'additional2_number_of_pools', 'additional2_fireplace_info_num_chimneys',
+                'additional2_garage_type_cd', 'additional2_parking_area', 'additional2_garage_num_vehs',
+                // Flood Information
+                'flood_address_line_1', 'flood_address_line_2', 'flood_city', 'flood_zip_code', 'flood_state',
+                'flood_build_year', 'flood_flood_area', 'flood_elevation_height',
+                'flood_house_elevated_after_prior_flood_loss',
+                'flood_dwelling_tiv', 'flood_personal_property_tiv',
+                'flood_buildings_limit', 'flood_contents_limit', 'flood_no_of_stories',
+                'flood_building_over_water', 'flood_policy_type',
+                'flood_personal_property_cost_value_type', 'flood_foundation_type',
+                'flood_occupancy', 'flood_construction',
             ],
 
             self::VehicleCoverage => [
