@@ -31,9 +31,9 @@ enum NowCertsEntity: string
                 'email', 'email2', 'email3',
                 'phone_number', 'cell_phone', 'sms_phone', 'fax',
                 // Address
-                'address_line_1', 'address_line_2', 'city', 'state', 'zip_code',
+                'address_line_1', 'address_line_2', 'city', 'state', 'zip_code', 'country',
                 // Profile
-                'date_of_birth', 'description', 'active', 'website', 'fein',
+                'date_of_birth', 'description', 'active', 'website', 'fein', 'ssn_tax_id',
                 'greeting_name', 'preferred_language', 'naic',
                 'type_of_business', 'sic_code', 'year_business_started',
                 'prospect_type',
@@ -250,6 +250,42 @@ enum NowCertsEntity: string
                 'quotes.mortgage_billed', 'quotes.blanket_ai', 'quotes.blanket_ws', 'quotes.auto_renew',
                 'quotes.premium_sent', 'quotes.finance_company_name', 'quotes.lead_sources', 'quotes.package_name',
                 'quotes.over_ride_user_request_value', 'quotes.state_abbreviation_code', 'quotes.agents', 'quotes.cs_rs',
+            ],
+
+            self::Property => [
+                // Linkage
+                'insured_database_id', 'insured_email',
+                'insured_first_name', 'insured_last_name', 'insured_commercial_name',
+                'database_id',
+                // Location
+                'address_1', 'address_2', 'city', 'state', 'zip_code', 'country',
+                'county', 'location_number', 'building_number',
+                // Property Details
+                'property_use', 'occupancy', 'description', 'description_of_operations',
+                'construction_type', 'construction_built_date',
+                'stories', 'square_footage', 'unit_count', 'bedroom_count', 'bathroom_count',
+                // Roof & Foundation
+                'roof_type', 'roof_year', 'foundation_type',
+                // Systems
+                'heating_type', 'plumbing_type', 'kitchen_quality',
+                // Safety & Distance
+                'distance_to_hydrant', 'distance_to_fire_station',
+                'alarm_system', 'sprinkler_system',
+                // Features
+                'pool', 'patio_cover', 'townhouse_indicator',
+                'pets_indicator', 'pet_details', 'special_features',
+                // Wind & Inspection
+                'wind_mitigation_inspection_date',
+                // Insurance History
+                'current_carrier', 'prior_losses', 'claim_details',
+                'policy_effective_date',
+                // Notes & Remarks
+                'dwelling_requirements', 'property_notes', 'coverage_remarks',
+                'additional_details_1', 'additional_details_2',
+                'additional_details_3', 'additional_details_4',
+                'remarks',
+                // Other
+                'any_area_leased_to_others', 'attach_to_policy_number',
             ],
 
             self::VehicleCoverage => [
