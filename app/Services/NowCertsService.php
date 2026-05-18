@@ -331,9 +331,24 @@ class NowCertsService
         ));
     }
 
+    public function findProperties(array $params = []): array
+    {
+        return $this->request('GET', 'Property/FindProperties', $params);
+    }
+
     public function zapierInsertProperty(array $data): array
     {
-        return $this->request('POST', 'Zapier/InsertProperty', $data);
+        if (isset($data['database_id']) && (
+            empty($data['database_id']) ||
+            $data['database_id'] === '00000000-0000-0000-0000-000000000000'
+        )) {
+            unset($data['database_id']);
+        }
+
+        return $this->request('POST', 'Zapier/InsertProperty', array_filter(
+            $data,
+            fn ($v) => $v !== null && $v !== '',
+        ));
     }
 
     public function zapierInsertOpportunity(array $data): array
