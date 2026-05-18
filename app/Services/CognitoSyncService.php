@@ -345,12 +345,12 @@ class CognitoSyncService
                     ]));
                 }
             } catch (Throwable $e) {
-                DatabaseLogger::warning('NowCerts contact sync failed — non-blocking', array_merge($context, [
-                    'contact_name' => $label,
-                    'source'       => $source,
-                    'contact_data' => $principalData,
+                DatabaseLogger::error('NowCerts contact sync failed', array_merge($context, [
+                    'contact_name'      => $label,
+                    'source'            => $source,
+                    'contact_data'      => $principalData,
                     'insuredDatabaseId' => $insuredDatabaseId,
-                    'error'        => $e->getMessage(),
+                    'error'             => $e->getMessage(),
                 ]));
             }
         }
@@ -455,7 +455,7 @@ class CognitoSyncService
                 $response = $this->nowcerts->zapierInsertDriver($data);
                 DatabaseLogger::info('NowCerts driver synced', array_merge($context, ['driver' => $label, 'response' => $response]));
             } catch (Throwable $e) {
-                DatabaseLogger::warning('NowCerts driver sync failed — non-blocking', array_merge($context, ['driver' => $label, 'error' => $e->getMessage()]));
+                DatabaseLogger::error('NowCerts driver sync failed', array_merge($context, ['driver' => $label, 'error' => $e->getMessage()]));
             }
         }
     }
@@ -534,7 +534,7 @@ class CognitoSyncService
                 $response = $this->nowcerts->zapierInsertVehicle($data);
                 DatabaseLogger::info('NowCerts vehicle synced', array_merge($context, ['vehicle' => $label, 'response' => $response]));
             } catch (Throwable $e) {
-                DatabaseLogger::warning('NowCerts vehicle sync failed — non-blocking', array_merge($context, ['vehicle' => $label, 'error' => $e->getMessage()]));
+                DatabaseLogger::error('NowCerts vehicle sync failed', array_merge($context, ['vehicle' => $label, 'error' => $e->getMessage()]));
             }
         }
     }
@@ -650,7 +650,7 @@ class CognitoSyncService
                         'response'     => $response,
                     ]));
                 } catch (Throwable $e) {
-                    DatabaseLogger::warning('NowCerts GeneralLiabilityNotice sync failed — non-blocking', array_merge($context, [
+                    DatabaseLogger::error('NowCerts GeneralLiabilityNotice sync failed', array_merge($context, [
                         'notice_data'  => $notice,
                         'notice_label' => $noticeLabel,
                         'source'       => $source,
@@ -659,7 +659,7 @@ class CognitoSyncService
                 }
             }
         } catch (Throwable $e) {
-            DatabaseLogger::warning('NowCerts GeneralLiabilityNotices processing failed — non-blocking', array_merge($context, [
+            DatabaseLogger::error('NowCerts GeneralLiabilityNotices processing failed', array_merge($context, [
                 'error' => $e->getMessage(),
             ]));
         }
@@ -735,7 +735,7 @@ class CognitoSyncService
                     'response'           => $response,
                 ]));
             } catch (Throwable $e) {
-                DatabaseLogger::warning('NowCerts PolicyCoverage sync failed — non-blocking', array_merge($context, [
+                DatabaseLogger::error('NowCerts PolicyCoverage sync failed', array_merge($context, [
                     'coverages_count'    => count($policyCoverages),
                     'policy_database_id' => $policyDatabaseId,
                     'coverage_data'      => $apiData,
@@ -743,7 +743,7 @@ class CognitoSyncService
                 ]));
             }
         } catch (Throwable $e) {
-            DatabaseLogger::warning('NowCerts PolicyCoverages processing failed — non-blocking', array_merge($context, [
+            DatabaseLogger::error('NowCerts PolicyCoverages processing failed', array_merge($context, [
                 'error' => $e->getMessage(),
             ]));
         }
@@ -1026,8 +1026,8 @@ class CognitoSyncService
                 if ($existingId) {
                     $data['database_id'] = $existingId;
                 }
-            } catch (Throwable) {
-                // No existing property — will insert a new one
+            } catch (Throwable $e) {
+                DatabaseLogger::warning('NowCerts findProperties lookup failed — will insert new property', ['error' => $e->getMessage(), 'insuredDatabaseId' => $insuredDatabaseId]);
             }
         }
 
