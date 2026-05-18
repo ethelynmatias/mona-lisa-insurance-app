@@ -134,13 +134,14 @@ class CognitoSyncService
             foreach ($this->primaryEntitySyncMap($mapper) as $entity => $callbacks) {
 
                 $data = $callbacks['map']($entry);
-                if ($isRerun) {
-                    if ($entity === NowCertsEntity::Insured->value && ! empty($storedIds['insuredDatabaseId'])) {
-                        $data['database_id'] = $storedIds['insuredDatabaseId'];
-                    }
-                    if ($entity === NowCertsEntity::Policy->value && ! empty($storedIds['policyDatabaseId'])) {
-                        $data['policy_database_id'] = $storedIds['policyDatabaseId'];
-                    }
+
+                // Inject stored NowCerts IDs for both entry.updated and reruns so
+                // the push callbacks update existing records instead of inserting new ones.
+                if (! empty($storedIds['insuredDatabaseId']) && $entity === NowCertsEntity::Insured->value) {
+                    $data['database_id'] = $storedIds['insuredDatabaseId'];
+                }
+                if (! empty($storedIds['policyDatabaseId']) && $entity === NowCertsEntity::Policy->value) {
+                    $data['policy_database_id'] = $storedIds['policyDatabaseId'];
                 }
 
                 DatabaseLogger::info("NowCerts mapped {$entity}", array_merge($context, ['data' => $data]));

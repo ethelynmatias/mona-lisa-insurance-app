@@ -140,7 +140,39 @@ class NowCertsService
 
     private function upsertInsured(array $data): array
     {
+        // Insured/Insert supports updates via DatabaseId (PascalCase endpoint)
+        // Zapier/InsertProspect is insert-only and ignores database_id
+        if (! empty($data['database_id'])) {
+            return $this->request('POST', 'Insured/Insert', $this->toInsuredPascalCase($data));
+        }
+
         return $this->request('POST', 'Zapier/InsertProspect', $data);
+    }
+
+    /**
+     * Convert snake_case insured field names to PascalCase for Insured/Insert.
+     * Uses Str::studly() for most fields, with explicit overrides for special cases.
+     */
+    private function toInsuredPascalCase(array $data): array
+    {
+        $overrides = [
+            'database_id'              => 'DatabaseId',
+            'email'                    => 'EMail',
+            'email2'                   => 'EMail2',
+            'email3'                   => 'EMail3',
+            'phone_number'             => 'Phone',
+            'co_insured_first_name'    => 'CoInsured_FirstName',
+            'co_insured_last_name'     => 'CoInsured_LastName',
+            'co_insured_middle_name'   => 'CoInsured_MiddleName',
+            'co_insured_date_of_birth' => 'CoInsured_DateOfBirth',
+        ];
+
+        $result = [];
+        foreach ($data as $key => $value) {
+            $result[$overrides[$key] ?? \Illuminate\Support\Str::studly($key)] = $value;
+        }
+
+        return $result;
     }
 
     private function findExistingInsured(array $data): ?array
