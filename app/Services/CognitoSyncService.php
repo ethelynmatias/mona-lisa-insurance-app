@@ -840,7 +840,7 @@ class CognitoSyncService
 
         $addProperty = function (array $property, string $source) use (&$properties, &$seenProperties): void {
             $key = strtolower(trim(
-                ($property['address_line_1'] ?? $property['street'] ?? '') . ' ' .
+                ($property['addressLine1'] ?? $property['street'] ?? '') . ' ' .
                 ($property['city'] ?? '') . ' ' .
                 ($property['state'] ?? '') . ' ' .
                 ($property['zip'] ?? '') . ' ' .
@@ -882,17 +882,17 @@ class CognitoSyncService
         }
 
         foreach ($properties as $index => $property) {
-            $property['insured_database_id'] = $insuredDatabaseId;
-            $source                          = $property['_source'] ?? 'Unknown';
+            $property['insuredDatabaseId'] = $insuredDatabaseId;
+            $source                        = $property['_source'] ?? 'Unknown';
             unset($property['_source']);
 
             $entityLabel   = NowCertsEntity::Property->value;
-            $propertyLabel = trim(($property['street'] ?? '') . ' ' . ($property['city'] ?? '') . ' ' . ($property['state'] ?? ''));
+            $propertyLabel = trim(($property['addressLine1'] ?? $property['street'] ?? '') . ' ' . ($property['city'] ?? '') . ' ' . ($property['state'] ?? ''));
             $propertyLabel = $propertyLabel ?: 'Property #' . ($index + 1);
 
-            $addressLine1 = $property['address_line_1'] ?? $property['street'] ?? null;
+            $addressLine1 = $property['addressLine1'] ?? $property['street'] ?? null;
             if (empty($addressLine1) || empty($property['state'] ?? null)) {
-                DatabaseLogger::warning("NowCerts {$entityLabel} skipped — missing address_line_1 or state", array_merge($context, [
+                DatabaseLogger::warning("NowCerts {$entityLabel} skipped — missing addressLine1 or state", array_merge($context, [
                     'source'         => $source,
                     'property_label' => $propertyLabel,
                     'property_data'  => $property,
@@ -943,7 +943,7 @@ class CognitoSyncService
             }
 
             // Only extract if there is a structured Address with at least state, since
-            // NowCerts requires address_line_1 and state on InsertProperty.
+            // NowCerts requires addressLine1 and state on InsertProperty.
             $address = is_array($data['Address'] ?? null) ? $data['Address'] : [];
             $line1   = $address['Line1']      ?? null;
             $city    = $address['City']       ?? null;
@@ -955,13 +955,13 @@ class CognitoSyncService
             }
 
             $properties[] = array_filter([
-                'address_line_1' => $line1,
-                'address_line_2' => $address['Line2'] ?? null,
-                'city'           => $city,
-                'state'          => $state,
-                'zip'            => $zip,
-                'property_use'   => $data['OccupancyType'] ?? null,
-                'description'    => $data['Location']      ?? null,
+                'addressLine1' => $line1,
+                'addressLine2' => $address['Line2'] ?? null,
+                'city'         => $city,
+                'state'        => $state,
+                'zip'          => $zip,
+                'propertyUse'  => $data['OccupancyType'] ?? null,
+                'description'  => $data['Location']      ?? null,
             ], fn ($v) => $v !== null && $v !== '');
         }
 
@@ -983,19 +983,19 @@ class CognitoSyncService
             $state   = $address['State']      ?? null;
             $zip     = $address['PostalCode'] ?? null;
 
-            // NowCerts requires address_line_1 and state; skip incomplete entries.
+            // NowCerts requires addressLine1 and state; skip incomplete entries.
             if (empty($state) || (empty($line1) && empty($city) && empty($zip))) {
                 continue;
             }
 
             $properties[] = array_filter([
-                'address_line_1' => $line1,
-                'address_line_2' => $address['Line2'] ?? null,
-                'city'           => $city,
-                'state'          => $state,
-                'zip'            => $zip,
-                'property_use'   => $data['OccupancyType'] ?? null,
-                'description'    => $data['AcresOfUnits']  ?? null,
+                'addressLine1' => $line1,
+                'addressLine2' => $address['Line2'] ?? null,
+                'city'         => $city,
+                'state'        => $state,
+                'zip'          => $zip,
+                'propertyUse'  => $data['OccupancyType'] ?? null,
+                'description'  => $data['AcresOfUnits']  ?? null,
             ], fn ($v) => $v !== null && $v !== '');
         }
 
@@ -1010,21 +1010,21 @@ class CognitoSyncService
             return $data;
         }
 
-        $data['insured_database_id'] = $insuredDatabaseId;
+        $data['insuredDatabaseId'] = $insuredDatabaseId;
 
         if ($storedPropertyId) {
-            $data['database_id'] = $storedPropertyId;
+            $data['databaseId'] = $storedPropertyId;
             return $data;
         }
 
-        if (empty($data['database_id'])) {
+        if (empty($data['databaseId'])) {
             try {
                 $existing   = $this->nowcerts->findProperties(['InsuredId' => $insuredDatabaseId]);
                 $first      = is_array($existing) ? ($existing[0] ?? null) : null;
                 $existingId = $first['databaseId'] ?? $first['DatabaseId'] ?? $first['id'] ?? null;
 
                 if ($existingId) {
-                    $data['database_id'] = $existingId;
+                    $data['databaseId'] = $existingId;
                 }
             } catch (Throwable $e) {
                 DatabaseLogger::warning('NowCerts findProperties lookup failed — will insert new property', ['error' => $e->getMessage(), 'insuredDatabaseId' => $insuredDatabaseId]);

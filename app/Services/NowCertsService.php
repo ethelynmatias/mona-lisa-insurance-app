@@ -416,7 +416,86 @@ class NowCertsService
             );
         }
 
-        return $this->request('POST', 'Property/InsertOrUpdate', $data);
+        return $this->request('POST', 'Property/InsertOrUpdate', $this->nestPropertyPayload($data));
+    }
+
+    /**
+     * Convert flat prefixed property keys to the nested object structure the API expects.
+     *
+     * additional1_constructionCd           → additional1.constructionCd
+     * additional2_dwellStyleCd             → additional2.dwellStyleCd
+     * additional_numberOfFullTimeEmployees → additional.numberOfFullTimeEmployees
+     * coverage_dwelling_A_limit            → coverage.dwelling_A.limit
+     * coverage_propertyTypeCd              → coverage.propertyTypeCd
+     * propertyFloodInformation_city        → propertyFloodInformation.city
+     * propertyLienHolders_loanNumber       → propertyLienHolders[0].loanNumber
+     */
+    private function nestPropertyPayload(array $data): array
+    {
+        $coverageSubGroups = [
+            'dwelling_A', 'otherStructures_B', 'personalProperty_C',
+            'lossOfUse_D', 'personalLiability_E', 'medicalPayments_F',
+            'allOtherPerils', 'hurricane', 'incOrdinanceOrLaw', 'coverageCs',
+        ];
+
+        $result = [];
+
+        foreach ($data as $key => $value) {
+            // Check longer prefixes first to avoid additional_ matching additional1_/additional2_
+            if (str_starts_with($key, 'additional1_')) {
+                $result['additional1'][substr($key, 12)] = $value;
+                continue;
+            }
+
+            if (str_starts_with($key, 'additional2_')) {
+                $result['additional2'][substr($key, 12)] = $value;
+                continue;
+            }
+
+            if (str_starts_with($key, 'additional_')) {
+                $result['additional'][substr($key, 11)] = $value;
+                continue;
+            }
+
+            if (str_starts_with($key, 'propertyFloodInformation_')) {
+                $result['propertyFloodInformation'][substr($key, 25)] = $value;
+                continue;
+            }
+
+            if (str_starts_with($key, 'propertyLienHolders_')) {
+                $result['propertyLienHolders'][0][substr($key, 20)] = $value;
+                continue;
+            }
+
+            if (str_starts_with($key, 'coverage_')) {
+                $remainder = substr($key, 9);
+
+                $matched = null;
+                foreach ($coverageSubGroups as $group) {
+                    if (str_starts_with($remainder, $group . '_')) {
+                        $matched = $group;
+                        break;
+                    }
+                }
+
+                if ($matched !== null) {
+                    $subKey = substr($remainder, strlen($matched) + 1);
+                    if ($matched === 'coverageCs') {
+                        $result['coverage']['coverageCs'][0][$subKey] = $value;
+                    } else {
+                        $result['coverage'][$matched][$subKey] = $value;
+                    }
+                } else {
+                    // Direct coverage field e.g. coverage_propertyTypeCd → coverage.propertyTypeCd
+                    $result['coverage'][$remainder] = $value;
+                }
+                continue;
+            }
+
+            $result[$key] = $value;
+        }
+
+        return $result;
     }
 
     public function zapierInsertOpportunity(array $data): array
