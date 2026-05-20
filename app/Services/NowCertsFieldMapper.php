@@ -630,6 +630,22 @@ class NowCertsFieldMapper
             $propertyGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
         }
 
+        // Merge all un-numbered groups into 'default'.
+        // Un-numbered group keys (e.g. 'PropertyAddress', 'LocationAddress') arise when
+        // different Cognito naming conventions point to the same single property — for example
+        // PropertyAddress.Line1 → addressLine1 ends up in group 'PropertyAddress', while
+        // HomeYearBuilt → additional1_yearBuilt ends up in 'default'. Both belong to one
+        // property record, so they must be merged. Only explicitly numbered keys (Property1,
+        // Location2, …) represent genuinely separate properties and should stay isolated.
+        $merged = [];
+        foreach ($propertyGroups as $groupKey => $groupData) {
+            $targetKey = ($groupKey !== 'default' && preg_match('/\d/', $groupKey))
+                ? $groupKey
+                : 'default';
+            $merged[$targetKey] = array_merge($merged[$targetKey] ?? [], $groupData);
+        }
+        $propertyGroups = $merged;
+
         // Convert each group to a property record
         foreach ($propertyGroups as $groupKey => $propertyData) {
             if (!empty($propertyData)) {
@@ -695,13 +711,17 @@ class NowCertsFieldMapper
             return $matches[1] ?: 'PropertyAddress';
         }
 
-        // Pattern 9: Dot-notation fields — use the top-level prefix as the group key so that
-        // sibling sub-fields (e.g. LocationAddress.FullAddress and LocationAddress.City) land
-        // in the same group, while a numbered variant (LocationAddress2.*) gets its own group.
-        // Strip any __entity suffix (e.g. __property, __property2) before extracting the prefix.
+        // Pattern 9: Dot-notation fields — only use the prefix as a group key when it is
+        // explicitly numbered (e.g. PropertyAddress2, LocationAddress3), which means it is
+        // a second/third property and was not already caught by patterns 1–8.
+        // Un-numbered prefixes like PropertyAddress.Line1 or LocationAddress.City belong
+        // to the same single property as plain top-level fields (HomeYearBuilt, TypeOfRoof, …),
+        // so they must land in the 'default' group, not their own isolated group.
+        // Strip any __entity suffix before extracting the prefix.
         $normalized = preg_replace('/__\w+$/', '', $cognitoField);
         if (str_contains($normalized, '.')) {
-            return explode('.', $normalized, 2)[0];
+            $prefix = explode('.', $normalized, 2)[0];
+            return preg_match('/\d/', $prefix) ? $prefix : 'default';
         }
 
         // Default: treat as single property group
