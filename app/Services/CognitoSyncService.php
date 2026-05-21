@@ -859,6 +859,18 @@ class CognitoSyncService
         };
 
         $mappedProperties = $mapper->mapProperties($entry);
+
+        // For form 11, enrich every UI-mapped property with construction/structure
+        // fields that are sourced from hardcoded form-11 field names.
+        // UI-mapped values take priority (array_merge puts extras first).
+        if ($formId === '11') {
+            $form11Extras     = $this->extractForm11AdditionalFields($entry);
+            $mappedProperties = array_map(
+                fn ($prop) => array_merge($form11Extras, $prop),
+                $mappedProperties,
+            );
+        }
+
         foreach ($mappedProperties as $mapped) {
             if (! empty($mapped)) {
                 DatabaseLogger::info('NowCerts property from UI mappings', array_merge($context, ['mapped_property_data' => $mapped]));
@@ -871,6 +883,15 @@ class CognitoSyncService
             if (! empty($legacyPropertyData)) {
                 DatabaseLogger::info('NowCerts property from legacy mapping', array_merge($context, ['legacy_property_data' => $legacyPropertyData]));
                 $addProperty($legacyPropertyData, 'Legacy Mapping');
+            }
+
+            // If still no properties, fall back to form 11 specific field names
+            if ($formId === '11' && empty($properties)) {
+                $form11Data = $this->extractForm11PropertyData($entry);
+                if (! empty($form11Data)) {
+                    DatabaseLogger::info('NowCerts property from Form11 auto-extract', array_merge($context, ['form11_data' => $form11Data]));
+                    $addProperty($form11Data, 'Auto-extracted Form11');
+                }
             }
         }
 
@@ -935,6 +956,52 @@ class CognitoSyncService
                 $errors[] = "{$entityLabel} ({$propertyLabel}): " . $e->getMessage();
             }
         }
+    }
+
+    /**
+     * Returns construction/structure fields from form 11 hardcoded field names.
+     * Used to enrich properties that were built from UI mappings.
+     */
+    private function extractForm11AdditionalFields(array $entry): array
+    {
+        return array_filter([
+            'additional1_constructionCd'      => $entry['TypeOfConstruction'] ?? null,
+            'additional1_roofMaterialCd'      => $entry['TypeOfRoof']         ?? null,
+            'additional1_yearBuilt'           => $entry['HomeYearBuilt']      ?? null,
+            'additional1_numStories'          => $entry['NumberOfStories']    ?? null,
+            'additional1_distanceToHydrant'   => $entry['FeetToHydrant']      ?? null,
+            'additional2_heatSourcePrimaryCd' => $entry['HeatingType']        ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
+    }
+
+    /**
+     * Builds a full property record from form 11 specific field names.
+     * Used as fallback when no UI mappings are configured.
+     */
+    private function extractForm11PropertyData(array $entry): array
+    {
+        $line1 = $entry['PropertyAddress.Line1'] ?? null;
+        $city  = $entry['PropertyAddress.City']  ?? null;
+        $state = $entry['PropertyAddress.State'] ?? null;
+        $zip   = $entry['PropertyAddress.PostalCode'] ?? null;
+
+        if (empty($state) || (empty($line1) && empty($city))) {
+            return [];
+        }
+
+        return array_filter([
+            'addressLine1'                    => $line1,
+            'addressLine2'                    => $entry['PropertyAddress.Line2'] ?? null,
+            'city'                            => $city,
+            'state'                           => $state,
+            'zip'                             => $zip,
+            'additional1_constructionCd'      => $entry['TypeOfConstruction'] ?? null,
+            'additional1_roofMaterialCd'      => $entry['TypeOfRoof']         ?? null,
+            'additional1_yearBuilt'           => $entry['HomeYearBuilt']      ?? null,
+            'additional1_numStories'          => $entry['NumberOfStories']    ?? null,
+            'additional1_distanceToHydrant'   => $entry['FeetToHydrant']      ?? null,
+            'additional2_heatSourcePrimaryCd' => $entry['HeatingType']        ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
     }
 
     private function extractForm16LocationProperties(array $rawEntry): array
