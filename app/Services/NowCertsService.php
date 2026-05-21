@@ -453,44 +453,40 @@ class NowCertsService
             if (str_starts_with($key, 'additional1_')) {
                 $subKey = substr($key, 12);
                 if ($subKey === 'constructionCd' && is_string($value)) {
-                    $matched = ConstructionType::fromLabel($value);
-                    $value   = $matched !== null ? $matched->value : $value;
+                    $value = ConstructionType::fromLabel($value)?->value;
                 }
                 if ($subKey === 'roofMaterialCd' && is_string($value)) {
-                    $matched = RoofMaterialType::fromLabel($value);
-                    $value   = $matched !== null ? $matched->value : $value;
+                    $value = RoofMaterialType::fromLabel($value)?->value;
                 }
                 if ($subKey === 'residenceTypeCd' && is_string($value)) {
-                    $matched = ResidenceType::fromLabel($value);
-                    $value   = $matched !== null ? $matched->value : $value;
+                    $value = ResidenceType::fromLabel($value)?->value;
                 }
                 if ($subKey === 'dwellUseCd' && is_string($value)) {
-                    $matched = DwellUseType::fromLabel($value);
-                    $value   = $matched !== null ? $matched->value : $value;
+                    $value = DwellUseType::fromLabel($value)?->value;
                 }
                 if ($subKey === 'airConditioningCd' && is_string($value)) {
-                    $matched = AirConditioningType::fromLabel($value);
-                    $value   = $matched !== null ? $matched->value : $value;
+                    $value = AirConditioningType::fromLabel($value)?->value;
                 }
-                $result['additional1'][$subKey] = $value;
+                if ($value !== null) {
+                    $result['additional1'][$subKey] = $value;
+                }
                 continue;
             }
 
             if (str_starts_with($key, 'additional2_')) {
                 $subKey = substr($key, 12);
                 if ($subKey === 'dwellStyleCd' && is_string($value)) {
-                    $matched = DwellStyleType::fromLabel($value);
-                    $value   = $matched !== null ? $matched->value : $value;
+                    $value = DwellStyleType::fromLabel($value)?->value;
                 }
                 if ($subKey === 'heatSourcePrimaryCd' && is_string($value)) {
-                    $matched = HeatSourcePrimaryType::fromLabel($value);
-                    $value   = $matched !== null ? $matched->value : $value;
+                    $value = HeatSourcePrimaryType::fromLabel($value)?->value;
                 }
                 if ($subKey === 'garageTypeCd' && is_string($value)) {
-                    $matched = GarageType::fromLabel($value);
-                    $value   = $matched !== null ? $matched->value : $value;
+                    $value = GarageType::fromLabel($value)?->value;
                 }
-                $result['additional2'][$subKey] = $value;
+                if ($value !== null) {
+                    $result['additional2'][$subKey] = $value;
+                }
                 continue;
             }
 
