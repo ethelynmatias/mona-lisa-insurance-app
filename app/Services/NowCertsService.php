@@ -467,6 +467,12 @@ class NowCertsService
                 if ($subKey === 'airConditioningCd' && is_string($value)) {
                     $value = AirConditioningType::fromLabel($value)?->value;
                 }
+                if ($subKey === 'numStories' && is_string($value)) {
+                    $value = is_numeric($value) ? (float) $value : null;
+                }
+                if ($subKey === 'distanceToHydrant' && is_string($value)) {
+                    $value = is_numeric($value) ? (int) $value : null;
+                }
                 if ($value !== null) {
                     $result['additional1'][$subKey] = $value;
                 }
