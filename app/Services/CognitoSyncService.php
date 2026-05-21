@@ -252,6 +252,10 @@ class CognitoSyncService
                 'map'  => fn (array $e) => $mapper->mapPolicy($e),
                 'push' => fn (array $d) => $this->nowcerts->upsertPolicy($d),
             ],
+            NowCertsEntity::Opportunity->value => [
+                'map'  => fn (array $e) => $mapper->mapOpportunity($e),
+                'push' => fn (array $d) => $this->nowcerts->zapierInsertOpportunity($d),
+            ],
         ];
     }
 

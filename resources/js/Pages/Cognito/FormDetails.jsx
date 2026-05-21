@@ -85,13 +85,15 @@ export default function FormDetails() {
 
         allFields.forEach(f => {
             const key = f.InternalName ?? f.internalName ?? f.Name ?? f.name;
-            const mapping = mappings[key] ?? null;
+            const mappingList = Array.isArray(mappings[key]) ? mappings[key] : [];
 
-            payload.push({
-                cognito_field:   key,
-                nowcerts_entity: mapping?.entity ?? null,
-                nowcerts_field:  mapping?.field  ?? null,
-            });
+            if (mappingList.length === 0) {
+                payload.push({ cognito_field: key, nowcerts_entity: null, nowcerts_field: null });
+            } else {
+                mappingList.forEach(m => {
+                    payload.push({ cognito_field: key, nowcerts_entity: m.entity, nowcerts_field: m.field });
+                });
+            }
         });
 
         router.post(

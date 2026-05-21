@@ -2,7 +2,6 @@
 
 namespace App\Repositories\Contracts;
 
-use Illuminate\Support\Collection;
 
 interface FormFieldMappingRepositoryInterface
 {
@@ -11,11 +10,6 @@ interface FormFieldMappingRepositoryInterface
      * Shape: [ cognitoField => ['entity' => ..., 'field' => ...] ]
      */
     public function getMappingsForForm(string $formId): array;
-
-    /**
-     * Upsert a single field mapping.
-     */
-    public function upsertMapping(string $formId, string $cognitoField, ?string $entity, ?string $field): void;
 
     /**
      * Upsert multiple mappings at once.

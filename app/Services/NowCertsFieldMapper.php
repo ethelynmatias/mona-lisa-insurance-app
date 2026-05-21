@@ -65,6 +65,11 @@ class NowCertsFieldMapper
         return $this->mapEntity(NowCertsEntity::Policy, $entry);
     }
 
+    public function mapOpportunity(array $entry): array
+    {
+        return $this->mapEntity(NowCertsEntity::Opportunity, $entry);
+    }
+
     public function mapDriver(array $entry): array
     {
         return $this->mapEntity(NowCertsEntity::Driver, $entry);
@@ -81,26 +86,22 @@ class NowCertsFieldMapper
         $driverGroups = [];
 
         // Get all Driver entity mappings
-        foreach ($this->saved as $cognitoField => $mapping) {
-            if ($mapping['entity'] !== NowCertsEntity::Driver->value) {
-                continue;
-            }
+        foreach ($this->saved as $cognitoField => $mappingList) {
+            foreach ($mappingList as $mapping) {
+                if ($mapping['entity'] !== NowCertsEntity::Driver->value) {
+                    continue;
+                }
 
-            if (!array_key_exists($cognitoField, $entry) 
-                || $entry[$cognitoField] === null 
-                || $entry[$cognitoField] === '') {
-                continue;
-            }
+                if (!array_key_exists($cognitoField, $entry)
+                    || $entry[$cognitoField] === null
+                    || $entry[$cognitoField] === '') {
+                    continue;
+                }
 
-            // Extract driver group identifier from field name
-            // Examples: Driver1.FirstName -> Driver1, DriverInfo2.LastName -> DriverInfo2, FirstName -> default
-            $groupKey = $this->extractDriverGroupKey($cognitoField);
-            
-            if (!isset($driverGroups[$groupKey])) {
-                $driverGroups[$groupKey] = [];
+                $groupKey = $this->extractDriverGroupKey($cognitoField);
+                $driverGroups[$groupKey] ??= [];
+                $driverGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
             }
-
-            $driverGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
         }
 
         // Convert each group to a driver record
@@ -174,26 +175,22 @@ class NowCertsFieldMapper
         $vehicleGroups = [];
 
         // Get all Vehicle entity mappings
-        foreach ($this->saved as $cognitoField => $mapping) {
-            if ($mapping['entity'] !== NowCertsEntity::Vehicle->value) {
-                continue;
-            }
+        foreach ($this->saved as $cognitoField => $mappingList) {
+            foreach ($mappingList as $mapping) {
+                if ($mapping['entity'] !== NowCertsEntity::Vehicle->value) {
+                    continue;
+                }
 
-            if (!array_key_exists($cognitoField, $entry) 
-                || $entry[$cognitoField] === null 
-                || $entry[$cognitoField] === '') {
-                continue;
-            }
+                if (!array_key_exists($cognitoField, $entry)
+                    || $entry[$cognitoField] === null
+                    || $entry[$cognitoField] === '') {
+                    continue;
+                }
 
-            // Extract vehicle group identifier from field name
-            // Examples: Vehicle1.Year -> Vehicle1, VehicleInfo2.Make -> VehicleInfo2, Year -> default
-            $groupKey = $this->extractVehicleGroupKey($cognitoField);
-            
-            if (!isset($vehicleGroups[$groupKey])) {
-                $vehicleGroups[$groupKey] = [];
+                $groupKey = $this->extractVehicleGroupKey($cognitoField);
+                $vehicleGroups[$groupKey] ??= [];
+                $vehicleGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
             }
-
-            $vehicleGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
         }
 
         // Convert each group to a vehicle record
@@ -252,26 +249,22 @@ class NowCertsFieldMapper
         $contactGroups = [];
 
         // Get all Contact entity mappings
-        foreach ($this->saved as $cognitoField => $mapping) {
-            if ($mapping['entity'] !== NowCertsEntity::Contact->value) {
-                continue;
-            }
+        foreach ($this->saved as $cognitoField => $mappingList) {
+            foreach ($mappingList as $mapping) {
+                if ($mapping['entity'] !== NowCertsEntity::Contact->value) {
+                    continue;
+                }
 
-            if (!array_key_exists($cognitoField, $entry) 
-                || $entry[$cognitoField] === null 
-                || $entry[$cognitoField] === '') {
-                continue;
-            }
+                if (!array_key_exists($cognitoField, $entry)
+                    || $entry[$cognitoField] === null
+                    || $entry[$cognitoField] === '') {
+                    continue;
+                }
 
-            // Extract contact group identifier from field name
-            // Examples: Contact1.first_name -> Contact1, Principal2.last_name -> Principal2, first_name -> default
-            $groupKey = $this->extractContactGroupKey($cognitoField);
-            
-            if (!isset($contactGroups[$groupKey])) {
-                $contactGroups[$groupKey] = [];
+                $groupKey = $this->extractContactGroupKey($cognitoField);
+                $contactGroups[$groupKey] ??= [];
+                $contactGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
             }
-
-            $contactGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
         }
 
         // Convert each group to a contact record
@@ -359,26 +352,22 @@ class NowCertsFieldMapper
         $noticeGroups = [];
 
         // Get all GeneralLiabilityNotice entity mappings
-        foreach ($this->saved as $cognitoField => $mapping) {
-            if ($mapping['entity'] !== NowCertsEntity::GeneralLiabilityNotice->value) {
-                continue;
-            }
+        foreach ($this->saved as $cognitoField => $mappingList) {
+            foreach ($mappingList as $mapping) {
+                if ($mapping['entity'] !== NowCertsEntity::GeneralLiabilityNotice->value) {
+                    continue;
+                }
 
-            if (!array_key_exists($cognitoField, $entry) 
-                || $entry[$cognitoField] === null 
-                || $entry[$cognitoField] === '') {
-                continue;
-            }
+                if (!array_key_exists($cognitoField, $entry)
+                    || $entry[$cognitoField] === null
+                    || $entry[$cognitoField] === '') {
+                    continue;
+                }
 
-            // Extract notice group identifier from field name
-            // Examples: Claim1.description -> Claim1, Notice2.status -> Notice2, description_of_occurrence -> default
-            $groupKey = $this->extractGeneralLiabilityNoticeGroupKey($cognitoField);
-            
-            if (!isset($noticeGroups[$groupKey])) {
-                $noticeGroups[$groupKey] = [];
+                $groupKey = $this->extractGeneralLiabilityNoticeGroupKey($cognitoField);
+                $noticeGroups[$groupKey] ??= [];
+                $noticeGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
             }
-
-            $noticeGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
         }
 
         // Convert each group to a notice record
@@ -471,26 +460,22 @@ class NowCertsFieldMapper
         $coverageGroups = [];
 
         // Get all PolicyCoverage entity mappings
-        foreach ($this->saved as $cognitoField => $mapping) {
-            if ($mapping['entity'] !== NowCertsEntity::PolicyCoverage->value) {
-                continue;
-            }
+        foreach ($this->saved as $cognitoField => $mappingList) {
+            foreach ($mappingList as $mapping) {
+                if ($mapping['entity'] !== NowCertsEntity::PolicyCoverage->value) {
+                    continue;
+                }
 
-            if (!array_key_exists($cognitoField, $entry) 
-                || $entry[$cognitoField] === null 
-                || $entry[$cognitoField] === '') {
-                continue;
-            }
+                if (!array_key_exists($cognitoField, $entry)
+                    || $entry[$cognitoField] === null
+                    || $entry[$cognitoField] === '') {
+                    continue;
+                }
 
-            // Extract coverage group identifier from field name
-            // Examples: Coverage1.cargo_deductible -> Coverage1, Policy2.generalLiability_occur -> Policy2, cargo_deductible -> default
-            $groupKey = $this->extractPolicyCoverageGroupKey($cognitoField);
-            
-            if (!isset($coverageGroups[$groupKey])) {
-                $coverageGroups[$groupKey] = [];
+                $groupKey = $this->extractPolicyCoverageGroupKey($cognitoField);
+                $coverageGroups[$groupKey] ??= [];
+                $coverageGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
             }
-
-            $coverageGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
         }
 
         // Convert each group to a coverage record
@@ -569,20 +554,22 @@ class NowCertsFieldMapper
             NowCertsEntity::Property->value,
         ];
 
-        foreach ($this->saved as $cognitoField => $mapping) {
-            if (! in_array($mapping['entity'], $propertyEntities, true)) {
-                continue;
+        foreach ($this->saved as $cognitoField => $mappingList) {
+            foreach ($mappingList as $mapping) {
+                if (! in_array($mapping['entity'], $propertyEntities, true)) {
+                    continue;
+                }
+
+                $propertyMappings[$cognitoField] = $mapping;
+
+                if (! array_key_exists($cognitoField, $entry)
+                    || $entry[$cognitoField] === null
+                    || $entry[$cognitoField] === '') {
+                    continue;
+                }
+
+                $result[$mapping['field']] = $entry[$cognitoField];
             }
-
-            $propertyMappings[$cognitoField] = $mapping;
-
-            if (! array_key_exists($cognitoField, $entry)
-                || $entry[$cognitoField] === null
-                || $entry[$cognitoField] === '') {
-                continue;
-            }
-
-            $result[$mapping['field']] = $entry[$cognitoField];
         }
 
         // Log property mapping activity for debugging
@@ -608,26 +595,22 @@ class NowCertsFieldMapper
         $propertyGroups = [];
 
         // Get all Property entity mappings
-        foreach ($this->saved as $cognitoField => $mapping) {
-            if ($mapping['entity'] !== NowCertsEntity::Property->value) {
-                continue;
-            }
+        foreach ($this->saved as $cognitoField => $mappingList) {
+            foreach ($mappingList as $mapping) {
+                if ($mapping['entity'] !== NowCertsEntity::Property->value) {
+                    continue;
+                }
 
-            if (!array_key_exists($cognitoField, $entry) 
-                || $entry[$cognitoField] === null 
-                || $entry[$cognitoField] === '') {
-                continue;
-            }
+                if (!array_key_exists($cognitoField, $entry)
+                    || $entry[$cognitoField] === null
+                    || $entry[$cognitoField] === '') {
+                    continue;
+                }
 
-            // Extract property group identifier from field name
-            // Examples: Property1.Address -> Property1, PropertyInfo2.City -> PropertyInfo2, Address -> default
-            $groupKey = $this->extractPropertyGroupKey($cognitoField);
-            
-            if (!isset($propertyGroups[$groupKey])) {
-                $propertyGroups[$groupKey] = [];
+                $groupKey = $this->extractPropertyGroupKey($cognitoField);
+                $propertyGroups[$groupKey] ??= [];
+                $propertyGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
             }
-
-            $propertyGroups[$groupKey][$mapping['field']] = $entry[$cognitoField];
         }
 
         // Merge all un-numbered groups into 'default'.
@@ -757,20 +740,22 @@ class NowCertsFieldMapper
         $result = [];
         $entityMappings = [];
 
-        foreach ($this->saved as $cognitoField => $mapping) {
-            if ($mapping['entity'] !== $entity->value) {
-                continue;
+        foreach ($this->saved as $cognitoField => $mappingList) {
+            foreach ($mappingList as $mapping) {
+                if ($mapping['entity'] !== $entity->value) {
+                    continue;
+                }
+
+                $entityMappings[$cognitoField] = $mapping;
+
+                if (! array_key_exists($cognitoField, $entry)
+                    || $entry[$cognitoField] === null
+                    || $entry[$cognitoField] === '') {
+                    continue;
+                }
+
+                $result[$mapping['field']] = $entry[$cognitoField];
             }
-
-            $entityMappings[$cognitoField] = $mapping;
-
-            if (! array_key_exists($cognitoField, $entry)
-                || $entry[$cognitoField] === null
-                || $entry[$cognitoField] === '') {
-                continue;
-            }
-
-            $result[$mapping['field']] = $entry[$cognitoField];
         }
 
         // Log mapping activity for debugging

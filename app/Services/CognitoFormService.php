@@ -86,7 +86,8 @@ class CognitoFormService
             $suggestions = $mapper->getSuggestions($this->flattenFieldList($fields));
 
             foreach ($suggestions as $cognitoField => $mapping) {
-                $lookup[$cognitoField] ??= $mapping;
+                // Wrap suggestion in array to match the multi-mapping format.
+                $lookup[$cognitoField] ??= [$mapping];
             }
 
             $uploadFields = $this->mappings->getUploadFieldsForForm($formId);
@@ -117,12 +118,14 @@ class CognitoFormService
         $form = collect($forms)->firstWhere('Id', $formId);
 
         $rows = collect($this->mappings->getMappingsForForm($formId))
-            ->filter(fn ($m) => ! empty($m['entity']) && ! empty($m['field']))
-            ->map(fn ($m, $cognitoField) => [
-                'cognito_field'   => $cognitoField,
-                'nowcerts_entity' => $m['entity'],
-                'nowcerts_field'  => $m['field'],
-            ])
+            ->flatMap(fn ($mappingList, $cognitoField) => collect($mappingList)
+                ->filter(fn ($m) => ! empty($m['entity']) && ! empty($m['field']))
+                ->map(fn ($m) => [
+                    'cognito_field'   => $cognitoField,
+                    'nowcerts_entity' => $m['entity'],
+                    'nowcerts_field'  => $m['field'],
+                ])
+            )
             ->values()
             ->all();
 
