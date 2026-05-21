@@ -2,7 +2,15 @@
 
 namespace App\Services;
 
+use App\Enums\AirConditioningType;
+use App\Enums\ConstructionType;
+use App\Enums\DwellStyleType;
+use App\Enums\DwellUseType;
+use App\Enums\GarageType;
+use App\Enums\HeatSourcePrimaryType;
 use App\Enums\NowCertsEntity;
+use App\Enums\ResidenceType;
+use App\Enums\RoofMaterialType;
 use App\Traits\HandlesHttpResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -443,12 +451,46 @@ class NowCertsService
         foreach ($data as $key => $value) {
             // Check longer prefixes first to avoid additional_ matching additional1_/additional2_
             if (str_starts_with($key, 'additional1_')) {
-                $result['additional1'][substr($key, 12)] = $value;
+                $subKey = substr($key, 12);
+                if ($subKey === 'constructionCd' && is_string($value)) {
+                    $matched = ConstructionType::fromLabel($value);
+                    $value   = $matched !== null ? $matched->value : $value;
+                }
+                if ($subKey === 'roofMaterialCd' && is_string($value)) {
+                    $matched = RoofMaterialType::fromLabel($value);
+                    $value   = $matched !== null ? $matched->value : $value;
+                }
+                if ($subKey === 'residenceTypeCd' && is_string($value)) {
+                    $matched = ResidenceType::fromLabel($value);
+                    $value   = $matched !== null ? $matched->value : $value;
+                }
+                if ($subKey === 'dwellUseCd' && is_string($value)) {
+                    $matched = DwellUseType::fromLabel($value);
+                    $value   = $matched !== null ? $matched->value : $value;
+                }
+                if ($subKey === 'airConditioningCd' && is_string($value)) {
+                    $matched = AirConditioningType::fromLabel($value);
+                    $value   = $matched !== null ? $matched->value : $value;
+                }
+                $result['additional1'][$subKey] = $value;
                 continue;
             }
 
             if (str_starts_with($key, 'additional2_')) {
-                $result['additional2'][substr($key, 12)] = $value;
+                $subKey = substr($key, 12);
+                if ($subKey === 'dwellStyleCd' && is_string($value)) {
+                    $matched = DwellStyleType::fromLabel($value);
+                    $value   = $matched !== null ? $matched->value : $value;
+                }
+                if ($subKey === 'heatSourcePrimaryCd' && is_string($value)) {
+                    $matched = HeatSourcePrimaryType::fromLabel($value);
+                    $value   = $matched !== null ? $matched->value : $value;
+                }
+                if ($subKey === 'garageTypeCd' && is_string($value)) {
+                    $matched = GarageType::fromLabel($value);
+                    $value   = $matched !== null ? $matched->value : $value;
+                }
+                $result['additional2'][$subKey] = $value;
                 continue;
             }
 
