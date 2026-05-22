@@ -470,7 +470,7 @@ class NowCertsService
                 if ($subKey === 'numStories' && is_string($value)) {
                     $value = is_numeric($value) ? (float) $value : null;
                 }
-                if ($subKey === 'distanceToHydrant' && is_string($value)) {
+                if (in_array($subKey, ['distanceToHydrant', 'distanceToFireStation', 'yearBuilt', 'fireProtectionClassCd'], true) && is_string($value)) {
                     $value = is_numeric($value) ? (int) $value : null;
                 }
                 if ($value !== null) {
@@ -490,6 +490,12 @@ class NowCertsService
                 if ($subKey === 'garageTypeCd' && is_string($value)) {
                     $value = GarageType::fromLabel($value)?->value;
                 }
+                if (in_array($subKey, ['numberOfUnits', 'numFamilies', 'fireplaceInfoNumHearths', 'numberOfPools', 'fireplaceInfoNumChimneys', 'garageNumVehs'], true) && is_string($value)) {
+                    $value = is_numeric($value) ? (int) $value : null;
+                }
+                if (in_array($subKey, ['estimatedReplCostAmt', 'parkingArea'], true) && is_string($value)) {
+                    $value = is_numeric($value) ? (float) $value : null;
+                }
                 if ($value !== null) {
                     $result['additional2'][$subKey] = $value;
                 }
@@ -497,7 +503,16 @@ class NowCertsService
             }
 
             if (str_starts_with($key, 'additional_')) {
-                $result['additional'][substr($key, 11)] = $value;
+                $subKey = substr($key, 11);
+                if (in_array($subKey, ['numberOfFullTimeEmployees', 'numberOfPartTimeEmployees'], true) && is_string($value)) {
+                    $value = is_numeric($value) ? (int) $value : null;
+                }
+                if (in_array($subKey, ['annualRevenues', 'occupiedPct', 'occupiedArea', 'openToPublicArea', 'totalBuildingArea'], true) && is_string($value)) {
+                    $value = is_numeric($value) ? (float) $value : null;
+                }
+                if ($value !== null) {
+                    $result['additional'][$subKey] = $value;
+                }
                 continue;
             }
 
@@ -537,6 +552,24 @@ class NowCertsService
             }
 
             $result[$key] = $value;
+        }
+
+        // Drop coverageCs entries that have no numeric data — sending an entry
+        // with only a name and all-null numeric fields causes NowCerts to throw
+        // "Nullable object must have a value".
+        if (isset($result['coverage']['coverageCs'])) {
+            $numericKeys = ['limitCsl', 'limit1', 'limit2', 'premium', 'deductible', 'deductiblePct'];
+            $result['coverage']['coverageCs'] = array_values(array_filter(
+                $result['coverage']['coverageCs'],
+                fn ($entry) => (bool) array_filter(
+                    array_intersect_key($entry, array_flip($numericKeys)),
+                    fn ($v) => $v !== null && $v !== '',
+                ),
+            ));
+
+            if (empty($result['coverage']['coverageCs'])) {
+                unset($result['coverage']['coverageCs']);
+            }
         }
 
         return $result;
