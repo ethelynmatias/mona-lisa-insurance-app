@@ -34,6 +34,17 @@ export default function Index() {
         <AuthenticatedLayout title="Application Logs">
             <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
+                {/* Tab switch */}
+                <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-blue-700 px-3 py-1.5 rounded border border-blue-300 bg-blue-50">
+                        All Logs
+                    </span>
+                    <Link href="/logs/runs"
+                        className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded border border-gray-200 hover:bg-gray-50">
+                        By Webhook Run
+                    </Link>
+                </div>
+
                 {flash.success && (
                     <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm">
                         {flash.success}

@@ -42,6 +42,7 @@ Route::middleware('auth')->group(function () {
 
     // Logs
     Route::get('/logs',          [LogsController::class, 'index'])->name('logs.index')->middleware('role:admin');
+    Route::get('/logs/runs',     [LogsController::class, 'runs'])->name('logs.runs')->middleware('role:admin');
     Route::get('/logs/{log}',    [LogsController::class, 'show'])->name('logs.show')->middleware('role:admin');
     Route::delete('/logs/clear', [LogsController::class, 'clear'])->name('logs.clear')->middleware('role:admin');
 

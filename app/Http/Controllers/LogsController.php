@@ -24,6 +24,44 @@ class LogsController extends Controller
         ]);
     }
 
+    public function runs(Request $request): Response
+    {
+        $hoursFilter = $request->filled('hours') ? (int) $request->hours : null;
+        $formFilter  = $request->filled('form_id') ? $request->form_id : null;
+
+        $runsQuery = AppLog::whereNotNull('webhook_log_id')
+            ->selectRaw('
+                webhook_log_id,
+                MAX(form_id)     AS form_id,
+                MIN(logged_at)   AS started_at,
+                MAX(logged_at)   AS finished_at,
+                COUNT(*)         AS total_count,
+                SUM(level = "error")   AS error_count,
+                SUM(level = "warning") AS warning_count,
+                SUM(level = "info")    AS info_count
+            ')
+            ->groupBy('webhook_log_id')
+            ->orderByDesc('finished_at')
+            ->when($formFilter,  fn ($q) => $q->where('form_id', $formFilter))
+            ->when($hoursFilter, fn ($q) => $q->where('logged_at', '>=', now()->subHours($hoursFilter)));
+
+        $runs = $runsQuery->paginate(20)->withQueryString();
+
+        $webhookIds = collect($runs->items())->pluck('webhook_log_id')->filter()->values();
+
+        $entriesByRun = AppLog::whereIn('webhook_log_id', $webhookIds)
+            ->orderBy('logged_at', 'asc')
+            ->get(['id', 'webhook_log_id', 'level', 'message', 'logged_at', 'context'])
+            ->groupBy('webhook_log_id');
+
+        return Inertia::render('Logs/Runs', [
+            'runs'           => $runs,
+            'entriesByRun'   => $entriesByRun,
+            'filters'        => $this->filters(),
+            'currentFilters' => $request->only(['form_id', 'hours']),
+        ]);
+    }
+
     public function show(AppLog $log): Response
     {
         return Inertia::render('Logs/Show', [
