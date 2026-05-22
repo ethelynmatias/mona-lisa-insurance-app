@@ -19,11 +19,22 @@ help: ## Show this help message
 .PHONY: install
 install: ## Full first-time setup (copy .env, build, migrate, seed)
 	@[ -f .env ] || cp .env.example .env
+	@echo "Installing Node dependencies locally..."
+	npm install
+	@echo "Building Docker containers..."
 	$(DC) build --no-cache
 	$(DC) up -d
-	$(ART) key:generate
+	@echo "Setting up Laravel application..."
+	$(ART) key:generate --force
 	$(ART) migrate --seed
-	@echo "\n✔  App running at http://localhost:8000"
+	@echo "\n✔  Laravel app running at http://localhost:8000"
+	@echo "✔  Run 'make dev' to start frontend development server"
+
+.PHONY: setup
+setup: install ## Alias for install
+
+.PHONY: first-run
+first-run: install ## Alias for install - complete first-time setup
 
 .PHONY: build
 build: ## Rebuild Docker images from scratch
@@ -34,8 +45,8 @@ composer-install: ## Install PHP dependencies inside the container
 	$(APP) composer install
 
 .PHONY: npm-install
-npm-install: ## Install Node dependencies inside the container
-	$(APP) npm install
+npm-install: ## Install Node dependencies locally
+	npm install
 
 # ─────────────────────────────────────────────
 #  Docker lifecycle
@@ -106,19 +117,36 @@ rollback: ## Rollback the last migration batch
 	$(ART) migrate:rollback
 
 # ─────────────────────────────────────────────
+#  Development
+# ─────────────────────────────────────────────
+.PHONY: dev-start
+dev-start: ## Start both backend and frontend for development
+	@echo "Starting development environment..."
+	$(DC) up -d
+	@echo "Backend started at http://localhost:8000"
+	@echo "Starting frontend dev server..."
+	npm run dev
+
+.PHONY: dev-stop
+dev-stop: ## Stop all development services
+	@echo "Stopping development environment..."
+	$(DC) down
+	@pkill -f "vite" || true
+
+# ─────────────────────────────────────────────
 #  Frontend
 # ─────────────────────────────────────────────
 .PHONY: dev
-dev: ## Start Vite dev server (HMR) inside the container
-	$(APP) npm run dev
+dev: ## Start Vite dev server (HMR) locally
+	npm run dev
 
 .PHONY: build-assets
 build-assets: ## Build frontend assets for production (alias: npm-build)
-	$(APP) npm run build
+	npm run build
 
 .PHONY: npm-build
-npm-build: ## Run npm run build inside the container
-	$(APP) npm run build
+npm-build: ## Run npm run build locally
+	npm run build
 
 # ─────────────────────────────────────────────
 #  Code quality

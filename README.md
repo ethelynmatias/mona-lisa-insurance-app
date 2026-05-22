@@ -21,28 +21,50 @@ A web application built with **Laravel 11**, **Inertia.js**, **React**, and **Ta
 
 - [Docker](https://docs.docker.com/get-docker/) >= 24
 - [Docker Compose](https://docs.docker.com/compose/) >= 2
+- [Node.js](https://nodejs.org/) >= 20 (for local frontend development)
 - `make`
 
-> For local development without Docker you also need PHP 8.4, Composer 2, and Node 20+.
+> **Note:** Node.js is required locally for frontend development. The Docker container only runs PHP/Laravel backend.
 
 ---
 
 ## Installation
 
-### 1. Clone the repository
+### Quick Start
+
+For first-time setup, run the automated installer:
 
 ```bash
 git clone https://github.com/ethelynmatias/mona-lisa-insurance-app.git
 cd mona-lisa-insurance-app
+make install
 ```
 
-### 2. Configure environment variables
+This will:
+1. Copy `.env.example` to `.env` if needed
+2. Install Node.js dependencies locally
+3. Build Docker containers
+4. Start all services
+5. Generate Laravel application key
+6. Run database migrations and seeders
+
+The app will be available at **http://localhost:8000**.
+
+### Manual Installation
+
+If you prefer step-by-step setup:
+
+#### 1. Clone and configure
 
 ```bash
+git clone https://github.com/ethelynmatias/mona-lisa-insurance-app.git
+cd mona-lisa-insurance-app
 cp .env.example .env
 ```
 
-Edit `.env` with your credentials:
+#### 2. Edit environment variables
+
+Update `.env` with your credentials:
 
 ```env
 APP_NAME="Mona Lisa Insurance"
@@ -59,46 +81,31 @@ COGNITO_API_KEY=your_cognito_api_key
 # NowCerts
 NOWCERTS_USERNAME=your_nowcerts_email
 NOWCERTS_PASSWORD=your_nowcerts_password
+
+# Docker Hub (for builds)
+DOCKERHUB_USERNAME=your_dockerhub_username
 ```
 
-### 3. Build and start
+#### 3. Install dependencies and build
 
 ```bash
-make build    # build Docker images from scratch
-make up       # start all containers in the background
+make npm-install    # Install Node.js dependencies locally
+make build          # Build Docker images from scratch
+make up             # Start all containers
 ```
 
-On first boot the container automatically:
-- Fixes storage directory permissions
-- Regenerates the package manifest (`package:discover`)
-- Runs all pending database migrations (`migrate --force`)
-
-The app will be available at **http://localhost:8000**.
-
-### 4. Install Node dependencies inside the container
+#### 4. Setup Laravel application
 
 ```bash
-make npm-install
+make migrate        # Run database migrations
+make seed           # Create default admin account
 ```
 
-> Required after cloning or whenever new npm packages are added (e.g. `ziggy-js`).
+### After Installation
 
-### 5. Build frontend assets
-
-```bash
-make build-assets   # compiles React + Tailwind via Vite
-```
-
-> Run this once after first install, and again whenever you want a production build.
-> During active development use `make dev` instead (see below).
-
-### 6. Seed the database
-
-```bash
-make seed
-```
-
-This creates the default admin account (see [User Roles](#user-roles) below).
+- **Laravel backend:** http://localhost:8000
+- **Frontend development:** Run `make dev` to start Vite dev server
+- **Default admin:** `admin@monalisa.com` / `MNL452$$`
 
 ---
 
@@ -198,39 +205,83 @@ Admins can toggle a user's status from the **All Users** table on the Settings p
 
 ## Daily Development
 
-### Start / stop
+### Starting Development
+
+**Recommended workflow for daily development:**
 
 ```bash
-make up        # start containers in the background
-make down      # stop and remove containers
-make restart   # stop then start
-make ps        # show running containers
+# Start backend services
+make up
+
+# In a separate terminal, start frontend development server
+make dev
 ```
 
-### Frontend — hot module replacement
+This gives you:
+- **Laravel backend** at http://localhost:8000
+- **Vite dev server** with hot module replacement (HMR)
+- **Live reloading** for React components and Tailwind CSS
+
+> **Pro tip:** Use `make dev-start` to start both backend and frontend in one command.
+
+### Quick Commands
 
 ```bash
-make dev       # start the Vite HMR dev server inside the container
+# Development lifecycle
+make dev-start     # Start both backend and frontend for development
+make dev-stop      # Stop all development services
+make up            # Start containers in the background
+make down          # Stop and remove containers
+make restart       # Stop then start
+make ps            # Show running containers
+
+# Frontend development
+make dev           # Start Vite HMR dev server locally
+make build-assets  # Build production assets
+make npm-install   # Install/update Node dependencies
+
+# Code quality
+make test          # Run PHPUnit test suite
+make lint          # Fix code style with Laravel Pint
+make lint-dry      # Check style without writing changes
 ```
 
-Keep this running in a dedicated terminal while developing. Changes to React
-components and CSS are reflected in the browser instantly without a page reload.
+### Common Development Tasks
 
-### Logs
-
+#### Working with dependencies
 ```bash
-make logs        # tail all containers
-make logs-app    # tail the Laravel app only
-make logs-db     # tail MySQL only
+# Add new PHP package
+make shell
+composer require package/name
+
+# Add new Node package
+npm install package-name
 ```
 
-### Shell access
-
+#### Database operations
 ```bash
-make shell     # bash shell inside the app container
-make tinker    # Laravel Tinker REPL
-make mysql     # MySQL CLI connected to the app database
+make migrate               # Run pending migrations
+make migrate-fresh-seed    # Reset database with fresh data
+make seed                  # Run seeders only
 ```
+
+#### Debugging and logs
+```bash
+make logs        # Tail all containers
+make logs-app    # Tail the Laravel app only
+make logs-db     # Tail MySQL only
+make shell       # Bash shell inside the app container
+make tinker      # Laravel Tinker REPL
+make mysql       # MySQL CLI connected to the database
+```
+
+### Development Tips
+
+1. **Keep `make dev` running** in a dedicated terminal for instant feedback
+2. **Use Laravel Pint** (`make lint`) to maintain consistent code style
+3. **Run tests** (`make test`) before committing changes
+4. **Check logs** (`make logs-app`) if you encounter issues
+5. **Use Tinker** (`make tinker`) for quick database queries and testing
 
 ---
 

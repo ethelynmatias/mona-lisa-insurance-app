@@ -1,53 +1,46 @@
 import { useState, useEffect, useRef } from 'react';
 import { NOWCERTS_ENTITY_COLORS } from '@/constants/nowcerts';
 
-function MappingSelect({ internalName, current, availableFields, onChange }) {
+function MappingSelect({ internalName, current = [], availableFields, onChange }) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const dropdownRef = useRef(null);
     const searchInputRef = useRef(null);
 
-    const selectValue = current ? `${current.entity}.${current.field}` : '';
-    const displayValue = current ? `${current.entity}.${current.field}` : '— unmapped —';
+    // current is now an array of { entity, field } objects
+    const currentList = Array.isArray(current) ? current : (current ? [current] : []);
 
-    // Flatten all options for searching
     const allOptions = Object.entries(availableFields).flatMap(([entity, fieldList]) =>
-        fieldList.map(field => ({
-            entity,
-            field,
-            value: `${entity}.${field}`,
-            label: `${entity}.${field}`
-        }))
+        fieldList.map(field => ({ entity, field, value: `${entity}.${field}` }))
     );
 
-    // Filter options based on search term
-    const filteredOptions = searchTerm
-        ? allOptions.filter(option =>
-            option.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            option.entity.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            option.field.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        : allOptions;
+    const alreadySelected = new Set(currentList.map(m => `${m.entity}.${m.field}`));
 
-    function handleSelect(value) {
-        if (!value) {
-            onChange(internalName, null);
-        } else {
-            const [entity, ...rest] = value.split('.');
-            onChange(internalName, { entity, field: rest.join('.') });
-        }
+    const filteredOptions = (searchTerm
+        ? allOptions.filter(o =>
+            o.value.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            o.entity.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            o.field.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+        : allOptions
+    ).filter(o => !alreadySelected.has(o.value));
+
+    function handleAdd(value) {
+        if (!value) return;
+        const [entity, ...rest] = value.split('.');
+        onChange(internalName, [...currentList, { entity, field: rest.join('.') }]);
         setIsOpen(false);
         setSearchTerm('');
     }
 
-    function handleKeyDown(e) {
-        if (e.key === 'Escape') {
-            setIsOpen(false);
-            setSearchTerm('');
-        }
+    function handleRemove(idx) {
+        onChange(internalName, currentList.filter((_, i) => i !== idx));
     }
 
-    // Close dropdown when clicking outside
+    function handleKeyDown(e) {
+        if (e.key === 'Escape') { setIsOpen(false); setSearchTerm(''); }
+    }
+
     useEffect(() => {
         function handleClickOutside(event) {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -55,88 +48,94 @@ function MappingSelect({ internalName, current, availableFields, onChange }) {
                 setSearchTerm('');
             }
         }
-
         document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Focus search input when dropdown opens
     useEffect(() => {
-        if (isOpen && searchInputRef.current) {
-            searchInputRef.current.focus();
-        }
+        if (isOpen && searchInputRef.current) searchInputRef.current.focus();
     }, [isOpen]);
 
     return (
-        <div ref={dropdownRef} className="relative">
+        <div ref={dropdownRef} className="relative space-y-1">
+            {/* Selected mapping tags */}
+            {currentList.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                    {currentList.map((m, idx) => (
+                        <span
+                            key={idx}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
+                                bg-opacity-10 border border-opacity-20
+                                ${NOWCERTS_ENTITY_COLORS[m.entity] ?? 'text-gray-700'}
+                                bg-current border-current`}
+                            style={{ backgroundColor: 'rgba(0,0,0,0.05)' }}
+                            title={`${m.entity}.${m.field}`}
+                        >
+                            <span className="font-semibold">{m.entity}</span>
+                            <span className="opacity-60">·</span>
+                            <span className="max-w-[120px] truncate">{m.field}</span>
+                            <button
+                                type="button"
+                                onClick={() => handleRemove(idx)}
+                                className="ml-0.5 opacity-50 hover:opacity-100 transition-opacity leading-none"
+                                title="Remove"
+                            >
+                                ×
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            {/* Add mapping button */}
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className={`w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-left
-                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                    ${current ? NOWCERTS_ENTITY_COLORS[current.entity] ?? 'text-gray-700' : 'text-gray-400'}`}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800
+                    border border-dashed border-blue-300 hover:border-blue-500 rounded-lg px-2 py-1
+                    transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-                <div className="flex items-center justify-between">
-                    <span className="truncate">{displayValue}</span>
-                    <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                </div>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                {currentList.length === 0 ? 'Add mapping' : 'Add another'}
             </button>
 
+            {/* Dropdown */}
             {isOpen && (
                 <>
-                    {/* Backdrop to prevent interaction with other elements */}
-                    <div
-                        className="fixed inset-0 z-[9998]"
-                        onClick={() => {
-                            setIsOpen(false);
-                            setSearchTerm('');
-                        }}
-                    />
-
-                    {/* Dropdown with very high z-index */}
-                    <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-hidden">
-                        {/* Search input */}
+                    <div className="fixed inset-0 z-[9998]" onClick={() => { setIsOpen(false); setSearchTerm(''); }} />
+                    <div className="absolute z-[9999] left-0 w-72 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-hidden">
                         <div className="p-2 border-b border-gray-100">
                             <input
                                 ref={searchInputRef}
                                 type="text"
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={e => setSearchTerm(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                placeholder="Search fields..."
-                                className="w-full text-xs px-2 py-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
+                                placeholder="Search fields…"
+                                className="w-full text-xs px-2 py-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                         </div>
-
-                        {/* Options list */}
                         <div className="max-h-48 overflow-y-auto overflow-x-hidden">
-                            <button
-                                type="button"
-                                onClick={() => handleSelect('')}
-                                className="w-full text-left px-2.5 py-1.5 text-xs text-gray-400 hover:bg-gray-50 border-b border-gray-50 truncate"
-                            >
-                                — unmapped —
-                            </button>
-
                             {filteredOptions.length === 0 ? (
-                                <div className="px-2.5 py-1.5 text-xs text-gray-400 truncate">No fields found</div>
+                                <div className="px-2.5 py-1.5 text-xs text-gray-400">
+                                    {alreadySelected.size > 0 && allOptions.length === alreadySelected.size
+                                        ? 'All fields already mapped'
+                                        : 'No fields found'}
+                                </div>
                             ) : (
                                 filteredOptions.map(option => (
                                     <button
                                         key={option.value}
                                         type="button"
-                                        onClick={() => handleSelect(option.value)}
+                                        onClick={() => handleAdd(option.value)}
                                         className={`w-full text-left px-2.5 py-1.5 text-xs hover:bg-gray-50 border-b border-gray-50 last:border-b-0 truncate
                                             ${NOWCERTS_ENTITY_COLORS[option.entity] ?? 'text-gray-700'}`}
-                                        title={`${option.entity}.${option.field}`}
+                                        title={option.value}
                                     >
                                         <span className="font-medium">{option.entity}</span>
-                                        <span className="text-gray-500"> • </span>
+                                        <span className="text-gray-400"> · </span>
                                         <span>{option.field}</span>
                                     </button>
                                 ))

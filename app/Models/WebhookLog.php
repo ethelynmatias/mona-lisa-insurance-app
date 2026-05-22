@@ -18,6 +18,7 @@ class WebhookLog extends Model
         'sync_error',
         'synced_entities',
         'synced_at',
+        'read_at',
         'uploaded_file_ids',
         'synced_nowcerts_ids',
     ];
@@ -25,12 +26,13 @@ class WebhookLog extends Model
     protected function casts(): array
     {
         return [
-            'payload'           => 'array',
-            'synced_entities'   => 'array',
-            'uploaded_file_ids'    => 'array',
-            'synced_nowcerts_ids'  => 'array',
-            'synced_at'         => 'datetime',
-            'sync_status'       => SyncStatus::class,
+            'payload'            => 'array',
+            'synced_entities'    => 'array',
+            'uploaded_file_ids'  => 'array',
+            'synced_nowcerts_ids'=> 'array',
+            'synced_at'          => 'datetime',
+            'read_at'            => 'datetime',
+            'sync_status'        => SyncStatus::class,
         ];
     }
 }
