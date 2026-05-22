@@ -22,7 +22,7 @@ export default function Index() {
     function applyFilters(overrides = {}) {
         const params = { search, level, channel, form_id: formId, hours, ...overrides };
         Object.keys(params).forEach(k => { if (!params[k]) delete params[k]; });
-        router.get('/logs', params, { preserveState: true, replace: true });
+        router.get('/logs/all', params, { preserveState: true, replace: true });
     }
 
     function handleClear() {
@@ -36,13 +36,13 @@ export default function Index() {
 
                 {/* Tab switch */}
                 <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-blue-700 px-3 py-1.5 rounded border border-blue-300 bg-blue-50">
-                        All Logs
-                    </span>
-                    <Link href="/logs/runs"
+                    <Link href="/logs"
                         className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded border border-gray-200 hover:bg-gray-50">
                         By Webhook Run
                     </Link>
+                    <span className="text-sm font-medium text-blue-700 px-3 py-1.5 rounded border border-blue-300 bg-blue-50">
+                        All Logs
+                    </span>
                 </div>
 
                 {flash.success && (
@@ -113,7 +113,7 @@ export default function Index() {
 
                         <button onClick={() => {
                             setSearch(''); setLevel(''); setChannel(''); setFormId(''); setHours('');
-                            router.get('/logs', {}, { replace: true });
+                            router.get('/logs/all', {}, { replace: true });
                         }} className="px-4 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-md hover:bg-gray-200">
                             Clear
                         </button>

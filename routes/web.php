@@ -41,8 +41,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications/unread-count',           [NotificationsController::class, 'unreadCount'])->name('notifications.unread-count');
 
     // Logs
-    Route::get('/logs',          [LogsController::class, 'index'])->name('logs.index')->middleware('role:admin');
-    Route::get('/logs/runs',     [LogsController::class, 'runs'])->name('logs.runs')->middleware('role:admin');
+    Route::get('/logs',          [LogsController::class, 'runs'])->name('logs.index')->middleware('role:admin');
+    Route::get('/logs/all',      [LogsController::class, 'index'])->name('logs.all')->middleware('role:admin');
     Route::get('/logs/{log}',    [LogsController::class, 'show'])->name('logs.show')->middleware('role:admin');
     Route::delete('/logs/clear', [LogsController::class, 'clear'])->name('logs.clear')->middleware('role:admin');
 
