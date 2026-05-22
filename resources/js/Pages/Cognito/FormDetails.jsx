@@ -297,6 +297,15 @@ export default function FormDetails() {
                                         {filtered.length} of {fields.length} field{fields.length !== 1 ? 's' : ''}
                                     </p>
                                 </div>
+                                <button
+                                    onClick={() => {
+                                        if (!confirm('This will delete and re-scan discovered fields from stored payloads. Continue?')) return;
+                                        router.delete(route('forms.fields.rescan', { formId }), { preserveScroll: false });
+                                    }}
+                                    className="text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded border border-gray-200 hover:border-red-200 transition-colors whitespace-nowrap"
+                                >
+                                    Re-scan fields
+                                </button>
                                 <div className="flex items-center gap-3">
                                     <div className="flex items-center gap-2">
                                         <label className="text-xs text-gray-500 whitespace-nowrap">Show</label>
@@ -338,9 +347,6 @@ export default function FormDetails() {
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Saved entity sections with delete */}
-                            <SavedMappingsSummary formId={formId} mappingLookup={mappingLookup} />
 
                             {/* Table */}
                             <div className="overflow-x-auto">
@@ -511,65 +517,6 @@ function UploadFieldsCard({ options, selected, onChange }) {
     );
 }
 
-function SavedMappingsSummary({ formId, mappingLookup }) {
-    const byEntity = useMemo(() => {
-        const groups = {};
-        Object.entries(mappingLookup).forEach(([cognitoField, mappingList]) => {
-            (mappingList ?? []).forEach(m => {
-                if (!m?.entity) return;
-                groups[m.entity] ??= [];
-                groups[m.entity].push({ cognitoField, field: m.field });
-            });
-        });
-        return groups;
-    }, [mappingLookup]);
-
-    const [deleted, setDeleted] = useState([]);
-    const visible = Object.entries(byEntity).filter(([entity]) => !deleted.includes(entity));
-
-    if (visible.length === 0) return null;
-
-    function deleteSection(entity) {
-        if (!confirm(`Delete all "${entity}" mappings for this form?`)) return;
-        router.delete(
-            route('forms.mappings.delete-entity', { formId, entity }),
-            {
-                preserveScroll: true,
-                preserveState: true,
-                onSuccess: () => setDeleted(prev => [...prev, entity]),
-            }
-        );
-    }
-
-    return (
-        <div className="border-b border-gray-100 divide-y divide-gray-50">
-            {visible.map(([entity, rows]) => (
-                <div key={entity} className="px-5 py-2.5 flex items-center gap-3 bg-gray-50/40">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
-                        {entity}
-                    </span>
-                    <span className="text-xs text-gray-400">{rows.length} field{rows.length !== 1 ? 's' : ''}</span>
-                    <div className="flex flex-wrap gap-1 flex-1">
-                        {rows.slice(0, 4).map(r => (
-                            <span key={r.cognitoField} className="text-xs font-mono text-gray-500 bg-white border border-gray-200 px-1.5 py-0.5 rounded">
-                                {r.cognitoField}
-                            </span>
-                        ))}
-                        {rows.length > 4 && (
-                            <span className="text-xs text-gray-400 self-center">+{rows.length - 4} more</span>
-                        )}
-                    </div>
-                    <button
-                        onClick={() => deleteSection(entity)}
-                        className="ml-auto shrink-0 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded border border-red-200 transition-colors"
-                    >
-                        Delete section
-                    </button>
-                </div>
-            ))}
-        </div>
-    );
-}
 
 function flattenFields(fields, result = []) {
     for (const field of fields) {

@@ -24,6 +24,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard/forms/{formId}/mappings',                        [CognitoController::class, 'viewMappings'])->name('forms.mappings.view');
     Route::post('/dashboard/forms/{formId}/mappings',                       [CognitoController::class, 'saveMappings'])->name('forms.mappings.save');
     Route::delete('/dashboard/forms/{formId}/mappings/{entity}',            [CognitoController::class, 'deleteMappingsByEntity'])->name('forms.mappings.delete-entity');
+    Route::delete('/dashboard/forms/{formId}/fields',                       [CognitoController::class, 'rescanFields'])->name('forms.fields.rescan');
 
     // Settings
     Route::get('/settings',                      [SettingsController::class, 'index'])->name('settings');

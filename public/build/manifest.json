@@ -18,7 +18,7 @@
     "name": "jsx-runtime"
   },
   "resources/css/app.css": {
-    "file": "assets/app-D8jrsd8F.css",
+    "file": "assets/app-Q9-JybDw.css",
     "name": "app",
     "names": [
       "app.css"
@@ -36,7 +36,7 @@
     ]
   },
   "resources/js/Pages/Cognito/FormDetails.jsx": {
-    "file": "assets/FormDetails-YPxawq7B.js",
+    "file": "assets/FormDetails-vfeSyAW8.js",
     "name": "FormDetails",
     "src": "resources/js/Pages/Cognito/FormDetails.jsx",
     "isDynamicEntry": true,
@@ -118,7 +118,7 @@
     ]
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-D_-ZqQVm.js",
+    "file": "assets/app-Bd3BvU4M.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,
@@ -137,7 +137,7 @@
       "resources/js/Pages/Settings.jsx"
     ],
     "css": [
-      "assets/app-D8jrsd8F.css"
+      "assets/app-Q9-JybDw.css"
     ]
   }
 }
