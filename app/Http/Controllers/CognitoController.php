@@ -30,6 +30,13 @@ class CognitoController extends Controller
         return Inertia::render('Cognito/SavedMappings', $this->formService->getFormMappings($formId));
     }
 
+    public function deleteMappingsByEntity(string $formId, string $entity): RedirectResponse
+    {
+        $this->formService->deleteMappingsByEntity($formId, $entity);
+
+        return back()->with('success', "Mappings for \"{$entity}\" deleted.");
+    }
+
     public function saveMappings(SaveMappingsRequest $request, string $formId): RedirectResponse
     {
         $validated = $request->validated();

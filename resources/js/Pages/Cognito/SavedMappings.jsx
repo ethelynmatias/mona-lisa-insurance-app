@@ -1,8 +1,8 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 export default function SavedMappings() {
-    const { form, formId, mappings = [] } = usePage().props;
+    const { form, formId, mappings = [], flash = {} } = usePage().props;
 
     const formName = form?.Name ?? form?.name ?? `Form ${formId}`;
 
@@ -13,9 +13,22 @@ export default function SavedMappings() {
         return acc;
     }, {});
 
+    function deleteEntity(entity) {
+        if (!confirm(`Delete all "${entity}" mappings for this form?`)) return;
+        router.delete(route('forms.mappings.delete-entity', { formId, entity }), {
+            preserveScroll: true,
+        });
+    }
+
     return (
         <AuthenticatedLayout title="Saved Mappings">
             <div className="space-y-4">
+
+                {flash.success && (
+                    <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm">
+                        {flash.success}
+                    </div>
+                )}
 
                 {/* Breadcrumb */}
                 <nav className="flex items-center gap-2 text-sm text-gray-500">
@@ -83,6 +96,12 @@ export default function SavedMappings() {
                                 {entity}
                             </span>
                             <span className="text-xs text-gray-400">{rows.length} field{rows.length !== 1 ? 's' : ''}</span>
+                            <button
+                                onClick={() => deleteEntity(entity)}
+                                className="ml-auto text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded border border-red-200 transition-colors"
+                            >
+                                Delete section
+                            </button>
                         </div>
                         <table className="w-full text-left">
                             <thead>

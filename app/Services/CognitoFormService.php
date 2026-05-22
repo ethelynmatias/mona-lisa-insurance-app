@@ -142,6 +142,13 @@ class CognitoFormService
         $this->mappings->saveUploadFields($formId, $uploadFields);
     }
 
+    public function deleteMappingsByEntity(string $formId, string $entity): void
+    {
+        \App\Models\FormFieldMapping::where('form_id', $formId)
+            ->where('nowcerts_entity', $entity)
+            ->delete();
+    }
+
     protected function matchesSearch(mixed $item, string $search): bool
     {
         return str_contains(strtolower($item['Name'] ?? ''), strtolower($search));
