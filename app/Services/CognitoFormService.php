@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\WebhookDiscoveredField;
 use App\Repositories\Contracts\FormFieldMappingRepositoryInterface;
 use App\Repositories\Contracts\WebhookLogRepositoryInterface;
 use App\Traits\PaginatesArray;
@@ -140,6 +141,46 @@ class CognitoFormService
     {
         $this->mappings->upsertMappings($formId, $mappings);
         $this->mappings->saveUploadFields($formId, $uploadFields);
+    }
+
+    public function deleteMappingsByEntity(string $formId, string $entity): void
+    {
+        \App\Models\FormFieldMapping::where('form_id', $formId)
+            ->where('nowcerts_entity', $entity)
+            ->delete();
+    }
+
+    public function rescanDiscoveredFields(string $formId): void
+    {
+        // Clear existing discovered fields for this form
+        WebhookDiscoveredField::where('form_id', $formId)->delete();
+
+        // Rebuild from stored webhook payloads
+        $payloads = \App\Models\WebhookLog::where('form_id', $formId)
+            ->whereNotNull('payload')
+            ->pluck('payload');
+
+        $allKeys     = [];
+        $uploadKeys  = [];
+
+        foreach ($payloads as $payload) {
+            $flat = NowCertsFieldMapper::flattenEntry($payload);
+            $allKeys = array_merge($allKeys, array_keys($flat));
+
+            foreach (NowCertsFieldMapper::extractFileUploads($payload) as $u) {
+                $uploadKeys[] = $u['field'] . '__upload';
+            }
+        }
+
+        $allKeys = array_values(array_unique($allKeys));
+        if (! empty($allKeys)) {
+            $this->webhookLogs->saveDiscoveredFields($formId, $allKeys);
+        }
+
+        $uploadKeys = array_values(array_unique($uploadKeys));
+        if (! empty($uploadKeys)) {
+            $this->webhookLogs->saveDiscoveredFields($formId, $uploadKeys);
+        }
     }
 
     protected function matchesSearch(mixed $item, string $search): bool

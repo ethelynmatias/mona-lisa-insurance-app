@@ -18,7 +18,7 @@
     "name": "jsx-runtime"
   },
   "resources/css/app.css": {
-    "file": "assets/app-nPsi6K-S.css",
+    "file": "assets/app-DrvZGfD3.css",
     "name": "app",
     "names": [
       "app.css"
@@ -36,7 +36,7 @@
     ]
   },
   "resources/js/Pages/Cognito/FormDetails.jsx": {
-    "file": "assets/FormDetails-C67lnR5o.js",
+    "file": "assets/FormDetails-vfeSyAW8.js",
     "name": "FormDetails",
     "src": "resources/js/Pages/Cognito/FormDetails.jsx",
     "isDynamicEntry": true,
@@ -47,7 +47,7 @@
     ]
   },
   "resources/js/Pages/Cognito/SavedMappings.jsx": {
-    "file": "assets/SavedMappings-BuzPcw2X.js",
+    "file": "assets/SavedMappings-D_LKp6gp.js",
     "name": "SavedMappings",
     "src": "resources/js/Pages/Cognito/SavedMappings.jsx",
     "isDynamicEntry": true,
@@ -68,7 +68,7 @@
     ]
   },
   "resources/js/Pages/Logs/Index.jsx": {
-    "file": "assets/Index-BQcElpbB.js",
+    "file": "assets/Index-DOK1c4-T.js",
     "name": "Index",
     "src": "resources/js/Pages/Logs/Index.jsx",
     "isDynamicEntry": true,
@@ -77,8 +77,18 @@
       "_AuthenticatedLayout-FTBX_-3M.js"
     ]
   },
+  "resources/js/Pages/Logs/Runs.jsx": {
+    "file": "assets/Runs-BgRRjVxH.js",
+    "name": "Runs",
+    "src": "resources/js/Pages/Logs/Runs.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_jsx-runtime-Bas90rLm.js",
+      "_AuthenticatedLayout-FTBX_-3M.js"
+    ]
+  },
   "resources/js/Pages/Logs/Show.jsx": {
-    "file": "assets/Show-BQ8dZF6I.js",
+    "file": "assets/Show-CHn21k6d.js",
     "name": "Show",
     "src": "resources/js/Pages/Logs/Show.jsx",
     "isDynamicEntry": true,
@@ -88,7 +98,7 @@
     ]
   },
   "resources/js/Pages/Notifications/Index.jsx": {
-    "file": "assets/Index-BDjGMQ7K.js",
+    "file": "assets/Index-B7ST_BVP.js",
     "name": "Index",
     "src": "resources/js/Pages/Notifications/Index.jsx",
     "isDynamicEntry": true,
@@ -98,7 +108,7 @@
     ]
   },
   "resources/js/Pages/Settings.jsx": {
-    "file": "assets/Settings-DJWNhib3.js",
+    "file": "assets/Settings-BVy0wzs9.js",
     "name": "Settings",
     "src": "resources/js/Pages/Settings.jsx",
     "isDynamicEntry": true,
@@ -108,7 +118,7 @@
     ]
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-DHyFkyVK.js",
+    "file": "assets/app-BK5V9z_G.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,
@@ -121,12 +131,13 @@
       "resources/js/Pages/Cognito/SavedMappings.jsx",
       "resources/js/Pages/Dashboard.jsx",
       "resources/js/Pages/Logs/Index.jsx",
+      "resources/js/Pages/Logs/Runs.jsx",
       "resources/js/Pages/Logs/Show.jsx",
       "resources/js/Pages/Notifications/Index.jsx",
       "resources/js/Pages/Settings.jsx"
     ],
     "css": [
-      "assets/app-nPsi6K-S.css"
+      "assets/app-DrvZGfD3.css"
     ]
   }
 }

@@ -297,6 +297,15 @@ export default function FormDetails() {
                                         {filtered.length} of {fields.length} field{fields.length !== 1 ? 's' : ''}
                                     </p>
                                 </div>
+                                <button
+                                    onClick={() => {
+                                        if (!confirm('This will delete and re-scan discovered fields from stored payloads. Continue?')) return;
+                                        router.delete(route('forms.fields.rescan', { formId }), { preserveScroll: false });
+                                    }}
+                                    className="text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded border border-gray-200 hover:border-red-200 transition-colors whitespace-nowrap"
+                                >
+                                    Re-scan fields
+                                </button>
                                 <div className="flex items-center gap-3">
                                     <div className="flex items-center gap-2">
                                         <label className="text-xs text-gray-500 whitespace-nowrap">Show</label>
@@ -507,6 +516,7 @@ function UploadFieldsCard({ options, selected, onChange }) {
         </div>
     );
 }
+
 
 function flattenFields(fields, result = []) {
     for (const field of fields) {

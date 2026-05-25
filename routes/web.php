@@ -21,8 +21,10 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard',              [CognitoController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/forms/{formId}',                   [CognitoController::class, 'show'])->name('forms.show');
-    Route::get('/dashboard/forms/{formId}/mappings',          [CognitoController::class, 'viewMappings'])->name('forms.mappings.view');
-    Route::post('/dashboard/forms/{formId}/mappings',         [CognitoController::class, 'saveMappings'])->name('forms.mappings.save');
+    Route::get('/dashboard/forms/{formId}/mappings',                        [CognitoController::class, 'viewMappings'])->name('forms.mappings.view');
+    Route::post('/dashboard/forms/{formId}/mappings',                       [CognitoController::class, 'saveMappings'])->name('forms.mappings.save');
+    Route::delete('/dashboard/forms/{formId}/mappings/{entity}',            [CognitoController::class, 'deleteMappingsByEntity'])->name('forms.mappings.delete-entity');
+    Route::delete('/dashboard/forms/{formId}/fields',                       [CognitoController::class, 'rescanFields'])->name('forms.fields.rescan');
 
     // Settings
     Route::get('/settings',                      [SettingsController::class, 'index'])->name('settings');
@@ -41,7 +43,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications/unread-count',           [NotificationsController::class, 'unreadCount'])->name('notifications.unread-count');
 
     // Logs
-    Route::get('/logs',          [LogsController::class, 'index'])->name('logs.index')->middleware('role:admin');
+    Route::get('/logs',          [LogsController::class, 'runs'])->name('logs.index')->middleware('role:admin');
+    Route::get('/logs/all',      [LogsController::class, 'index'])->name('logs.all')->middleware('role:admin');
     Route::get('/logs/{log}',    [LogsController::class, 'show'])->name('logs.show')->middleware('role:admin');
     Route::delete('/logs/clear', [LogsController::class, 'clear'])->name('logs.clear')->middleware('role:admin');
 
