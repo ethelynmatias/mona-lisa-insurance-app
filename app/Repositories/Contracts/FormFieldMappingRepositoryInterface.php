@@ -29,4 +29,15 @@ interface FormFieldMappingRepositoryInterface
      */
     public function saveUploadFields(string $formId, array $cognitoFields): void;
 
+    /**
+     * Persist the selected opportunity agent (static assigned_to value) for a form.
+     * Pass an empty string to clear the selection.
+     */
+    public function saveOpportunityAgent(string $formId, string $agent): void;
+
+    /**
+     * Return the currently saved opportunity agent name, or an empty string if none.
+     */
+    public function getOpportunityAgent(string $formId): string;
+
 }

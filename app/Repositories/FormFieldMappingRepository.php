@@ -83,4 +83,33 @@ class FormFieldMappingRepository implements FormFieldMappingRepositoryInterface
         }
     }
 
+    public function saveOpportunityAgent(string $formId, string $agent): void
+    {
+        FormFieldMapping::where('form_id', $formId)
+            ->where('nowcerts_entity', 'Opportunity')
+            ->where('nowcerts_field', 'assigned_to')
+            ->where('cognito_field', 'like', '__static:%')
+            ->delete();
+
+        if ($agent !== '') {
+            FormFieldMapping::create([
+                'form_id'         => $formId,
+                'cognito_field'   => '__static:' . $agent,
+                'nowcerts_entity' => 'Opportunity',
+                'nowcerts_field'  => 'assigned_to',
+            ]);
+        }
+    }
+
+    public function getOpportunityAgent(string $formId): string
+    {
+        $row = FormFieldMapping::where('form_id', $formId)
+            ->where('nowcerts_entity', 'Opportunity')
+            ->where('nowcerts_field', 'assigned_to')
+            ->where('cognito_field', 'like', '__static:%')
+            ->first();
+
+        return $row ? substr($row->cognito_field, strlen('__static:')) : '';
+    }
+
 }

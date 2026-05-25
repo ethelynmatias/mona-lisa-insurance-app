@@ -20,6 +20,7 @@ class SaveMappingsRequest extends FormRequest
             'mappings.*.nowcerts_field'  => ['nullable', 'string'],
             'upload_fields'              => ['nullable', 'array'],
             'upload_fields.*'            => ['string'],
+            'opportunity_agent'          => ['nullable', 'string'],
         ];
     }
 }

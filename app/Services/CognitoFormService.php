@@ -104,6 +104,7 @@ class CognitoFormService
             'availableFieldsError' => $availableFieldsError,
             'uploadFieldOptions'   => $uploadFieldOptions,
             'uploadFields'         => $uploadFields,
+            'opportunityAgent'     => $this->mappings->getOpportunityAgent($formId),
             'webhooks'             => $this->webhookLogs->latestForForm($formId),
             'error'                => $error,
         ];
@@ -137,10 +138,11 @@ class CognitoFormService
         ];
     }
 
-    public function saveMappings(string $formId, array $mappings, array $uploadFields): void
+    public function saveMappings(string $formId, array $mappings, array $uploadFields, string $opportunityAgent = ''): void
     {
         $this->mappings->upsertMappings($formId, $mappings);
         $this->mappings->saveUploadFields($formId, $uploadFields);
+        $this->mappings->saveOpportunityAgent($formId, $opportunityAgent);
     }
 
     public function deleteMappingsByEntity(string $formId, string $entity): void

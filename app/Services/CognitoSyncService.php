@@ -253,7 +253,7 @@ class CognitoSyncService
                 'push' => fn (array $d) => $this->nowcerts->upsertPolicy($d),
             ],
             NowCertsEntity::Opportunity->value => [
-                'map'  => fn (array $e) => $mapper->mapOpportunity($e),
+                'map'  => fn (array $e) => array_merge($mapper->mapOpportunity($e), ['opportunity_stage_name' => 'New Lead']),
                 'push' => fn (array $d) => $this->nowcerts->zapierInsertOpportunity($d),
             ],
         ];
@@ -1243,11 +1243,14 @@ class CognitoSyncService
         }
 
         foreach ($vehicleGroups as $data) {
+            if (! isset($data['type']) && isset($data['VehicleType'])) {
+                $data['type'] = $data['VehicleType'];
+            }
             $vehicles[] = $data;
         }
 
         foreach ($watercraftGroups as $group => $data) {
-            $converted = [];
+            $converted = ['type' => 'Watercraft'];
 
             foreach ($data as $field => $value) {
                 switch ($field) {
