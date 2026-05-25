@@ -13,6 +13,7 @@ const PER_PAGE_OPTIONS = [20, 50, 100];
 export default function FormDetails() {
     const { form, fields = [], mappingLookup = {}, availableFields = {}, availableFieldsError = null,
             uploadFieldOptions = [], uploadFields: savedUploadFields = [],
+            opportunityAgent: savedOpportunityAgent = '',
             webhooks = [], error } = usePage().props;
     const flash = usePage().props.flash ?? {};
 
@@ -29,6 +30,7 @@ export default function FormDetails() {
         )
     );
     const [uploadFields, setUploadFields] = useState(savedUploadFields);
+    const [opportunityAgent, setOpportunityAgent] = useState(savedOpportunityAgent);
     const [saving, setSaving] = useState(false);
     const [showHidden, setShowHidden] = useState(false);
 
@@ -98,9 +100,10 @@ export default function FormDetails() {
 
         router.post(
             route('forms.mappings.save', { formId }),
-            { 
-                mappings: payload, 
-                upload_fields: uploadFields
+            {
+                mappings: payload,
+                upload_fields: uploadFields,
+                opportunity_agent: opportunityAgent,
             },
             {
                 preserveScroll: true,
@@ -285,6 +288,12 @@ export default function FormDetails() {
                                 onChange={setUploadFields}
                             />
                         )}
+
+                        {/* Opportunity Agent */}
+                        <OpportunityAgentCard
+                            value={opportunityAgent}
+                            onChange={setOpportunityAgent}
+                        />
 
                         {/* Schema */}
                         <div className="bg-white rounded-xl border border-gray-200">
@@ -517,6 +526,53 @@ function UploadFieldsCard({ options, selected, onChange }) {
     );
 }
 
+
+const OPPORTUNITY_AGENTS = ['Mitchell Corman', 'Beth Braunstein'];
+
+function OpportunityAgentCard({ value, onChange }) {
+    return (
+        <div className="bg-white rounded-xl border border-gray-200">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+                <div>
+                    <h2 className="text-sm font-semibold text-gray-900">Opportunity Agent</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                        Select the agent to assign to new opportunities.
+                    </p>
+                </div>
+                {value && (
+                    <button
+                        type="button"
+                        onClick={() => onChange('')}
+                        className="text-xs text-gray-400 hover:text-red-500 transition-colors whitespace-nowrap"
+                    >
+                        Clear
+                    </button>
+                )}
+            </div>
+            <div className="px-5 py-3 divide-y divide-gray-50">
+                {OPPORTUNITY_AGENTS.map(agent => (
+                    <label
+                        key={agent}
+                        className="flex items-center gap-3 py-2.5 cursor-pointer group"
+                    >
+                        <input
+                            type="radio"
+                            name="opportunity_agent"
+                            value={agent}
+                            checked={value === agent}
+                            onChange={() => onChange(agent)}
+                            className="w-4 h-4 border-gray-300 text-blue-600
+                                focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                        />
+                        <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                            {agent}
+                        </span>
+                    </label>
+                ))}
+            </div>
+        </div>
+    );
+}
 
 function flattenFields(fields, result = []) {
     for (const field of fields) {

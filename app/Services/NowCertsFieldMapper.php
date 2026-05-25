@@ -748,6 +748,12 @@ class NowCertsFieldMapper
 
                 $entityMappings[$cognitoField] = $mapping;
 
+                // Static value — the agent/value is encoded in the sentinel key.
+                if (str_starts_with($cognitoField, '__static:')) {
+                    $result[$mapping['field']] = substr($cognitoField, strlen('__static:'));
+                    continue;
+                }
+
                 if (! array_key_exists($cognitoField, $entry)
                     || $entry[$cognitoField] === null
                     || $entry[$cognitoField] === '') {

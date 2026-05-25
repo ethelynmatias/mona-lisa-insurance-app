@@ -159,18 +159,8 @@ export default function SchemaField({ field, formId, depth = 0, mappings, availa
     const children     = field.Children     ?? field.children     ?? field.Fields ?? field.fields ?? [];
     const isGroup      = type === 'discovered-group';
 
-    // Form 13 specific: Hide Name2 and Entry collapsible groups (unless showHidden is true)
-    if (formId === '13' && (name === 'Name2' || name === 'Entry') && !showHidden) {
-        return null;
-    }
-
-    // Form 4, 11, 12, 16 & 17 specific: Hide Entry collapsible group
-    if ((formId === '4' || formId === '11' || formId === '12' || formId === '16' || formId === '17') && name === 'Entry') {
-        return null;
-    }
-
-    // Hide Form collapsible for all forms (except form 13 when showHidden is true, and except form 16)
-    if (name === 'Form' && !(formId === '13' && showHidden) && formId !== '16') {
+    // Form 13 specific: Hide Name2 collapsible group (unless showHidden is true)
+    if (formId === '13' && name === 'Name2' && !showHidden) {
         return null;
     }
 
@@ -188,10 +178,6 @@ export default function SchemaField({ field, formId, depth = 0, mappings, availa
             const k = c.InternalName ?? c.internalName ?? c.Name ?? c.name;
             return !!mappings[k];
         }).length;
-        if (name === 'Form') {
-            return null;
-        }
-
         return (
             <>
                 {/* Group header — clickable, collapses children */}
