@@ -131,7 +131,7 @@ class CognitoSyncService
             $insuredDatabaseId = null;
             $allSyncedData     = [];
 
-            foreach ($this->primaryEntitySyncMap($mapper) as $entity => $callbacks) {
+            foreach ($this->primaryEntitySyncMap($mapper, $rawEntry) as $entity => $callbacks) {
 
                 $data = $callbacks['map']($entry);
 
@@ -241,7 +241,7 @@ class CognitoSyncService
         }
     }
 
-    private function primaryEntitySyncMap(NowCertsFieldMapper $mapper): array
+    private function primaryEntitySyncMap(NowCertsFieldMapper $mapper, array $rawEntry = []): array
     {
         return [
             NowCertsEntity::Insured->value => [
@@ -253,12 +253,15 @@ class CognitoSyncService
                 'push' => fn (array $d) => $this->nowcerts->upsertPolicy($d),
             ],
             NowCertsEntity::Opportunity->value => [
-                'map'  => function (array $e) use ($mapper) {
+                'map'  => function (array $e) use ($mapper, $rawEntry) {
                     $data = $mapper->mapOpportunity($e);
                     $data['opportunity_stage_name'] = 'New Lead';
                     $data['win_probability']        = '75';
-                    if (empty($data['line_of_business_name']) && ! empty($e['Form.Name'])) {
-                        $data['line_of_business_name'] = $e['Form.Name'];
+                    if (empty($data['line_of_business_name'])) {
+                        $formName = $rawEntry['Form']['Name'] ?? $e['Form.Name'] ?? null;
+                        if (! empty($formName)) {
+                            $data['line_of_business_name'] = $formName;
+                        }
                     }
                     return $data;
                 },
