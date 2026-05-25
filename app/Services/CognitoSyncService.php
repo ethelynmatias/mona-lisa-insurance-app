@@ -258,10 +258,7 @@ class CognitoSyncService
                     $data['opportunity_stage_name'] = 'New Lead';
                     $data['win_probability']        = '75';
                     if (empty($data['line_of_business_name'])) {
-                        $formName = $rawEntry['Form']['Name'] ?? $e['Form.Name'] ?? null;
-                        if (! empty($formName)) {
-                            $data['line_of_business_name'] = $formName;
-                        }
+                        $data['line_of_business_name'] = $rawEntry['Form']['Name'] ?? $e['Form.Name'] ?? 'Homeowners';
                     }
                     return $data;
                 },
