@@ -577,6 +577,10 @@ class NowCertsService
 
     public function zapierInsertOpportunity(array $data): array
     {
+        if (isset($data['assigned_to']) && ! is_array($data['assigned_to'])) {
+            $data['assigned_to'] = [$data['assigned_to']];
+        }
+
         return $this->request('POST', 'Zapier/InsertOpportunity', $data);
     }
 
