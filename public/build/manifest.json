@@ -18,7 +18,7 @@
     "name": "jsx-runtime"
   },
   "resources/css/app.css": {
-    "file": "assets/app-Q9-JybDw.css",
+    "file": "assets/app-DrvZGfD3.css",
     "name": "app",
     "names": [
       "app.css"
@@ -118,7 +118,7 @@
     ]
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-Bd3BvU4M.js",
+    "file": "assets/app-BK5V9z_G.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,
@@ -137,7 +137,7 @@
       "resources/js/Pages/Settings.jsx"
     ],
     "css": [
-      "assets/app-Q9-JybDw.css"
+      "assets/app-DrvZGfD3.css"
     ]
   }
 }
