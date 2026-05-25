@@ -253,7 +253,7 @@ class CognitoSyncService
                 'push' => fn (array $d) => $this->nowcerts->upsertPolicy($d),
             ],
             NowCertsEntity::Opportunity->value => [
-                'map'  => fn (array $e) => array_merge($mapper->mapOpportunity($e), ['opportunity_stage_name' => 'New Lead']),
+                'map'  => fn (array $e) => array_merge($mapper->mapOpportunity($e), ['opportunity_stage_name' => 'New Lead', 'win_probability' => '75']),
                 'push' => fn (array $d) => $this->nowcerts->zapierInsertOpportunity($d),
             ],
         ];
