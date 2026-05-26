@@ -135,6 +135,11 @@ class CognitoSyncService
 
                 $data = $callbacks['map']($entry);
 
+                if (empty($data)) {
+                    DatabaseLogger::warning("NowCerts {$entity} skipped — no mapped fields", $context);
+                    continue;
+                }
+
                 // Inject stored NowCerts IDs for both entry.updated and reruns so
                 // the push callbacks update existing records instead of inserting new ones.
                 if (! empty($storedIds['insuredDatabaseId']) && $entity === NowCertsEntity::Insured->value) {
@@ -159,11 +164,6 @@ class CognitoSyncService
                 }
 
                 DatabaseLogger::info("NowCerts mapped {$entity}", array_merge($context, ['data' => $data]));
-
-                if (empty($data)) {
-                    DatabaseLogger::warning("NowCerts {$entity} skipped — no mapped fields", $context);
-                    continue;
-                }
 
                 try {
                     $response = $callbacks['push']($data);
