@@ -578,6 +578,10 @@ class NowCertsService
 
                 if ($matched !== null) {
                     $subKey = substr($remainder, strlen($matched) + 1);
+                    $coverageNumericKeys = ['limitCsl', 'limit1', 'limit2', 'premium', 'deductible', 'deductiblePct'];
+                    if (in_array($subKey, $coverageNumericKeys, true) && is_string($value)) {
+                        $value = is_numeric($value) ? $value + 0 : null;
+                    }
                     if ($matched === 'coverageCs') {
                         $result['coverage']['coverageCs'][0][$subKey] = $value;
                     } else {
