@@ -4,9 +4,14 @@ namespace App\Services;
 
 use App\Enums\AirConditioningType;
 use App\Enums\ConstructionType;
+use App\Enums\CostValueType;
 use App\Enums\DwellStyleType;
+use App\Enums\ExteriorWallType;
 use App\Enums\DwellUseType;
+use App\Enums\FloodPolicyType;
+use App\Enums\FoundationType;
 use App\Enums\GarageType;
+use App\Enums\OccupancyType;
 use App\Enums\HeatSourcePrimaryType;
 use App\Enums\NowCertsEntity;
 use App\Enums\ResidenceType;
@@ -517,7 +522,25 @@ class NowCertsService
             }
 
             if (str_starts_with($key, 'propertyFloodInformation_')) {
-                $result['propertyFloodInformation'][substr($key, 25)] = $value;
+                $subKey = substr($key, 25);
+                if ($subKey === 'foundationType' && is_string($value)) {
+                    $value = FoundationType::fromLabel($value)?->value;
+                }
+                if ($subKey === 'personalPropertyCostValueType' && is_string($value)) {
+                    $value = CostValueType::fromLabel($value)?->value;
+                }
+                if ($subKey === 'occupancy' && is_string($value)) {
+                    $value = OccupancyType::fromLabel($value)?->value;
+                }
+                if ($subKey === 'policyType' && is_string($value)) {
+                    $value = FloodPolicyType::fromLabel($value)?->value;
+                }
+                if ($subKey === 'construction' && is_string($value)) {
+                    $value = ExteriorWallType::fromLabel($value)?->value;
+                }
+                if ($value !== null) {
+                    $result['propertyFloodInformation'][$subKey] = $value;
+                }
                 continue;
             }
 
