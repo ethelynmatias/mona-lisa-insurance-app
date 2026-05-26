@@ -523,20 +523,36 @@ class NowCertsService
 
             if (str_starts_with($key, 'propertyFloodInformation_')) {
                 $subKey = substr($key, 25);
+                // NowCerts stores these enum fields as string codes (e.g. "5"), not ints.
                 if ($subKey === 'foundationType' && is_string($value)) {
-                    $value = FoundationType::fromLabel($value)?->value;
+                    $resolved = FoundationType::fromLabel($value)?->value;
+                    $value    = $resolved !== null ? (string) $resolved : null;
                 }
                 if ($subKey === 'personalPropertyCostValueType' && is_string($value)) {
-                    $value = CostValueType::fromLabel($value)?->value;
+                    $resolved = CostValueType::fromLabel($value)?->value;
+                    $value    = $resolved !== null ? (string) $resolved : null;
                 }
                 if ($subKey === 'occupancy' && is_string($value)) {
-                    $value = OccupancyType::fromLabel($value)?->value;
+                    $resolved = OccupancyType::fromLabel($value)?->value;
+                    $value    = $resolved !== null ? (string) $resolved : null;
                 }
                 if ($subKey === 'policyType' && is_string($value)) {
-                    $value = FloodPolicyType::fromLabel($value)?->value;
+                    $resolved = FloodPolicyType::fromLabel($value)?->value;
+                    $value    = $resolved !== null ? (string) $resolved : null;
                 }
                 if ($subKey === 'construction' && is_string($value)) {
-                    $value = ExteriorWallType::fromLabel($value)?->value;
+                    $resolved = ExteriorWallType::fromLabel($value)?->value;
+                    $value    = $resolved !== null ? (string) $resolved : null;
+                }
+                if (in_array($subKey, ['buildYear', 'floodArea'], true) && is_string($value)) {
+                    $value = is_numeric($value) ? (int) $value : null;
+                }
+                if (in_array($subKey, ['noOfStories', 'dwellingTiv', 'personalPropertyTiv', 'buildingsLimit', 'contentsLimit', 'elevationHeight'], true) && is_string($value)) {
+                    $value = is_numeric($value) ? (float) $value : null;
+                }
+                if (in_array($subKey, ['houseElevatedAfterPriorFloodLoss', 'buildingOverWater'], true) && is_string($value)) {
+                    $lower = strtolower(trim($value));
+                    $value = in_array($lower, ['true', 'yes', '1'], true) ? true : (in_array($lower, ['false', 'no', '0'], true) ? false : null);
                 }
                 if ($value !== null) {
                     $result['propertyFloodInformation'][$subKey] = $value;
@@ -577,6 +593,21 @@ class NowCertsService
             $result[$key] = $value;
         }
 
+        // Drop PropertyFloodInformation when it only has classification fields
+        // (foundationType/occupancy/construction) with no substantive flood data.
+        // Sending it with only enum codes causes NowCerts to LINQ-query on zero-default
+        // numeric fields (FloodArea=0, BuildYear=0), find no matching record, and throw NRE.
+        if (isset($result['propertyFloodInformation'])) {
+            $classificationOnlyKeys = ['foundationType', 'occupancy', 'construction'];
+            $substantiveKeys = array_diff(
+                array_keys($result['propertyFloodInformation']),
+                $classificationOnlyKeys,
+            );
+            if (empty($substantiveKeys)) {
+                unset($result['propertyFloodInformation']);
+            }
+        }
+
         // Drop coverageCs entries that have no numeric data — sending an entry
         // with only a name and all-null numeric fields causes NowCerts to throw
         // "Nullable object must have a value".
@@ -603,6 +634,13 @@ class NowCertsService
         if (isset($data['assigned_to']) && ! is_array($data['assigned_to'])) {
             $data['assigned_to'] = [$data['assigned_to']];
         }
+
+        // NowCerts requires these array fields to be present (even if empty).
+        $data += [
+            'policy_numbers'       => [],
+            'policy_database_id'   => [],
+            'created_from_renewal' => false,
+        ];
 
         return $this->request('POST', 'Zapier/InsertOpportunity', $data);
     }

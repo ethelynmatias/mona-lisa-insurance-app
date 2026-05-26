@@ -143,6 +143,20 @@ class CognitoSyncService
                 if (! empty($storedIds['policyDatabaseId']) && $entity === NowCertsEntity::Policy->value) {
                     $data['policy_database_id'] = $storedIds['policyDatabaseId'];
                 }
+                if ($entity === NowCertsEntity::Opportunity->value) {
+                    $resolvedInsuredId = $insuredDatabaseId
+                        ?? ($storedIds['insuredDatabaseId'] ?? null);
+                    if ($resolvedInsuredId && $resolvedInsuredId !== '00000000-0000-0000-0000-000000000000') {
+                        $data['insured_database_id'] = $resolvedInsuredId;
+                    }
+                    // Inject insured_email so NowCerts can uniquely match the insured/prospect.
+                    // Zapier/InsertOpportunity matches by email or name; email is more reliable.
+                    if (empty($data['insured_email'])) {
+                        $data['insured_email'] =
+                            $allSyncedData[NowCertsEntity::Insured->value]['email'] ?? null
+                            ?: $entry['Email'] ?? $entry['EMail'] ?? $entry['email'] ?? null;
+                    }
+                }
 
                 DatabaseLogger::info("NowCerts mapped {$entity}", array_merge($context, ['data' => $data]));
 
@@ -255,11 +269,12 @@ class CognitoSyncService
             NowCertsEntity::Opportunity->value => [
                 'map'  => function (array $e) use ($mapper, $rawEntry) {
                     $data = $mapper->mapOpportunity($e);
+                    if (empty($data)) {
+                        return [];
+                    }
                     $data['opportunity_stage_name'] = 'New Lead';
                     $data['win_probability']        = '75';
-                    if (empty($data['line_of_business_name'])) {
-                        $data['line_of_business_name'] = $rawEntry['Form']['Name'] ?? $e['Form.Name'] ?? 'Homeowners';
-                    }
+                    $data['line_of_business_name']  = 'Homeowners';
                     return $data;
                 },
                 'push' => fn (array $d) => $this->nowcerts->zapierInsertOpportunity($d),
