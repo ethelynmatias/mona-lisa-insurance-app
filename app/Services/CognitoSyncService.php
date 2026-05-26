@@ -476,11 +476,28 @@ class CognitoSyncService
                 'phone'               => $driver['phone']          ?? null,
             ], fn ($v) => $v !== null && $v !== '');
 
-            $label = trim(($driver['first_name'] ?? '') . ' ' . ($driver['last_name'] ?? ''));
+            $violations = $driver['_violations'] ?? [];
+            $label      = trim(($driver['first_name'] ?? '') . ' ' . ($driver['last_name'] ?? ''));
 
             try {
                 $response = $this->nowcerts->zapierInsertDriver($data);
                 DatabaseLogger::info('NowCerts driver synced', array_merge($context, ['driver' => $label, 'response' => $response]));
+
+                $driverId = $response['driverDatabaseId']
+                    ?? $response['DriverDatabaseId']
+                    ?? $response['databaseId']
+                    ?? $response['DatabaseId']
+                    ?? $response['id']
+                    ?? null;
+
+                if ($driverId && ! empty($violations)) {
+                    try {
+                        $this->nowcerts->zapierInsertDriverViolation($driverId, $violations);
+                        DatabaseLogger::info('NowCerts driver violations synced', array_merge($context, ['driver' => $label, 'violations' => count($violations)]));
+                    } catch (Throwable $e) {
+                        DatabaseLogger::error('NowCerts driver violation sync failed', array_merge($context, ['driver' => $label, 'error' => $e->getMessage()]));
+                    }
+                }
             } catch (Throwable $e) {
                 DatabaseLogger::error('NowCerts driver sync failed', array_merge($context, ['driver' => $label, 'error' => $e->getMessage()]));
             }
@@ -1141,11 +1158,25 @@ class CognitoSyncService
                 continue;
             }
 
+            $violations = [];
+            foreach ([
+                'MajorViolations3Years'         => 'MajorViolation',
+                'MinorViolations3Years'          => 'MinorViolation',
+                'AccidentsnoteFault3Years'       => 'Accident',
+                'NonchargeableViolations3Years'  => 'NonchargeableViolation',
+            ] as $fieldBase => $code) {
+                $val = $entry["{$fieldBase}{$suffix}"] ?? null;
+                if (! empty($val)) {
+                    $violations[] = ['violationCode' => $code, 'description' => $val];
+                }
+            }
+
             $drivers[] = [
                 'first_name'     => $firstName,
                 'last_name'      => $lastName,
                 'date_of_birth'  => $entry["DateOfBirthOccupant{$suffix}"]    ?? null,
                 'license_number' => $entry["DriversLicenseOccupant{$suffix}"] ?? null,
+                '_violations'    => $violations,
             ];
         }
 

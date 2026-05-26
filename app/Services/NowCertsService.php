@@ -381,6 +381,14 @@ class NowCertsService
         return $this->request('POST', 'Zapier/InsertVehicle', $data);
     }
 
+    public function zapierInsertDriverViolation(string $driverId, array $violations): array
+    {
+        return $this->request('POST', 'Zapier/InsertDriverViolation', [
+            'driverId'         => $driverId,
+            'driverViolations' => $violations,
+        ]);
+    }
+
     public function insertGeneralLiabilityNotice(array $data): array
     {
         return $this->request('POST', 'Zapier/InsertGeneralLiabilityNotice', array_filter(
