@@ -212,7 +212,7 @@ class CognitoSyncService
                 $this->syncPolicyCoverages($entry, $mapper, $policyDatabaseId, $context);
             }
             if (! $isRerun && $insuredDatabaseId && ! empty($allSyncedData)) {
-                $this->insertSyncNote($insuredDatabaseId, $log, $formId, $entry, $allSyncedData, $context);
+                $this->insertSyncNote($insuredDatabaseId, $log, $formId, $allSyncedData, $context);
             }
             if ($insuredDatabaseId && ! empty($fileUploads)) {
                 $uploadedIds = $this->webhookLogs->getUploadedFileIds($formId, $log->entry_id ?? '');
@@ -1412,7 +1412,6 @@ class CognitoSyncService
         string $insuredDatabaseId,
         WebhookLog $log,
         string $formId,
-        array $entry,
         array $allSyncedData,
         array $context,
     ): void {
@@ -1423,15 +1422,6 @@ class CognitoSyncService
                 'Entry ID'  => $log->entry_id  ?? 'N/A',
                 'Synced at' => now()->format('Y-m-d H:i:s'),
             ];
-
-            foreach ($entry as $key => $value) {
-                if ($this->isNoteExcluded($key)) {
-                    continue;
-                }
-                if (is_scalar($value) && $value !== '' && $value !== null) {
-                    $lines[$key] = $value;
-                }
-            }
 
             foreach ($allSyncedData as $entity => $fields) {
                 foreach ($fields as $key => $value) {
