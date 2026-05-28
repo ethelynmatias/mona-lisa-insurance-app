@@ -474,6 +474,14 @@ class CognitoSyncService
                 'license_state'       => $driver['license_state']  ?? null,
                 'email'               => $driver['email']          ?? null,
                 'phone'               => $driver['phone']          ?? null,
+                ...($formId === '13' ? [
+                    'years_licensed'       => $driver['years_licensed']       ?? null,
+                    'commute_miles'        => $driver['commute_miles']         ?? null,
+                    'minor_violations'     => $driver['minor_violations']      ?? null,
+                    'major_violations'     => $driver['major_violations']      ?? null,
+                    'accidents'            => $driver['accidents']             ?? null,
+                    'business_use_details' => $driver['business_use_details']  ?? null,
+                ] : []),
             ], fn ($v) => $v !== null && $v !== '');
 
             $violations = $driver['_violations'] ?? [];
@@ -566,6 +574,9 @@ class CognitoSyncService
                 'description'               => $get('description', 'Description'),
                 'value'                     => $get('value', 'Value', 'CostNew', 'cost_new'),
                 'estimated_annual_distance' => $get('estimated_annual_distance', 'EstimatedAnnualDistance', 'AnnualMileage'),
+                ...($formId === '13' ? [
+                    'used_in_business' => $get('used_in_business'),
+                ] : []),
             ], fn ($v) => $v !== null && $v !== '');
 
             if (empty($data['year']) && empty($data['make']) && empty($data['model']) && empty($data['vin'])) {
@@ -1202,10 +1213,42 @@ class CognitoSyncService
 
     private function extractForm13Drivers(array $entry): array
     {
-        $drivers  = [];
-        $suffixes = array_map('strval', range(2, 10));
+        $drivers = [];
 
-        foreach ($suffixes as $suffix) {
+        // Driver 1 (no suffix)
+        $firstName = $entry['Name.First'] ?? null;
+        $lastName  = $entry['Name.Last']  ?? null;
+
+        if (empty($firstName) && empty($lastName)) {
+            $plain = $entry['Name'] ?? null;
+            if (is_string($plain) && $plain !== '') {
+                $parts     = explode(' ', trim($plain), 2);
+                $firstName = $parts[0] ?? null;
+                $lastName  = $parts[1] ?? null;
+            }
+        }
+
+        if (! empty($firstName) || ! empty($lastName)) {
+            $drivers[] = [
+                'first_name'           => $firstName,
+                'last_name'            => $lastName,
+                'date_of_birth'        => $entry['DateOfBirth']                              ?? null,
+                'gender'               => $entry['Gender']                                   ?? null,
+                'license_number'       => $entry['LicenseNumber']                            ?? null,
+                'marital_status'       => $entry['MaritalStatus']                            ?? null,
+                'years_licensed'       => $entry['NumberOfYearsUSLicensing']                 ?? null,
+                'commute_miles'        => $entry['DailyCommuteInONEWAYMiles']                ?? null,
+                // Form uses a typo field name ("Mumber") for driver 1 minor violations
+                'minor_violations'     => $entry['MumberTypeOfMINORViolationsLast3Years']    ?? null,
+                'major_violations'     => $entry['NumberTypeOfMAJORViolationsLast3Years']    ?? null,
+                'accidents'            => $entry['NumberTypeOfAccidentsLast3Years']          ?? null,
+                'business_use_details' => $entry['UsedInBusinessIfYesPleaseProvideDetails'] ?? null,
+            ];
+        }
+
+        // Drivers 2–10 (numbered suffixes)
+        foreach (range(2, 10) as $n) {
+            $suffix    = (string) $n;
             $firstName = $entry["Name{$suffix}.First"] ?? null;
             $lastName  = $entry["Name{$suffix}.Last"]  ?? null;
 
@@ -1223,13 +1266,25 @@ class CognitoSyncService
                 continue;
             }
 
+            // The form corrects the driver-1 typo ("Mumber") for driver 2 but omits the
+            // numeric suffix, so fall back to the no-suffix correctly-spelled field for n=2.
+            $minorViolations = $entry["NumberTypeOfMINORViolationsLast3Years{$suffix}"]
+                ?? ($n === 2 ? ($entry['NumberTypeOfMINORViolationsLast3Years'] ?? null) : null);
+
             $drivers[] = [
-                'first_name'     => $firstName,
-                'last_name'      => $lastName,
-                'date_of_birth'  => $entry["DateOfBirth{$suffix}"]  ?? null,
-                'gender'         => $entry["Gender{$suffix}"]        ?? null,
-                'license_number' => $entry["LicenseNumber{$suffix}"] ?? null,
-                'marital_status' => $entry["MaritalStatus{$suffix}"] ?? null,
+                'first_name'           => $firstName,
+                'last_name'            => $lastName,
+                'date_of_birth'        => $entry["DateOfBirth{$suffix}"]                              ?? null,
+                'gender'               => $entry["Gender{$suffix}"]                                   ?? null,
+                'license_number'       => $entry["LicenseNumber{$suffix}"]                            ?? null,
+                'marital_status'       => $entry["MaritalStatus{$suffix}"]                            ?? null,
+                'years_licensed'       => $entry["NumberOfYearsUSLicensing{$suffix}"]                 ?? null,
+                // Form uses lowercase "in" for suffixed commute field vs uppercase for driver 1
+                'commute_miles'        => $entry["DailyCommuteinONEWAYMiles{$suffix}"]                ?? null,
+                'minor_violations'     => $minorViolations,
+                'major_violations'     => $entry["NumberTypeOfMAJORViolationsLast3Years{$suffix}"]    ?? null,
+                'accidents'            => $entry["NumberTypeOfAccidentsLast3Years{$suffix}"]          ?? null,
+                'business_use_details' => $entry["UsedInBusinessIfYesPleaseProvideDetails{$suffix}"] ?? null,
             ];
         }
 
@@ -1266,6 +1321,7 @@ class CognitoSyncService
                 'model'                     => $model,
                 'vin'                       => $vin,
                 'estimated_annual_distance' => $mileage,
+                'used_in_business'          => $entry["UsedInBusinessIfYesPleaseProvideDetails{$suffix}"] ?? null,
             ], fn ($v) => $v !== null && $v !== '');
         }
 
