@@ -82,13 +82,13 @@ class CognitoFormService
             $schemaNames = array_column($fields, 'InternalName');
             $this->addDiscoveredFields($fields, $schemaNames, $scalarDiscovered);
 
-            $mapper      = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
-            $lookup      = $mapper->getLookup();
-            $suggestions = $mapper->getSuggestions($this->flattenFieldList($fields));
+            $mapper  = new NowCertsFieldMapper($formId, $this->nowcerts, $this->mappings);
+            $lookup  = $mapper->getLookup();
 
-            foreach ($suggestions as $cognitoField => $mapping) {
-                // Wrap suggestion in array to match the multi-mapping format.
-                $lookup[$cognitoField] ??= [$mapping];
+            if (empty($lookup)) {
+                foreach ($mapper->getSuggestions($this->flattenFieldList($fields)) as $cognitoField => $mapping) {
+                    $lookup[$cognitoField] = [$mapping];
+                }
             }
 
             $uploadFields = $this->mappings->getUploadFieldsForForm($formId);
