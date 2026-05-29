@@ -936,12 +936,20 @@ class CognitoSyncService
                 $addProperty($legacyPropertyData, 'Legacy Mapping');
             }
 
-            // If still no properties, fall back to form 11 specific field names
+            // If still no properties, fall back to form-specific auto-extract
             if ($formId === '11' && empty($properties)) {
                 $form11Data = $this->extractForm11PropertyData($entry);
                 if (! empty($form11Data)) {
                     DatabaseLogger::info('NowCerts property from Form11 auto-extract', array_merge($context, ['form11_data' => $form11Data]));
                     $addProperty($form11Data, 'Auto-extracted Form11');
+                }
+            }
+
+            if ($formId === '1' && empty($properties) && ! empty($rawEntry)) {
+                $form1Data = $this->extractForm1PropertyData($rawEntry);
+                if (! empty($form1Data)) {
+                    DatabaseLogger::info('NowCerts property from Form1 auto-extract', array_merge($context, ['form1_data' => $form1Data]));
+                    $addProperty($form1Data, 'Auto-extracted Form1');
                 }
             }
         }
@@ -1052,6 +1060,30 @@ class CognitoSyncService
             'additional1_numStories'          => $entry['NumberOfStories']    ?? null,
             'additional1_distanceToHydrant'   => $entry['FeetToHydrant']      ?? null,
             'additional2_heatSourcePrimaryCd' => $entry['HeatingType']        ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
+    }
+
+    private function extractForm1PropertyData(array $rawEntry): array
+    {
+        $address = is_array($rawEntry['Address'] ?? null) ? $rawEntry['Address'] : [];
+        $line1   = $address['Line1']      ?? null;
+        $city    = $address['City']       ?? null;
+        $state   = $address['State']      ?? null;
+        $zip     = $address['PostalCode'] ?? null;
+
+        if (empty($state) || (empty($line1) && empty($city))) {
+            return [];
+        }
+
+        return array_filter([
+            'addressLine1'                    => $line1,
+            'addressLine2'                    => $address['Line2']                ?? null,
+            'city'                            => $city,
+            'state'                           => $state,
+            'zip'                             => $zip,
+            'additional1_yearBuilt'           => $rawEntry['YearConstructed']     ?? null,
+            'additional1_roofMaterialCd'      => $rawEntry['Roofing']             ?? null,
+            'additional2_heatSourcePrimaryCd' => $rawEntry['Heating']             ?? null,
         ], fn ($v) => $v !== null && $v !== '');
     }
 
