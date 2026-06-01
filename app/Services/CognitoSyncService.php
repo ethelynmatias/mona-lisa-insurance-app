@@ -453,8 +453,8 @@ class CognitoSyncService
         }
 
         $extracted = match ($formId) {
-            '13'    => $this->extractForm13Drivers($entry),
-            default => $this->extractOccupantDrivers($entry),
+            '10', '13' => $this->extractForm13Drivers($entry),
+            default    => $this->extractOccupantDrivers($entry),
         };
         foreach ($extracted as $driver) {
             $addDriver($driver);
@@ -474,7 +474,7 @@ class CognitoSyncService
                 'license_state'       => $driver['license_state']  ?? null,
                 'email'               => $driver['email']          ?? null,
                 'phone'               => $driver['phone']          ?? null,
-                ...($formId === '13' ? [
+                ...(in_array($formId, ['10', '13'], true) ? [
                     'years_licensed'       => $driver['years_licensed']       ?? null,
                     'commute_miles'        => $driver['commute_miles']         ?? null,
                     'minor_violations'     => $driver['minor_violations']      ?? null,
@@ -547,9 +547,9 @@ class CognitoSyncService
         }
 
         $extracted = match ($formId) {
-            '13'    => $this->extractForm13Vehicles($entry),
-            '16'    => $this->extractForm16Vehicles($entry),
-            default => $this->extractVehiclesFromEntry($entry),
+            '10', '13' => $this->extractForm13Vehicles($entry),
+            '16'       => $this->extractForm16Vehicles($entry),
+            default    => $this->extractVehiclesFromEntry($entry),
         };
         foreach ($extracted as $vehicle) {
             $addVehicle($vehicle);
@@ -574,7 +574,7 @@ class CognitoSyncService
                 'description'               => $get('description', 'Description'),
                 'value'                     => $get('value', 'Value', 'CostNew', 'cost_new'),
                 'estimated_annual_distance' => $get('estimated_annual_distance', 'EstimatedAnnualDistance', 'AnnualMileage'),
-                ...($formId === '13' ? [
+                ...(in_array($formId, ['10', '13'], true) ? [
                     'used_in_business' => $get('used_in_business'),
                 ] : []),
             ], fn ($v) => $v !== null && $v !== '');
