@@ -29,7 +29,7 @@ enum NowCertsEntity: string
                 'type', 'insured_type',
                 // Contact
                 'email', 'email2', 'email3',
-                'phone_number', 'cell_phone', 'sms_phone',
+                'phone_number', 'cell_phone', 'sms_phone', 'fax',
                 // Address
                 'address_line_1', 'address_line_2', 'city', 'state', 'zip_code', 'country',
                 // Profile
