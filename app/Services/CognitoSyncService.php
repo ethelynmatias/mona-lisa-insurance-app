@@ -259,7 +259,19 @@ class CognitoSyncService
     {
         return [
             NowCertsEntity::Insured->value => [
-                'map'  => fn (array $e) => $mapper->mapInsured($e),
+                'map'  => function (array $e) use ($mapper) {
+                    $data = $mapper->mapInsured($e);
+                    if (empty($data)) {
+                        return [];
+                    }
+                    // Tag the prospect with the originating Cognito form name
+                    // (e.g. "Low Cost Insurance Insurance Homeowners Form").
+                    $formName = $e['Form.Name'] ?? null;
+                    if (! empty($formName)) {
+                        $data['tag_name'] = $formName;
+                    }
+                    return $data;
+                },
                 'push' => fn (array $d) => $this->nowcerts->syncInsured($d),
             ],
             NowCertsEntity::Policy->value => [
