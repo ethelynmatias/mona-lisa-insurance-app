@@ -21,6 +21,8 @@ class SaveMappingsRequest extends FormRequest
             'upload_fields'              => ['nullable', 'array'],
             'upload_fields.*'            => ['string'],
             'opportunity_agent'          => ['nullable', 'string'],
+            'primary_location'           => ['nullable', 'boolean'],
+            'policy_type'                => ['nullable', 'string'],
         ];
     }
 }

@@ -153,36 +153,37 @@ class NowCertsService
 
     private function upsertInsured(array $data): array
     {
-        // Insured/Insert supports updates via DatabaseId (PascalCase endpoint)
-        // Zapier/InsertProspect is insert-only and ignores database_id
-        if (! empty($data['database_id'])) {
-            return $this->request('POST', 'Insured/Insert', $this->toInsuredPascalCase($data));
-        }
-
-        return $this->request('POST', 'Zapier/InsertProspect', $data);
+        // Insured/Insert handles both insert and update (via databaseId).
+        // Zapier/InsertProspect was insert-only and ignored database_id.
+        // return $this->request('POST', 'Zapier/InsertProspect', $data);
+        return $this->request('POST', 'Insured/Insert', $this->toInsuredPayload($data));
     }
 
     /**
-     * Convert snake_case insured field names to PascalCase for Insured/Insert.
-     * Uses Str::studly() for most fields, with explicit overrides for special cases.
+     * Convert snake_case insured field names to the camelCase fields
+     * expected by the Insured/Insert endpoint. Uses Str::camel() for most
+     * fields, with explicit overrides for schema-specific names.
      */
-    private function toInsuredPascalCase(array $data): array
+    private function toInsuredPayload(array $data): array
     {
         $overrides = [
-            'database_id'              => 'DatabaseId',
-            'email'                    => 'EMail',
-            'email2'                   => 'EMail2',
-            'email3'                   => 'EMail3',
-            'phone_number'             => 'Phone',
-            'co_insured_first_name'    => 'CoInsured_FirstName',
-            'co_insured_last_name'     => 'CoInsured_LastName',
-            'co_insured_middle_name'   => 'CoInsured_MiddleName',
-            'co_insured_date_of_birth' => 'CoInsured_DateOfBirth',
+            'database_id'              => 'databaseId',
+            'email'                    => 'eMail',
+            'email2'                   => 'eMail2',
+            'email3'                   => 'eMail3',
+            'phone_number'             => 'phone',
+            'zip_code'                 => 'zipCode',
+            'address_line_1'           => 'addressLine1',
+            'address_line_2'           => 'addressLine2',
+            'co_insured_first_name'    => 'coInsured_FirstName',
+            'co_insured_last_name'     => 'coInsured_LastName',
+            'co_insured_middle_name'   => 'coInsured_MiddleName',
+            'co_insured_date_of_birth' => 'coInsured_DateOfBirth',
         ];
 
         $result = [];
         foreach ($data as $key => $value) {
-            $result[$overrides[$key] ?? \Illuminate\Support\Str::studly($key)] = $value;
+            $result[$overrides[$key] ?? \Illuminate\Support\Str::camel($key)] = $value;
         }
 
         return $result;
@@ -395,6 +396,23 @@ class NowCertsService
             $data,
             fn ($v) => $v !== null && $v !== '',
         ));
+    }
+
+    /**
+     * Create a General Liability record (POST /GeneralLiabilities).
+     */
+    public function insertGeneralLiability(array $data): array
+    {
+        return $this->request('POST', 'GeneralLiabilities', $data);
+    }
+
+    /**
+     * Update a General Liability record (PUT /GeneralLiabilities).
+     * $data must include the record 'id'; remaining keys form the GL payload.
+     */
+    public function updateGeneralLiability(array $data): array
+    {
+        return $this->request('PUT', 'GeneralLiabilities', $data);
     }
 
     public function insertPolicyCoverage(array $data): array
@@ -659,8 +677,16 @@ class NowCertsService
 
     public function getAvailableFields(): array
     {
+        // Entities hidden from the field-mapping dropdown (sync logic still works).
+        $hidden = [
+            NowCertsEntity::GeneralLiabilityNotice,
+        ];
+
         $result = [];
         foreach (NowCertsEntity::cases() as $entity) {
+            if (in_array($entity, $hidden, true)) {
+                continue;
+            }
             $result[$entity->value] = $entity->fields();
         }
         return $result;
@@ -703,9 +729,11 @@ class NowCertsService
     {
         $http = Http::acceptJson()->withToken($accessToken);
 
-        return strtoupper($method) === 'GET'
-            ? $http->get($url, $data)
-            : $http->post($url, $data);
+        return match (strtoupper($method)) {
+            'GET'  => $http->get($url, $data),
+            'PUT'  => $http->put($url, $data),
+            default => $http->post($url, $data),
+        };
     }
 
     private function storeTokens(array $tokens): void

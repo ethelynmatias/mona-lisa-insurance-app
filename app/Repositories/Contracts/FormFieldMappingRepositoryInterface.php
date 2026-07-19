@@ -40,4 +40,26 @@ interface FormFieldMappingRepositoryInterface
      */
     public function getOpportunityAgent(string $formId): string;
 
+    /**
+     * Toggle whether new insureds/prospects are tagged with the primary agency
+     * location. When enabled, the agency office ID is sent as primaryAgencyOfficeId.
+     */
+    public function savePrimaryLocation(string $formId, bool $enabled): void;
+
+    /**
+     * Whether the primary agency location is enabled for this form.
+     */
+    public function getPrimaryLocation(string $formId): bool;
+
+    /**
+     * Persist the selected General Liability policy type for a form.
+     * Pass an empty string to clear the selection.
+     */
+    public function savePolicyType(string $formId, string $policyType): void;
+
+    /**
+     * Return the currently saved General Liability policy type, or an empty string.
+     */
+    public function getPolicyType(string $formId): string;
+
 }

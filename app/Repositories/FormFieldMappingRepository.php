@@ -112,4 +112,66 @@ class FormFieldMappingRepository implements FormFieldMappingRepositoryInterface
         return $row ? substr($row->cognito_field, strlen('__static:')) : '';
     }
 
+    /**
+     * Agency location ID pushed as primaryAgencyOfficeId when the primary
+     * location toggle is enabled for a form.
+     */
+    private const PRIMARY_AGENCY_OFFICE_ID = 'd5342454-e8b2-438a-a6a0-b78107456986';
+
+    public function savePrimaryLocation(string $formId, bool $enabled): void
+    {
+        FormFieldMapping::where('form_id', $formId)
+            ->where('nowcerts_entity', 'Insured')
+            ->where('nowcerts_field', 'primary_agency_office_id')
+            ->where('cognito_field', 'like', '__static:%')
+            ->delete();
+
+        if ($enabled) {
+            FormFieldMapping::create([
+                'form_id'         => $formId,
+                'cognito_field'   => '__static:' . self::PRIMARY_AGENCY_OFFICE_ID,
+                'nowcerts_entity' => 'Insured',
+                'nowcerts_field'  => 'primary_agency_office_id',
+            ]);
+        }
+    }
+
+    public function getPrimaryLocation(string $formId): bool
+    {
+        return FormFieldMapping::where('form_id', $formId)
+            ->where('nowcerts_entity', 'Insured')
+            ->where('nowcerts_field', 'primary_agency_office_id')
+            ->where('cognito_field', 'like', '__static:%')
+            ->exists();
+    }
+
+    public function savePolicyType(string $formId, string $policyType): void
+    {
+        FormFieldMapping::where('form_id', $formId)
+            ->where('nowcerts_entity', 'GeneralLiability')
+            ->where('nowcerts_field', 'policy_type')
+            ->where('cognito_field', 'like', '__static:%')
+            ->delete();
+
+        if ($policyType !== '') {
+            FormFieldMapping::create([
+                'form_id'         => $formId,
+                'cognito_field'   => '__static:' . $policyType,
+                'nowcerts_entity' => 'GeneralLiability',
+                'nowcerts_field'  => 'policy_type',
+            ]);
+        }
+    }
+
+    public function getPolicyType(string $formId): string
+    {
+        $row = FormFieldMapping::where('form_id', $formId)
+            ->where('nowcerts_entity', 'GeneralLiability')
+            ->where('nowcerts_field', 'policy_type')
+            ->where('cognito_field', 'like', '__static:%')
+            ->first();
+
+        return $row ? substr($row->cognito_field, strlen('__static:')) : '';
+    }
+
 }

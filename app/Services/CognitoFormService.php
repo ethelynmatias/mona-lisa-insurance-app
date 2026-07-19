@@ -105,6 +105,8 @@ class CognitoFormService
             'uploadFieldOptions'   => $uploadFieldOptions,
             'uploadFields'         => $uploadFields,
             'opportunityAgent'     => $this->mappings->getOpportunityAgent($formId),
+            'primaryLocation'      => $this->mappings->getPrimaryLocation($formId),
+            'policyType'           => $this->mappings->getPolicyType($formId),
             'webhooks'             => $this->webhookLogs->latestForForm($formId),
             'error'                => $error,
         ];
@@ -138,11 +140,13 @@ class CognitoFormService
         ];
     }
 
-    public function saveMappings(string $formId, array $mappings, array $uploadFields, string $opportunityAgent = ''): void
+    public function saveMappings(string $formId, array $mappings, array $uploadFields, string $opportunityAgent = '', bool $primaryLocation = false, string $policyType = ''): void
     {
         $this->mappings->upsertMappings($formId, $mappings);
         $this->mappings->saveUploadFields($formId, $uploadFields);
         $this->mappings->saveOpportunityAgent($formId, $opportunityAgent);
+        $this->mappings->savePrimaryLocation($formId, $primaryLocation);
+        $this->mappings->savePolicyType($formId, $policyType);
     }
 
     public function deleteMappingsByEntity(string $formId, string $entity): void

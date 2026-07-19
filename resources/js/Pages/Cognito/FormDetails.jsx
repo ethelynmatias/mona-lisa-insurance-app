@@ -14,6 +14,8 @@ export default function FormDetails() {
     const { form, fields = [], mappingLookup = {}, availableFields = {}, availableFieldsError = null,
             uploadFieldOptions = [], uploadFields: savedUploadFields = [],
             opportunityAgent: savedOpportunityAgent = '',
+            primaryLocation: savedPrimaryLocation = false,
+            policyType: savedPolicyType = '',
             webhooks = [], error } = usePage().props;
     const flash = usePage().props.flash ?? {};
 
@@ -31,6 +33,8 @@ export default function FormDetails() {
     );
     const [uploadFields, setUploadFields] = useState(savedUploadFields);
     const [opportunityAgent, setOpportunityAgent] = useState(savedOpportunityAgent);
+    const [primaryLocation, setPrimaryLocation] = useState(savedPrimaryLocation);
+    const [policyType, setPolicyType] = useState(savedPolicyType);
     const [saving, setSaving] = useState(false);
     const [showHidden, setShowHidden] = useState(false);
 
@@ -104,6 +108,8 @@ export default function FormDetails() {
                 mappings: payload,
                 upload_fields: uploadFields,
                 opportunity_agent: opportunityAgent,
+                primary_location: primaryLocation,
+                policy_type: policyType,
             },
             {
                 preserveScroll: true,
@@ -293,6 +299,18 @@ export default function FormDetails() {
                         <OpportunityAgentCard
                             value={opportunityAgent}
                             onChange={setOpportunityAgent}
+                        />
+
+                        {/* Primary Location */}
+                        <PrimaryLocationCard
+                            checked={primaryLocation}
+                            onChange={setPrimaryLocation}
+                        />
+
+                        {/* General Liability Policy Type */}
+                        <PolicyTypeCard
+                            value={policyType}
+                            onChange={setPolicyType}
                         />
 
                         {/* Schema */}
@@ -569,6 +587,67 @@ function OpportunityAgentCard({ value, onChange }) {
                         </span>
                     </label>
                 ))}
+            </div>
+        </div>
+    );
+}
+
+function PrimaryLocationCard({ checked, onChange }) {
+    return (
+        <div className="bg-white rounded-xl border border-gray-200">
+            <div className="px-5 py-4 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-900">Primary Location</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                    Assign the primary agency location to the insured or prospect when syncing to NowCerts.
+                </p>
+            </div>
+            <div className="px-5 py-3">
+                <label className="flex items-center gap-3 py-2.5 cursor-pointer group">
+                    <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => onChange(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600
+                            focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                    />
+                    <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                        Primary location
+                    </span>
+                </label>
+            </div>
+        </div>
+    );
+}
+
+// General Liability policyType enum sent to PUT /GeneralLiabilities.
+// NOTE: confirm these integer values match the momentumamp API enum.
+const POLICY_TYPES = [
+    { value: '0', label: 'New Business' },
+    { value: '1', label: 'Renewal' },
+    { value: '2', label: 'Rewrite' },
+];
+
+function PolicyTypeCard({ value, onChange }) {
+    return (
+        <div className="bg-white rounded-xl border border-gray-200">
+            <div className="px-5 py-4 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-900">General Liability Policy Type</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                    Policy type sent to NowCerts when updating the General Liability record.
+                </p>
+            </div>
+            <div className="px-5 py-3">
+                <select
+                    value={value}
+                    onChange={e => onChange(e.target.value)}
+                    className="w-full sm:w-72 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700
+                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                    <option value="">— None —</option>
+                    {POLICY_TYPES.map(pt => (
+                        <option key={pt.value} value={pt.value}>{pt.label}</option>
+                    ))}
+                </select>
             </div>
         </div>
     );

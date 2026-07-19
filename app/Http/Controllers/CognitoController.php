@@ -49,7 +49,7 @@ class CognitoController extends Controller
     {
         $validated = $request->validated();
 
-        $this->formService->saveMappings($formId, $validated['mappings'], $validated['upload_fields'] ?? [], $validated['opportunity_agent'] ?? '');
+        $this->formService->saveMappings($formId, $validated['mappings'], $validated['upload_fields'] ?? [], $validated['opportunity_agent'] ?? '', $validated['primary_location'] ?? false, $validated['policy_type'] ?? '');
 
         return back()->with('success', 'Mappings saved successfully.');
     }

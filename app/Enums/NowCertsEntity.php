@@ -12,6 +12,7 @@ enum NowCertsEntity: string
     case Contact                 = 'Contact';
     case InsuredLocation         = 'InsuredLocation';
     case GeneralLiabilityNotice  = 'GeneralLiabilityNotice';
+    case GeneralLiability         = 'GeneralLiability';
     case PolicyCoverage          = 'PolicyCoverage';
     case InsuredPolicies         = 'InsuredPolicies';
     case VehicleCoverage         = 'VehicleCoverage';
@@ -117,6 +118,32 @@ enum NowCertsEntity: string
                 'insured_last_name', 'insured_commercial_name',
                 // Policy
                 'policy_number',
+            ],
+
+            self::GeneralLiability => [
+                // Record
+                'id',
+                // General
+                'general_policies', 'general_trucking_company', 'general_active',
+                // Business Info
+                'business_property', 'business_sic_code', 'business_naic_code',
+                'business_number_of_employees', 'business_start_date', 'business_total_annual_sales',
+                'business_full_time_employees', 'business_number_of_part_time_employees',
+                'business_years_of_experience_in_industry',
+                // General Liability
+                'gl_controlling_state', 'gl_use_policy_level_coverages',
+                // Coverages
+                'coverages_commercial_general_liability', 'coverages_claims_made', 'coverages_occur',
+                'coverages_other', 'coverages_other_text', 'coverages_policy', 'coverages_project',
+                'coverages_location', 'coverages_other_aggregate', 'coverages_other_aggregate_text',
+                // Limits
+                'limits_each_occurrence', 'limits_damage_to_rented_premises',
+                'limits_personal_and_advanced_injury', 'limits_general_aggregate',
+                'limits_products_compensation', 'limits_medical_expenses',
+                'limits_other', 'limits_other_text',
+                // Commercial Policy Supplement
+                'supplement_audit_frequency', 'supplement_audit_indicator',
+                'supplement_type_of_business', 'supplement_policy_type',
             ],
 
             self::PolicyCoverage => [
