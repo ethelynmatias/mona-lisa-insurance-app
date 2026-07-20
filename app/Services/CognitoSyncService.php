@@ -743,6 +743,13 @@ class CognitoSyncService
         try {
             $flat = $mapper->mapGeneralLiability($entry);
 
+            DatabaseLogger::info('NowCerts GeneralLiability mapping started', array_merge($context, [
+                'insured_database_id' => $insuredDatabaseId,
+                'is_rerun'            => $isRerun,
+                'mapped_field_count'  => count($flat),
+                'mapped_fields'       => array_keys($flat),
+            ]));
+
             if (empty($flat)) {
                 DatabaseLogger::info('NowCerts GeneralLiability skipped — no mapped fields', $context);
                 return;
@@ -750,19 +757,48 @@ class CognitoSyncService
 
             $storedGlId = $storedIds['generalLiabilityId'] ?? null;
 
-            $payload = $this->buildGeneralLiabilityPayload($flat, $insuredDatabaseId, $storedGlId);
+            // Resolve the controlling state name to a Momentum StateList { text, value }.
+            $controllingState = null;
+            $stateName        = trim((string) ($flat['gl_controlling_state'] ?? ''));
+            if ($stateName !== '') {
+                try {
+                    $controllingState = $this->nowcerts->searchState($stateName);
+                    if (empty($controllingState)) {
+                        DatabaseLogger::warning('NowCerts GeneralLiability controlling state not found', array_merge($context, [
+                            'state_name' => $stateName,
+                        ]));
+                    } else {
+                        DatabaseLogger::info('NowCerts GeneralLiability controlling state resolved', array_merge($context, [
+                            'state_name'       => $stateName,
+                            'controllingState' => $controllingState,
+                        ]));
+                    }
+                } catch (Throwable $e) {
+                    DatabaseLogger::warning('NowCerts GeneralLiability state lookup failed — omitting controllingState', array_merge($context, [
+                        'state_name' => $stateName,
+                        'error'      => $e->getMessage(),
+                    ]));
+                }
+            }
+
+            $payload = $this->buildGeneralLiabilityPayload($flat, $insuredDatabaseId, $storedGlId, $controllingState);
 
             if (empty($payload)) {
                 DatabaseLogger::info('NowCerts GeneralLiability skipped — empty payload after shaping', $context);
                 return;
             }
 
+            $operation = ($isRerun && $storedGlId) ? 'update' : 'insert';
+
             DatabaseLogger::info('NowCerts mapped GeneralLiability', array_merge($context, [
-                'flat_data' => $flat,
-                'payload'   => $payload,
+                'operation'           => $operation,
+                'insured_database_id' => $insuredDatabaseId,
+                'general_liability_id' => $storedGlId,
+                'flat_data'           => $flat,
+                'payload'             => $payload,
             ]));
 
-            $response = ($isRerun && $storedGlId)
+            $response = $operation === 'update'
                 ? $this->nowcerts->updateGeneralLiability($payload)
                 : $this->nowcerts->insertGeneralLiability($payload);
 
@@ -777,11 +813,16 @@ class CognitoSyncService
             }
 
             DatabaseLogger::info('NowCerts GeneralLiability synced', array_merge($context, [
-                'response' => $response,
+                'operation'            => $operation,
+                'insured_database_id'  => $insuredDatabaseId,
+                'general_liability_id' => $glId,
+                'response'             => $response,
             ]));
         } catch (Throwable $e) {
             DatabaseLogger::error('NowCerts GeneralLiability sync failed', array_merge($context, [
-                'error' => $e->getMessage(),
+                'insured_database_id' => $insuredDatabaseId,
+                'payload'             => $payload ?? null,
+                'error'               => $e->getMessage(),
             ]));
         }
     }
@@ -794,7 +835,7 @@ class CognitoSyncService
      * NOTE: the "generalLiablity" key intentionally preserves the Momentum
      * API's misspelling.
      */
-    private function buildGeneralLiabilityPayload(array $flat, string $insuredDatabaseId, ?string $glId = null): array
+    private function buildGeneralLiabilityPayload(array $flat, string $insuredDatabaseId, ?string $glId = null, ?array $controllingState = null): array
     {
         $payload = [];
 
@@ -803,17 +844,20 @@ class CognitoSyncService
         }
 
         // --- general ---
+        // truckingCompany.value carries the insured database id and is REQUIRED by the
+        // GeneralLiabilities endpoint for insert ("A valid trucking company id is required
+        // for insert."), so it is always emitted — the mapped text is optional display data.
         $general = [];
-        if (array_key_exists('general_trucking_company', $flat)) {
-            $general['truckingCompany'] = array_filter([
-                'type'  => 0,
-                'text'  => $flat['general_trucking_company'],
-                'value' => $insuredDatabaseId,
-            ], fn ($v) => $v !== null && $v !== '');
-        }
-        if (array_key_exists('general_active', $flat)) {
-            $general['active'] = $this->glBool($flat['general_active']);
-        }
+        $general['truckingCompany'] = array_filter([
+            'type'  => 0,
+            'text'  => $flat['general_trucking_company'] ?? 'No',
+            'value' => $insuredDatabaseId,
+        ], fn ($v) => $v !== null && $v !== '');
+        // active defaults to true when the field is not mapped, matching the
+        // GeneralLiabilities schema which always carries general.active.
+        $general['active'] = array_key_exists('general_active', $flat)
+            ? $this->glBool($flat['general_active'])
+            : true;
         if (! empty($general)) {
             $payload['general'] = $general;
         }
@@ -835,6 +879,12 @@ class CognitoSyncService
 
         // --- generalLiablity (API's spelling) ---
         $generalLiability = [];
+        if (! empty($controllingState['value'])) {
+            $generalLiability['controllingState'] = [
+                'text'  => $controllingState['text']  ?? null,
+                'value' => $controllingState['value'],
+            ];
+        }
         if (array_key_exists('gl_use_policy_level_coverages', $flat)) {
             $generalLiability['usePolicyLevelCoverages'] = $this->glBool($flat['gl_use_policy_level_coverages']);
         }
@@ -872,6 +922,24 @@ class CognitoSyncService
             'other'                     => isset($flat['limits_other'])                        ? $this->glNumber($flat['limits_other'])                        : null,
             'otherText'                 => $flat['limits_other_text']                          ?? null,
         ], fn ($v) => $v !== null);
+
+        // The GeneralLiabilities endpoint returns 500 when "limits" is sent without an
+        // accompanying "coverages" object, so a full default coverages block (all flags
+        // false) is emitted whenever limits are present but no coverage flags were mapped.
+        if (! empty($limits) && empty($coverages)) {
+            $coverages = [
+                'commercialGeneralLiability' => false,
+                'claimsMade'                 => false,
+                'occur'                      => false,
+                'other'                      => false,
+                'otherText'                  => '',
+                'policy'                     => false,
+                'project'                    => false,
+                'location'                   => false,
+                'otherAggregate'             => false,
+                'otherAggregateText'         => '',
+            ];
+        }
 
         $coveragesAndLimits = [];
         if (! empty($coverages)) {

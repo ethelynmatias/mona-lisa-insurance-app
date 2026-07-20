@@ -428,6 +428,55 @@ class NowCertsService
         return $this->request('GET', 'Property/FindProperties', $params);
     }
 
+    /**
+     * Search the StateList OData endpoint by (partial) state name and return the
+     * best match as ['text' => name, 'value' => databaseId], or null when no
+     * state matches. Used to resolve a GeneralLiability controlling state.
+     *
+     * GET /StateList?$filter=contains(name,'Alabama')&$top=50&$skip=0&$orderby=name
+     */
+    public function searchState(string $name): ?array
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return null;
+        }
+
+        // OData string literals escape single quotes by doubling them.
+        $escaped  = str_replace("'", "''", $name);
+        $response = $this->request('GET', 'StateList', [
+            '$filter'  => "contains(name,'{$escaped}')",
+            '$top'     => 50,
+            '$skip'    => 0,
+            '$orderby' => 'name',
+        ]);
+
+        $states = $response['value'] ?? [];
+        if (empty($states) || ! is_array($states)) {
+            return null;
+        }
+
+        // Prefer an exact (case-insensitive) name match, else fall back to the first row.
+        $match = null;
+        foreach ($states as $state) {
+            if (strcasecmp($state['name'] ?? '', $name) === 0) {
+                $match = $state;
+                break;
+            }
+        }
+        $match ??= $states[0];
+
+        $databaseId = $match['databaseId'] ?? $match['DatabaseId'] ?? null;
+        if (empty($databaseId)) {
+            return null;
+        }
+
+        return [
+            'text'  => $match['name'] ?? $name,
+            'value' => $databaseId,
+        ];
+    }
+
     public function zapierInsertProperty(array $data): array
     {
         $hasDatabaseId =
@@ -722,7 +771,16 @@ class NowCertsService
             throw new RuntimeException("NowCerts {$method} {$path} failed: " . $response->body());
         }
 
-        return $response->json();
+        $json = $response->json();
+
+        // Some endpoints (e.g. POST/PUT /GeneralLiabilities) return a bare scalar such as
+        // the new record id, or an empty body. Wrap it so the array return contract holds
+        // and callers can still read the id from ['id'] / ['result'].
+        if (! is_array($json)) {
+            return $json === null ? [] : ['id' => $json, 'result' => $json];
+        }
+
+        return $json;
     }
 
     private function send(string $method, string $url, string $accessToken, array $data): \Illuminate\Http\Client\Response
