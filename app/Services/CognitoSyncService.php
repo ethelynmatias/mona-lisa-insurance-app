@@ -206,6 +206,7 @@ class CognitoSyncService
             if ($insuredDatabaseId) {
                 $this->syncProperties($entry, $mapper, $insuredDatabaseId, $context, $isRerun, $storedIds, $syncedEntities, $allSyncedData, $errors, $formId, $rawEntry);
                 $this->syncGeneralLiabilityNotices($entry, $mapper, $insuredDatabaseId, $context);
+                $this->syncGeneralLiability($entry, $mapper, $insuredDatabaseId, $context, $isRerun, $storedIds);
             }
             $policyDatabaseId = $storedIds['policyDatabaseId'] ?? null;
             if ($policyDatabaseId) {
@@ -729,6 +730,224 @@ class CognitoSyncService
             DatabaseLogger::error('NowCerts GeneralLiabilityNotices processing failed', array_merge($context, [
                 'error' => $e->getMessage(),
             ]));
+        }
+    }
+
+    /**
+     * Map, shape and push the GeneralLiability record to POST/PUT /GeneralLiabilities.
+     * The outgoing payload matches the nested Momentum "GeneralLiabilities" schema
+     * (general / businessInfo / generalLiablity / commercialPolicySupplement).
+     */
+    private function syncGeneralLiability(array $entry, NowCertsFieldMapper $mapper, string $insuredDatabaseId, array $context, bool $isRerun, array &$storedIds): void
+    {
+        try {
+            $flat = $mapper->mapGeneralLiability($entry);
+
+            if (empty($flat)) {
+                DatabaseLogger::info('NowCerts GeneralLiability skipped — no mapped fields', $context);
+                return;
+            }
+
+            $storedGlId = $storedIds['generalLiabilityId'] ?? null;
+
+            $payload = $this->buildGeneralLiabilityPayload($flat, $insuredDatabaseId, $storedGlId);
+
+            if (empty($payload)) {
+                DatabaseLogger::info('NowCerts GeneralLiability skipped — empty payload after shaping', $context);
+                return;
+            }
+
+            DatabaseLogger::info('NowCerts mapped GeneralLiability', array_merge($context, [
+                'flat_data' => $flat,
+                'payload'   => $payload,
+            ]));
+
+            $response = ($isRerun && $storedGlId)
+                ? $this->nowcerts->updateGeneralLiability($payload)
+                : $this->nowcerts->insertGeneralLiability($payload);
+
+            $glId = $response['id']
+                ?? $response['Id']
+                ?? $response['databaseId']
+                ?? $response['DatabaseId']
+                ?? null;
+
+            if ($glId) {
+                $storedIds['generalLiabilityId'] = $glId;
+            }
+
+            DatabaseLogger::info('NowCerts GeneralLiability synced', array_merge($context, [
+                'response' => $response,
+            ]));
+        } catch (Throwable $e) {
+            DatabaseLogger::error('NowCerts GeneralLiability sync failed', array_merge($context, [
+                'error' => $e->getMessage(),
+            ]));
+        }
+    }
+
+    /**
+     * Shape the flat GeneralLiability entity fields into the nested Momentum
+     * GeneralLiabilities payload. The insured id is carried on
+     * general.truckingCompany.value. Empty sections are omitted.
+     *
+     * NOTE: the "generalLiablity" key intentionally preserves the Momentum
+     * API's misspelling.
+     */
+    private function buildGeneralLiabilityPayload(array $flat, string $insuredDatabaseId, ?string $glId = null): array
+    {
+        $payload = [];
+
+        if ($glId) {
+            $payload['id'] = $glId;
+        }
+
+        // --- general ---
+        $general = [];
+        if (array_key_exists('general_trucking_company', $flat)) {
+            $general['truckingCompany'] = array_filter([
+                'type'  => 0,
+                'text'  => $flat['general_trucking_company'],
+                'value' => $insuredDatabaseId,
+            ], fn ($v) => $v !== null && $v !== '');
+        }
+        if (array_key_exists('general_active', $flat)) {
+            $general['active'] = $this->glBool($flat['general_active']);
+        }
+        if (! empty($general)) {
+            $payload['general'] = $general;
+        }
+
+        // --- businessInfo ---
+        $businessInfo = array_filter([
+            'sicCode'                     => $flat['business_sic_code']  ?? null,
+            'naicCode'                    => $flat['business_naic_code'] ?? null,
+            'numberOfEmployees'           => isset($flat['business_number_of_employees'])          ? (int) $flat['business_number_of_employees']          : null,
+            'businessStartDate'           => $this->glIsoDate($flat['business_start_date'] ?? null),
+            'totalAnnualSales'            => isset($flat['business_total_annual_sales'])            ? $this->glNumber($flat['business_total_annual_sales']) : null,
+            'fullTimeEmployees'           => isset($flat['business_full_time_employees'])           ? (int) $flat['business_full_time_employees']           : null,
+            'numberOfPartTimeEmployees'   => isset($flat['business_number_of_part_time_employees']) ? (int) $flat['business_number_of_part_time_employees'] : null,
+            'yearsOfExperienceInIndustry' => isset($flat['business_years_of_experience_in_industry']) ? (int) $flat['business_years_of_experience_in_industry'] : null,
+        ], fn ($v) => $v !== null && $v !== '');
+        if (! empty($businessInfo)) {
+            $payload['businessInfo'] = $businessInfo;
+        }
+
+        // --- generalLiablity (API's spelling) ---
+        $generalLiability = [];
+        if (array_key_exists('gl_use_policy_level_coverages', $flat)) {
+            $generalLiability['usePolicyLevelCoverages'] = $this->glBool($flat['gl_use_policy_level_coverages']);
+        }
+        // Pre-structured array sections pass through when present.
+        foreach ([
+            'general_policies'      => 'otherOrPriorPolicies',
+            'gl_other_coverages'    => 'otherCoverages',
+            'gl_schedule_of_hazards' => 'scheduleOfHazards',
+        ] as $flatKey => $apiKey) {
+            if (! empty($flat[$flatKey]) && is_array($flat[$flatKey])) {
+                $generalLiability[$apiKey] = $flat[$flatKey];
+            }
+        }
+
+        $coverages = array_filter([
+            'commercialGeneralLiability' => isset($flat['coverages_commercial_general_liability']) ? $this->glBool($flat['coverages_commercial_general_liability']) : null,
+            'claimsMade'                 => isset($flat['coverages_claims_made'])         ? $this->glBool($flat['coverages_claims_made'])        : null,
+            'occur'                      => isset($flat['coverages_occur'])               ? $this->glBool($flat['coverages_occur'])              : null,
+            'other'                      => isset($flat['coverages_other'])               ? $this->glBool($flat['coverages_other'])              : null,
+            'otherText'                  => $flat['coverages_other_text']                 ?? null,
+            'policy'                     => isset($flat['coverages_policy'])              ? $this->glBool($flat['coverages_policy'])             : null,
+            'project'                    => isset($flat['coverages_project'])            ? $this->glBool($flat['coverages_project'])            : null,
+            'location'                   => isset($flat['coverages_location'])           ? $this->glBool($flat['coverages_location'])           : null,
+            'otherAggregate'             => isset($flat['coverages_other_aggregate'])    ? $this->glBool($flat['coverages_other_aggregate'])    : null,
+            'otherAggregateText'         => $flat['coverages_other_aggregate_text']       ?? null,
+        ], fn ($v) => $v !== null);
+
+        $limits = array_filter([
+            'eachOccurrence'            => isset($flat['limits_each_occurrence'])              ? $this->glNumber($flat['limits_each_occurrence'])              : null,
+            'damageToRentedPremises'    => isset($flat['limits_damage_to_rented_premises'])    ? $this->glNumber($flat['limits_damage_to_rented_premises'])    : null,
+            'personalAndAdvancedInjury' => isset($flat['limits_personal_and_advanced_injury']) ? $this->glNumber($flat['limits_personal_and_advanced_injury']) : null,
+            'generalAggregate'          => isset($flat['limits_general_aggregate'])            ? $this->glNumber($flat['limits_general_aggregate'])            : null,
+            'productsCompensation'      => isset($flat['limits_products_compensation'])        ? $this->glNumber($flat['limits_products_compensation'])        : null,
+            'medicalExpenses'           => isset($flat['limits_medical_expenses'])             ? $this->glNumber($flat['limits_medical_expenses'])             : null,
+            'other'                     => isset($flat['limits_other'])                        ? $this->glNumber($flat['limits_other'])                        : null,
+            'otherText'                 => $flat['limits_other_text']                          ?? null,
+        ], fn ($v) => $v !== null);
+
+        $coveragesAndLimits = [];
+        if (! empty($coverages)) {
+            $coveragesAndLimits['coverages'] = $coverages;
+        }
+        if (! empty($limits)) {
+            $coveragesAndLimits['limits'] = $limits;
+        }
+        if (! empty($coveragesAndLimits)) {
+            $generalLiability['coveragesAndLimits'] = $coveragesAndLimits;
+        }
+
+        if (! empty($generalLiability)) {
+            $payload['generalLiablity'] = $generalLiability;
+        }
+
+        // --- commercialPolicySupplement ---
+        $policyType = $flat['policy_type'] ?? $flat['supplement_policy_type'] ?? null;
+        $supplement = array_filter([
+            'auditFrequency' => $flat['supplement_audit_frequency'] ?? null,
+            'auditIndicator' => isset($flat['supplement_audit_indicator']) ? $this->glBool($flat['supplement_audit_indicator']) : null,
+            'typeOfBusiness' => $flat['supplement_type_of_business'] ?? null,
+            'policyType'     => ($policyType !== null && $policyType !== '') ? (int) $policyType : null,
+        ], fn ($v) => $v !== null && $v !== '');
+        if (! empty($supplement)) {
+            $payload['commercialPolicySupplement'] = $supplement;
+        }
+
+        // Nothing beyond a bare insured reference — treat as empty.
+        if (empty($payload['general']) && empty($payload['businessInfo'])
+            && empty($payload['generalLiablity']) && empty($payload['commercialPolicySupplement'])) {
+            return [];
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Coerce a Cognito value to a boolean for the GeneralLiability payload.
+     * Accepts "Yes"/"No", "true"/"false", "1"/"0" and native bools.
+     */
+    private function glBool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'y', 'on'], true);
+    }
+
+    /**
+     * Coerce a numeric value, stripping currency/thousands formatting.
+     */
+    private function glNumber(mixed $value): float|int|null
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $clean = is_string($value) ? preg_replace('/[^0-9.\-]/', '', $value) : $value;
+        if ($clean === '' || ! is_numeric($clean)) {
+            return null;
+        }
+        return ((float) $clean == (int) $clean) ? (int) $clean : (float) $clean;
+    }
+
+    /**
+     * Format a date value as ISO 8601 (e.g. 2018-01-15T00:00:00Z) for the GL payload.
+     */
+    private function glIsoDate(mixed $value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+        try {
+            return (new \DateTime((string) $value))->format('Y-m-d\TH:i:s\Z');
+        } catch (Throwable) {
+            return null;
         }
     }
 

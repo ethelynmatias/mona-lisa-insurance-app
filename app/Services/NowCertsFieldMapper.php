@@ -342,6 +342,16 @@ class NowCertsFieldMapper
     }
 
     /**
+     * Map the flat GeneralLiability entity fields from an entry.
+     * The flat result is later shaped into the nested GeneralLiabilities
+     * API payload by CognitoSyncService::buildGeneralLiabilityPayload().
+     */
+    public function mapGeneralLiability(array $entry): array
+    {
+        return $this->mapEntity(NowCertsEntity::GeneralLiability, $entry);
+    }
+
+    /**
      * Extract multiple general liability notices from field mappings.
      * Groups GeneralLiabilityNotice entity mappings by common prefixes (e.g., Claim1, Notice1) 
      * and creates separate notice records for each group.
