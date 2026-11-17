@@ -172,6 +172,34 @@ class SyncOccupantContactTest extends TestCase
         $response->assertOk()->assertJson(['ok' => true]);
     }
 
+    public function test_form_19_sync_note_includes_type_of_quote_from_raw_payload(): void
+    {
+        $insuredId = 'insured-uuid-1919';
+        $log = $this->makeLog(['form_id' => '19']);
+
+        $this->webhookLogs->shouldReceive('create')->once()->andReturn($log);
+        $this->webhookLogs->shouldReceive('saveDiscoveredFields')->once();
+        $this->webhookLogs->shouldReceive('update')->once()->withArgs(
+            fn (WebhookLog $l, array $data) => ($data['sync_status'] ?? null) === SyncStatus::Synced
+        );
+
+        $this->bindMocks(['_insuredDatabaseId' => $insuredId]);
+        $this->nowcerts->shouldReceive('insertNote')
+            ->once()
+            ->with(Mockery::on(function (array $data): bool {
+                return ($data['subject']['TypeOfQuote'] ?? null)
+                    === 'General Liability, Workers Compensation';
+            }))
+            ->andReturn([]);
+
+        $payload = $this->occupantPayload();
+        $payload['TypeOfQuote'] = ['General Liability', 'Workers Compensation'];
+
+        $response = $this->postJson('/webhook/cognito?form_id=19&event=entry.submitted', $payload);
+
+        $response->assertOk()->assertJson(['ok' => true]);
+    }
+
     // ---------------------------------------------------------------------------
     // Test: rerun WITH stored contactId — updates existing contact (no duplicate)
     // ---------------------------------------------------------------------------

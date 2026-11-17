@@ -213,7 +213,7 @@ class CognitoSyncService
                 $this->syncPolicyCoverages($entry, $mapper, $policyDatabaseId, $context);
             }
             if (! $isRerun && $insuredDatabaseId && ! empty($allSyncedData)) {
-                $this->insertSyncNote($insuredDatabaseId, $log, $formId, $allSyncedData, $context);
+                $this->insertSyncNote($insuredDatabaseId, $log, $formId, $allSyncedData, $context, $rawEntry);
             }
             if ($insuredDatabaseId && ! empty($fileUploads)) {
                 $uploadedIds = $this->webhookLogs->getUploadedFileIds($formId, $log->entry_id ?? '');
@@ -1745,6 +1745,7 @@ class CognitoSyncService
         string $formId,
         array $allSyncedData,
         array $context,
+        array $rawEntry = [],
     ): void {
         try {
 
@@ -1762,6 +1763,16 @@ class CognitoSyncService
                     if (is_scalar($value) && $value !== '' && $value !== null) {
                         $lines["[{$entity}] {$key}"] = $value;
                     }
+                }
+            }
+
+            if ($formId === '19' && ! empty($rawEntry['TypeOfQuote'])) {
+                $typeOfQuote = is_array($rawEntry['TypeOfQuote'])
+                    ? implode(', ', array_filter($rawEntry['TypeOfQuote'], fn ($value) => is_scalar($value) && $value !== ''))
+                    : $rawEntry['TypeOfQuote'];
+
+                if ($typeOfQuote !== '') {
+                    $lines['TypeOfQuote'] = $typeOfQuote;
                 }
             }
 
