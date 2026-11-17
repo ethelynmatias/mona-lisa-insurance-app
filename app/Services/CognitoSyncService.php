@@ -131,7 +131,7 @@ class CognitoSyncService
             $insuredDatabaseId = null;
             $allSyncedData     = [];
 
-            foreach ($this->primaryEntitySyncMap($mapper, $rawEntry) as $entity => $callbacks) {
+            foreach ($this->primaryEntitySyncMap($mapper, $rawEntry, $formId) as $entity => $callbacks) {
 
                 $data = $callbacks['map']($entry);
 
@@ -256,7 +256,7 @@ class CognitoSyncService
         }
     }
 
-    private function primaryEntitySyncMap(NowCertsFieldMapper $mapper, array $rawEntry = []): array
+    private function primaryEntitySyncMap(NowCertsFieldMapper $mapper, array $rawEntry = [], string $formId = ''): array
     {
         return [
             NowCertsEntity::Insured->value => [
@@ -273,7 +273,7 @@ class CognitoSyncService
                     }
                     return $data;
                 },
-                'push' => fn (array $d) => $this->nowcerts->syncInsured($d),
+                'push' => fn (array $d) => $this->nowcerts->syncInsured($d, $formId),
             ],
             NowCertsEntity::Policy->value => [
                 'map'  => fn (array $e) => $mapper->mapPolicy($e),

@@ -91,7 +91,7 @@ class NowCertsService
         return $this->request('GET', "api/InsuredDetailList({$databaseId})");
     }
 
-    public function syncInsured(array $data): array
+    public function syncInsured(array $data, ?string $formId = null): array
     {
         // If database_id was already injected (from stored IDs on entry.updated), trust it
         $databaseId = $this->validId($data['database_id'] ?? $data['DatabaseId'] ?? null);
@@ -119,7 +119,7 @@ class NowCertsService
             }
         }
 
-        $result = $this->upsertInsured($data);
+        $result = $this->upsertInsured($data, $formId);
 
         if (! $databaseId) {
             $databaseId = $this->validId(
@@ -151,11 +151,18 @@ class NowCertsService
         return (string) $id;
     }
 
-    private function upsertInsured(array $data): array
+    private function upsertInsured(array $data, ?string $formId = null): array
     {
         // Insured/Insert handles both insert and update (via databaseId).
         // Zapier/InsertProspect was insert-only and ignored database_id.
         // return $this->request('POST', 'Zapier/InsertProspect', $data);
+
+        // Form 19 submits prospects. NowCerts identifies the record category
+        // using the numeric Type field: 0 = Insured, 1 = Prospect.
+        if ($formId === '19') {
+            $data['type'] = 1;
+        }
+
         return $this->request('POST', 'Insured/Insert', $this->toInsuredPayload($data));
     }
 
